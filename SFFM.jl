@@ -2,6 +2,12 @@ module SFFM
   import Plots, LinearAlgebra, SymPy
   using Plots: Animation, frame, gif
 
+  struct MakeModel
+    T::Array
+    C::Array
+    r
+  end
+
   function CreateUniformMesh(;NNodes::Int=20, Interval::Array = [0 1])
   #CreateUniformMesh is a function that makes a uniformly spaced mesh over the an Interval
     K = NNodes-1; # the number of intervals
@@ -21,6 +27,34 @@ module SFFM
     Mesh[:,1] = Nodes[1:end-1]; # Left-hand end points of each interval
     Mesh[:,2] = Nodes[2:end]; # Right-hand end points of each interval
     return K, Δ, Mesh, Nodes
+  end
+
+  function MeshAttributes(;Model,Mesh,NBases,YS=["+","-","0"])
+    Width = Mesh[:,2]-Mesh[:,1]
+    Fil = Dict{String,Array{Bool}}()
+    for i in 1:length(Model.C), ℓ in YS
+      Fil[string(ℓ,i)] = falses(size(Mesh)[1])
+    end
+    Bases = Array{Any}(undef,size(Mesh)[1])
+    for row in 1:size(Mesh)[1]
+      if NBases[row] == 1
+        Bases[row] = x->[1]
+      else
+        Bases[row] = x-> [(x-Mesh[row,1])/Width[row] (Mesh[row,2]-x)/Width[row]]
+      end
+      evalpoints = Mesh[row,1]+Width[row]/4:Width[row]/4:Mesh[row,1]+3*Width[row]/4
+      for i in 1:length(Model.C)
+        testvals = Model.r[i].(evalpoints)
+        if all(testvals.>0)
+          Fil[string("+",i)][row] = true
+        elseif all(testvals.<0)
+          Fil[string("-",i)][row] = true
+        elseif all(testvals.==0)
+          Fil[string("0",i)][row] = true
+        end
+      end
+    end
+    return (Mesh=Mesh, Bases=Bases, NBases=NBases, Fil=Fil, Width=Width)
   end
 
   function CreateBlockDiagonalMatrix(;NBases::Array{Int},MeshWidth::Array=[1],Blocks::Dict)
