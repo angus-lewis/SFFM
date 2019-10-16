@@ -29,7 +29,7 @@ module SFFM
     return (NIntervals=K, Δ=Δ, MeshArray=Mesh, Nodes=Nodes)
   end
 
-  function MakeMesh(;Model,Nodes,NBases::Array{Int})
+  function MakeMesh(;Model,Nodes,NBases::Array{Int},Signs=["+","-","0"])
     NIntervals = length(Nodes)-1; # the number of intervals
     Δ = (Nodes[2:end]-Nodes[1:end-1]); # interval width, same for all
     MeshArray = zeros(NIntervals,2);
@@ -68,21 +68,21 @@ module SFFM
     end
     Fl = Dict{String,Array}()
     for ℓ in Signs
-      Fl[ℓ] = falses(Mesh.TotalNBases*Model.NPhases)
+      Fl[ℓ] = falses(TotalNBases*Model.NPhases)
       for i in 1:Model.NPhases
-        Fl[ℓ] = falses(Mesh.TotalNBases*Model.NPhases)
+        Fl[ℓ] = falses(TotalNBases*Model.NPhases)
       end
     end
     return (Bases=Bases, NBases=NBases, Fil=Fil, Δ=Δ, NIntervals=NIntervals,
             MeshArray=MeshArray, Nodes=Nodes, TotalNBases=TotalNBases)
   end
 
-  function CreateBlockDiagonalMatrix(;Mesh,Blocks::Dict)
+  function CreateBlockDiagonalMatrix(;Mesh,Blocks::Dict,Factors)
   #CreateBlockDiagonalMatrix makes a matrix from diagonal block elements, given NBases
     BlockMatrix = zeros(Mesh.TotalNBases,Mesh.TotalNBases); # initialise an empty array to fill with blocks
     for i in 1:Mesh.NIntervals
       idx = sum(Mesh.NBases[1:i-1])+1:sum(Mesh.NBases[1:i]);
-      BlockMatrix[idx,idx] = Blocks[string(Mesh.NBases[i])]*Mesh.Δ[i];
+      BlockMatrix[idx,idx] = Blocks[string(Mesh.NBases[i])]*Factors[i];
     end
     return (BlockMatrix=BlockMatrix)
   end
@@ -174,9 +174,9 @@ module SFFM
     Gblock = Dict{String,Array}("1"=>[0], "2"=>[-1/2 1/2 ; -1/2 1/2]);
     Mblock = Dict{String,Array}("1"=>[1], "2"=>[1/3 1/6; 1/6 1/3]);
     MInvblock = Dict{String,Array}("1"=>[1], "2"=>[1/3 1/6; 1/6 1/3]\LinearAlgebra.I(2));
-    G = SFFM.CreateBlockDiagonalMatrix(Mesh=Mesh,Blocks=Gblock)
-    M = SFFM.CreateBlockDiagonalMatrix(Mesh=Mesh,Blocks=Mblock)
-    MInv = SFFM.CreateBlockDiagonalMatrix(Mesh=Mesh,Blocks=MInvblock)
+    G = SFFM.CreateBlockDiagonalMatrix(Mesh=Mesh,Blocks=Gblock,Factors=ones(Mesh.NIntervals))
+    M = SFFM.CreateBlockDiagonalMatrix(Mesh=Mesh,Blocks=Mblock,Factors=Mesh.Δ)
+    MInv = SFFM.CreateBlockDiagonalMatrix(Mesh=Mesh,Blocks=MInvblock,Factors=1 ./Mesh.Δ)
     F = SFFM.CreateFluxMatrix(Mesh=Mesh,Model=Model)
     return (G=G,M=M,MInv=MInv,F=F)
   end
