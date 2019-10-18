@@ -5,6 +5,7 @@ module SFFM
   function MakeModel(;T::Array,C::Array,r,Signs::Array{String}=["+","-","0"],IsBounded::Bool=true)
     NPhases = length(C)
     NSigns = length(Signs)
+    println("Model.Field with Fields (.T, .C, .r, .Signs, .IsBounded, .NPhases, .NSigns)")
     return (T=T,C=C,r=r,Signs=Signs,IsBounded=IsBounded,NPhases=NPhases,NSigns=NSigns)
   end
 
@@ -19,18 +20,19 @@ module SFFM
   #   return (K=K, Δ=Δ, MeshArray=Mesh, Nodes=Nodes)
   # end
 
-  function NonUniformMesh(;Nodes)
-  #CreateUniformMesh is a function that makes a uniformly spaced mesh over the an Interval
-    K = length(Nodes)-1; # the number of intervals
-    Δ = (Nodes[2:end]-Nodes[1:end-1]); # interval width, same for all
-    Mesh = zeros(K,2);
-    Mesh[:,1] = Nodes[1:end-1]; # Left-hand end points of each interval
-    Mesh[:,2] = Nodes[2:end]; # Right-hand end points of each interval
-    return (NIntervals=K, Δ=Δ, MeshArray=Mesh, Nodes=Nodes)
-  end
+  # function NonUniformMesh(;Nodes)
+  # #CreateUniformMesh is a function that makes a uniformly spaced mesh over the an Interval
+  #   K = length(Nodes)-1; # the number of intervals
+  #   Δ = (Nodes[2:end]-Nodes[1:end-1]); # interval width, same for all
+  #   Mesh = zeros(K,2);
+  #   Mesh[:,1] = Nodes[1:end-1]; # Left-hand end points of each interval
+  #   Mesh[:,2] = Nodes[2:end]; # Right-hand end points of each interval
+  #   return (NIntervals=K, Δ=Δ, MeshArray=Mesh, Nodes=Nodes)
+  # end
 
   function MakeMesh(;Model,Nodes,NBases::Array{Int},Signs=["+","-","0"])
     NIntervals = length(Nodes)-1; # the number of intervals
+    display(Nodes[1:end])
     Δ = (Nodes[2:end]-Nodes[1:end-1]); # interval width, same for all
     MeshArray = zeros(NIntervals,2);
     MeshArray[:,1] = Nodes[1:end-1]; # Left-hand end points of each interval
@@ -46,7 +48,7 @@ module SFFM
       if NBases[row] == 1
         Bases[row] = x -> [1]
       else
-        Bases[row] = x -> [(x-MeshArray[row,1])/MeshArray.Δ[row] (MeshArray[row,2]-x)/Δ[row]]
+        Bases[row] = x -> [(x-MeshArray[row,1])/Δ[row] (MeshArray[row,2]-x)/Δ[row]]
       end
       NEvals = 10
       evalpoints = range(MeshArray[row,1]+1*Δ[row]/NEvals,MeshArray[row,2]-(NEvals-1)*Δ[row]/NEvals,length=NEvals)
@@ -66,13 +68,14 @@ module SFFM
         end
       end
     end
-    Fl = Dict{String,Array}()
-    for ℓ in Signs
-      Fl[ℓ] = falses(TotalNBases*Model.NPhases)
+    for ℓ in Model.Signs
+      Fil[string(ℓ)] = falses(TotalNBases*Model.NPhases)
       for i in 1:Model.NPhases
-        Fl[ℓ] = falses(TotalNBases*Model.NPhases)
+        i_idx = [falses((i-1)*TotalNBases);Fil[string(ℓ,i)];falses(Model.NPhases*TotalNBases-i*TotalNBases)] #
+        Fil[string(ℓ)][i_idx] .= true
       end
     end
+    println("Mesh.Field with Fields (.Bases, .NBases, .Fil, .Δ, .NIntervals, .MeshArray, .Nodes .TotalNBases)")
     return (Bases=Bases, NBases=NBases, Fil=Fil, Δ=Δ, NIntervals=NIntervals,
             MeshArray=MeshArray, Nodes=Nodes, TotalNBases=TotalNBases)
   end
@@ -178,26 +181,42 @@ module SFFM
     M = SFFM.CreateBlockDiagonalMatrix(Mesh=Mesh,Blocks=Mblock,Factors=Mesh.Δ)
     MInv = SFFM.CreateBlockDiagonalMatrix(Mesh=Mesh,Blocks=MInvblock,Factors=1 ./Mesh.Δ)
     F = SFFM.CreateFluxMatrix(Mesh=Mesh,Model=Model)
-    return (G=G,M=M,MInv=MInv,F=F)
-  end
-
-  function QApprox(;Model,Mesh,Matrices)
     Q = zeros(Float64,Mesh.TotalNBases,Mesh.TotalNBases,length(Model.C))
     for i in 1:Model.NPhases
-      Q[:,:,i] = Model.C[i]*(Matrices.G+Matrices.F[:,:,i])*Matrices.MInv;
+      Q[:,:,i] = Model.C[i]*(G+F[:,:,i])*MInv;
     end
-    return (Q=Q)
+    println("Matrices.Fields with Fields (.G, .M, .MInv, F, .Q)")
+    return (G=G,M=M,MInv=MInv,F=F,Q=Q)
   end
 
-  function BApprox(;Model,Mesh,Q)
+  function ApproximateB(;Model,Mesh,Matrices)
+    # Make the approximation B
     B = zeros(Float64,Model.NPhases*Mesh.TotalNBases,Model.NPhases*Mesh.TotalNBases)
-    Id = Matrix{Float64}(LinearAlgebra.I,Mesh.TotalNBases,Mesh.TotalNBases);
+    Id = LinearAlgebra.I(Mesh.TotalNBases);
     for i in 1:Model.NPhases
       idx = (i-1)*Mesh.TotalNBases+1:i*Mesh.TotalNBases;
-      B[idx,idx] = Q[:,:,i];
+      B[idx,idx] = Matrices.Q[:,:,i];
     end
-    B = B+kron(Model.T,Id);
-    return (B=B)
+    B = B+LinearAlgebra.kron(Model.T,Id);
+    # Make a Dictionary so that the blocks of B are easy to access
+    BDict = Dict{String,Array}()
+    for ℓ in Model.Signs, m in Model.Signs
+      for i in 1:Model.NPhases, j in 1:Model.NPhases
+        i_idx = [falses((i-1)*Mesh.TotalNBases);Mesh.Fil[string(ℓ,i)];falses(Model.NPhases*Mesh.TotalNBases-i*Mesh.TotalNBases)] #
+        j_idx = [falses((j-1)*Mesh.TotalNBases);Mesh.Fil[string(m,j)];falses(Model.NPhases*Mesh.TotalNBases-j*Mesh.TotalNBases)] #
+        BDict[string(ℓ,m,i,j)] = B[i_idx,j_idx]
+      end
+      BDict[string(ℓ,m)] = B[Mesh.Fil[ℓ],Mesh.Fil[m]]
+    end
+    CumBases = [0;cumsum(Mesh.NBases)]
+    c = 0
+    QBDidx = zeros(Int,Model.NPhases*Mesh.TotalNBases)
+    for k in 1:Mesh.NIntervals, i in 1:Model.NPhases, n in 1:Mesh.NBases[k]
+      c += 1
+      QBDidx[c] = (i-1)*Mesh.TotalNBases+CumBases[k]+n
+    end
+    println("B.Fields with Fields (.BDict, .B, .QBDidx)")
+    return (BDict=BDict, B=B, QBDidx=QBDidx)
   end
 
   function SFFMGIF(;a0,Nodes,B,Times,C,PointMass=true,YMAX=1, labels=[])
@@ -209,23 +228,23 @@ module SFFM
     return (gitplt=gifplt)
   end
 
-  function MakeBDict(;Model,Mesh,B)
-    BDict = Dict{String,Array}()
-    for ℓ in Model.Signs, m in Model.Signs
-      # Now make the big B operator
-      Fl = falses(Mesh.TotalNBases*Model.NPhases)
-      Fm = falses(Mesh.TotalNBases*Model.NPhases)
-      for i in 1:Model.NPhases, j in 1:Model.NPhases
-        i_idx = [falses((i-1)*Mesh.TotalNBases);Mesh.Fil[string(ℓ,i)];falses(Model.NPhases*Mesh.TotalNBases-i*Mesh.TotalNBases)] #
-        j_idx = [falses((j-1)*Mesh.TotalNBases);Mesh.Fil[string(m,j)];falses(Model.NPhases*Mesh.TotalNBases-j*Mesh.TotalNBases)] #
-        Fl[i_idx] .= true
-        Fm[j_idx] .= true
-        BDict[string(ℓ,m,i,j)] = B[i_idx,j_idx]
-      end
-      BDict[string(ℓ,m)] = B[Fl,Fm]
-    end
-    return (BDict=BDict)
-  end
+  # function MakeBDict(;Model,Mesh,B)
+  #   BDict = Dict{String,Array}()
+  #   for ℓ in Model.Signs, m in Model.Signs
+  #     # Now make the big B operator
+  #     Fl = falses(Mesh.TotalNBases*Model.NPhases)
+  #     Fm = falses(Mesh.TotalNBases*Model.NPhases)
+  #     for i in 1:Model.NPhases, j in 1:Model.NPhases
+  #       i_idx = [falses((i-1)*Mesh.TotalNBases);Mesh.Fil[string(ℓ,i)];falses(Model.NPhases*Mesh.TotalNBases-i*Mesh.TotalNBases)] #
+  #       j_idx = [falses((j-1)*Mesh.TotalNBases);Mesh.Fil[string(m,j)];falses(Model.NPhases*Mesh.TotalNBases-j*Mesh.TotalNBases)] #
+  #       Fl[i_idx] .= true
+  #       Fm[j_idx] .= true
+  #       BDict[string(ℓ,m,i,j)] = B[i_idx,j_idx]
+  #     end
+  #     BDict[string(ℓ,m)] = B[Fl,Fm]
+  #   end
+  #   return (BDict=BDict)
+  # end
 
   # function Assemble(;BDict,Model)
   #   BlockSize = size(BDict[string(Model.Signs[1],Model.Signs[1],1,1)])
@@ -239,68 +258,54 @@ module SFFM
   #   return (B=B)
   # end
 
-  function MakeB(;Model,Mesh)
-    Matrices = SFFM.MakeMatrices(Model=Model,Mesh=Mesh)
-    Q = QApprox(Model=Model,Mesh=Mesh,Matrices=Matrices)
-    B = BApprox(Model=Model,Mesh=Mesh,Q=Q)
-    BDict = MakeBDict(Model=Model,Mesh=Mesh,B=B)
-    return (B=B, BDict=BDict, Q=Q)
-  end
+  # function MakeB(;Model,Mesh)
+  #   Matrices = SFFM.MakeMatrices(Model=Model,Mesh=Mesh)
+  #   Q = QApprox(Model=Model,Mesh=Mesh,Matrices=Matrices)
+  #   B = BApprox(Model=Model,Mesh=Mesh,Q=Q)
+  #   BDict = MakeBDict(Model=Model,Mesh=Mesh,B=B)
+  #   return (B=B, BDict=BDict, Q=Q)
+  # end
 
-  function Approximater(r,Bases,support)
+  function ApproximateR(;Model,Mesh)
     x = SymPy.Sym("x")
-    RApprox = Array{Any}(undef,length(Bases))
-    for i in 1:length(Bases)
-      integrand(x) = r(x)*Bases[i](x)
-      RApprox[i] = SymPy.integrate(integrand(x),(x,support[1],support[2]))
-    end
-    return (RApprox=RApprox)
-  end
-
-  function MakeR(;rArray,NBases,Nodes,Fil,Signs=["+","-","0"])
-    K, Δ, Mesh, Node = CreateNonUniformMesh(Nodes=Nodes)
-    TotalNBases = sum(NBases)
-    RDict = Dict{String,Array{Float64,1}}()
-    x = SymPy.Sym("x")
+    CumBases = [0;cumsum(Mesh.NBases)]
+    RDict = Dict{String,Array}()
     for i in 1:Model.NPhases
-      temp = Array{Float64,1}(undef,Mesh.TotalNBases);
-      for k in 1:length(NBases)
-        if NBases[k] == 1
-          Bases = [x-x+1];
-        elseif NBases[k] == 2
-          Bases = [(x-Mesh[k,1])/(Mesh[k,2]-Mesh[k,1]) (Mesh[k,2]-x)/(Mesh[k,2]-Mesh[k,1])];
-        end # end if NBases ...
-        support = Mesh[k,:]
-        temp[sum(NBases[1:k-1])+1:sum(NBases[1:k])] = abs.(Approximater(rArray[i],Bases,support));
-      end # end for k in ...
-      temp[temp.>0] .= 1.0 ./ temp[temp.>0]
-      for m in Signs
-        RDict[string(m,i)] = LinearAlgebra.diagm(Fil[string(m,i)])*temp
-      end
-    end# for i in ...
-    TheDiagonal = zeros(Mesh.TotalNBases*length(Signs)*length(rArray))
-    c = 0
-    for m in Signs
-      RDict[string(m)] = zeros(Float64,length(rArray)*Mesh.TotalNBases)
-      for i in 1:length(rArray)
-        c += 1
-        TheDiagonal[(c-1)*Mesh.TotalNBases+1:c*Mesh.TotalNBases] = RDict[string(m,i)]
-        RDict[string(m)][(i-1)*Mesh.TotalNBases+1:i*Mesh.TotalNBases] = RDict[string(m,i)]
+      RDict[string(i)] = zeros(Mesh.TotalNBases)
+    end
+    for i in 1:Model.NPhases, k in 1:Mesh.NIntervals, n in 1:Mesh.NBases[k]
+      integrand(x) = Model.r(x)[i]*Mesh.Bases[k](x)[n]
+      RDict[string(i)][CumBases[k]+n] = (1)./abs(SymPy.integrate(integrand(x),(x,Mesh.MeshArray[k,1],Mesh.MeshArray[k,2])))
+    end
+    R=zeros(Float64,Model.NPhases*Mesh.TotalNBases)
+    for i in 1:Model.NPhases
+      Ri = RDict[string(i)]
+      R[(i-1)*Mesh.TotalNBases+1:i*Mesh.TotalNBases] = Ri
+      for ℓ in Model.Signs
+        RDict[string(ℓ,i)] = Ri[Mesh.Fil[string(ℓ,i)]]
       end
     end
-    R = LinearAlgebra.diagm(TheDiagonal)
-    return (R=R, RDict=RDict)
+    for ℓ in Model.Signs
+      RDict[ℓ] = R[Mesh.Fil[ℓ]]
+    end
+    println("R.Fields with Fields (.RDict, .R)")
+    return (RDict=RDict, R=R)
   end
 
-  function MakeD(;RDict,BDict,Signs=["+","-"])
+  function ApproximateD(;RDict,BDict,Model,Mesh)
     DDict = Dict{String,Any}()
-    for ℓ in Signs, m in Signs
-      idx = string(ℓ,m)
-      Id = LinearAlgebra.I(size(RDict[ℓ])[1])
-      DDict[idx] = function(;s)
-                    LinearAlgebra.diagm(RDict[ℓ])*(BDict[idx]-s*Id +
-                    BDict[string(ℓ,0)]*inv(s*Id-BDict["00"])*BDict[string(0,m)])
-                  end
+    for ℓ in Model.Signs, m in Model.Signs
+      Id = LinearAlgebra.I(sum(Mesh.Fil[ℓ]))
+      if in("0",Model.Signs)
+        DDict[ℓ*m] = function(;s)
+                        RDict[ℓ].*(BDict[ℓ*m]-s*Id +
+                        BDict[string(ℓ,0)]*inv(s*Id-BDict["00"])*BDict[string(0,m)])
+                      end
+      else
+        DDict[ℓ*m] = function(;s)
+                        RDict[ℓ].*(BDict[ℓ*m]-s*Id)
+                      end
+      end
     end
     return (DDict=DDict)
   end
