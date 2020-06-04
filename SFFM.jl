@@ -19,6 +19,8 @@ module SFFM
     # C - n×1 Array{Float64}, rates of the first fluid
     # Signs - n×1 Array{String}, the m∈{"+","-","0"} where Fᵢᵐ≂̸∅
     # IsBounded - Bool, whether the first fluid is bounded or not
+    # r - array of rates for the second fluid,
+    #     functions r(x) = [r₁(x) r₂(x) ... r_n(x)], where x is a column vector
     #
     # output is a NamedTuple with fields
     #                         .T, .C, .r, .Signs, .IsBounded, .NPhases, .NSigns
@@ -59,10 +61,14 @@ module SFFM
     NIntervals = length(Nodes)-1; # the number of intervals
     Δ = (Nodes[2:end]-Nodes[1:end-1]); # interval width
     CellNodes = zeros(Float64,NBases,NIntervals)
-    z = Jacobi.zglj(NBases,0,0) # the LGL nodes
+    if NBases>1
+      z = Jacobi.zglj(NBases,0,0) # the LGL nodes
+    elseif NBases==1
+      z = 0.0
+    end
     for i in 1:NIntervals
       # Map the LGL nodes on [-1,1] to each cell
-      CellNodes[:,i] = (Nodes[i+1]+Nodes[i])/2 .+ (Nodes[i+1]-Nodes[i])/2*z
+      CellNodes[:,i] .= (Nodes[i+1]+Nodes[i])/2 .+ (Nodes[i+1]-Nodes[i])/2*z
     end
     MeshArray = zeros(NIntervals,2);
     MeshArray[:,1] = Nodes[1:end-1]; # Left-hand end points of each interval
@@ -94,13 +100,22 @@ module SFFM
     #          V.inv, its inverse
     #          V.D, the derivative of the bases
 
-    z = Jacobi.zglj(NBases,0,0) # get the G-L points
+    if NBases>1
+      z = Jacobi.zglj(NBases,0,0) # the LGL nodes
+    elseif NBases==1
+      z = 0.0
+    end
     V = zeros(Float64,NBases,NBases)
     DV = zeros(Float64,NBases,NBases)
-    for j in 1:NBases
-        # compute the polynomials at gauss-labotto quadrature points
-        V[:,j] = Jacobi.legendre.(z,j-1).*sqrt((2*(j-1)+1)/2)
-        DV[:,j] = Jacobi.dlegendre.(z,j-1).*sqrt((2*(j-1)+1)/2)
+    if NBases>1
+      for j in 1:NBases
+          # compute the polynomials at gauss-labotto quadrature points
+          V[:,j] = Jacobi.legendre.(z,j-1).*sqrt((2*(j-1)+1)/2)
+          DV[:,j] = Jacobi.dlegendre.(z,j-1).*sqrt((2*(j-1)+1)/2)
+      end
+    elseif NBases==1
+      V .= 1
+      DV .= 0
     end
     return (V=V, inv=inv(V), D = DV)
   end
@@ -161,7 +176,7 @@ module SFFM
     return (Plt=Plt)
   end # end PlotVt
 
-  function MakeFluxMatrix(; Mesh, Model)
+  function MakeFluxMatrix(; Mesh, Model, Phi)
     # MakeFluxMatrix creates the global block tridiagonal flux matrix for the
     # lagrange basis
     # inputs:
@@ -171,14 +186,14 @@ module SFFM
     # F - TotalNBases×TotalNBases×NPhases Array{Float64,3}, global flux matrix
 
     ## Create the blocks
-    PosDiagBlock = zeros(Float64,Mesh.NBases,Mesh.NBases)
-    PosDiagBlock[end,end] = -1
-    NegDiagBlock = zeros(Float64,Mesh.NBases,Mesh.NBases)
-    NegDiagBlock[1,1] = 1
-    UpDiagBlock = zeros(Float64,Mesh.NBases,Mesh.NBases)
-    UpDiagBlock[end,1] = 1
-    LowDiagBlock = zeros(Float64,Mesh.NBases,Mesh.NBases)
-    LowDiagBlock[1,end] = -1
+    PosDiagBlock = -Phi[end,:]*Phi[end,:]'#zeros(Float64,Mesh.NBases,Mesh.NBases)
+    #PosDiagBlock[end,end] = -1
+    NegDiagBlock = Phi[1,:]*Phi[1,:]'#zeros(Float64,Mesh.NBases,Mesh.NBases)
+    #NegDiagBlock[1,1] = 1
+    UpDiagBlock = Phi[end,:]*Phi[1,:]'#zeros(Float64,Mesh.NBases,Mesh.NBases)
+    #UpDiagBlock[end,1] = 1
+    LowDiagBlock = -Phi[1,:]*Phi[end,:]'#zeros(Float64,Mesh.NBases,Mesh.NBases)
+    #LowDiagBlock[1,end] = -1
 
     ## Construct global block diagonal matrix
     F = zeros(Float64,Mesh.TotalNBases,Mesh.TotalNBases,Model.NPhases)
@@ -219,12 +234,14 @@ module SFFM
     return (F=F)
   end
 
-  function MakeMatrices(;Model,Mesh)
-    # MakeMatrices creates the local and global mass, stiffness and flux
+  function MakeMatrices(;Model,Mesh,Basis::String="legendre")
+    # Creates the local and global mass, stiffness and flux
     # matrices.
     # inputs:
     # Model - A model tuple from MakeModel
     # Mesh - A mesh tuple from MakeMesh
+    # Basis - A string specifying whether to use the lagrange or legendre basis
+    #         representations
     # outputs: A tuple of tuples with fields Local and Global
     # Global - A tuple with fields
     #   .G - TotalNBases×TotalNBases Array{Float64}, global stiffness matrix
@@ -237,12 +254,21 @@ module SFFM
     #   .G - NBases×NBases Array{Float64}, local stiffness matrix
     #   .M - NBases×NBases Array{Float64}, local mass matrix
     #   .MInv - the inverse of Local.M
+    #   .V - tuple used to make M, G, Minv, as output from SFFM.vandermonde
 
     ## Construct blocks
     V = vandermonde(NBases=Mesh.NBases)
-    Glocal = V.D*V.inv;
-    Mlocal = V.inv'*V.inv;
-    MInvlocal = V.V*V.V';
+    if Basis=="lagrange"
+      Mlocal = V.inv'*V.inv
+      Glocal = Mlocal*(V.D*V.inv)
+      MInvlocal = V.V*V.V'
+      Phi = (V.inv*V.V)[[1;end],:]
+    elseif Basis=="legendre"
+      Mlocal = Matrix{Float64}(LinearAlgebra.I(Mesh.NBases))
+      Glocal = V.inv*V.D
+      MInvlocal = Matrix{Float64}(LinearAlgebra.I(Mesh.NBases))
+      Phi = V.V[[1;end],:]
+    end
 
     ## Assemble into block diagonal matrices
     G = SFFM.MakeBlockDiagonalMatrix(Mesh=Mesh,Blocks=Glocal,
@@ -250,7 +276,8 @@ module SFFM
     M = SFFM.MakeBlockDiagonalMatrix(Mesh=Mesh,Blocks=Mlocal,Factors=Mesh.Δ*0.5)
     MInv = SFFM.MakeBlockDiagonalMatrix(Mesh=Mesh,Blocks=MInvlocal,
                                             Factors=2.0./Mesh.Δ)
-    F = SFFM.MakeFluxMatrix(Mesh=Mesh,Model=Model)
+
+    F = SFFM.MakeFluxMatrix(Mesh=Mesh,Model=Model,Phi=Phi)
 
     ## Assemble the DG drift operator
     Q = zeros(Float64,Mesh.TotalNBases,Mesh.TotalNBases,length(Model.C))
@@ -258,10 +285,10 @@ module SFFM
       Q[:,:,i] = Model.C[i]*(G+F[:,:,i])*MInv;
     end
 
+    Local = (G=Glocal,M=Mlocal,MInv=MInvlocal, V=V)
     Global = (G=G,M=M,MInv=MInv,F=F,Q=Q)
-    Local = (G=Glocal,M=Mlocal,MInv=MInvlocal)
     println("Matrices.Fields with Fields (.Local, .Global)")
-    println("Matrices.Local.Fields with Fields (.G, .M, .MInv)")
+    println("Matrices.Local.Fields with Fields (.G, .M, .MInv, .V)")
     println("Matrices.Global.Fields with Fields (.G, .M, .MInv, F, .Q)")
     return (Local=Local, Global=Global)
   end
@@ -292,6 +319,7 @@ module SFFM
       idx = (i-1)*Mesh.TotalNBases+1:i*Mesh.TotalNBases;
       B[idx,idx] = Matrices.Global.Q[:,:,i];
     end
+
     B = B+LinearAlgebra.kron(Model.T,Id);
 
     ## Make a Dictionary so that the blocks of B are easy to access
@@ -332,96 +360,102 @@ module SFFM
     return (gitplt=gifplt)
   end
 
-  function ApproximateR(;Model,Mesh)
-    x = SymPy.Sym("x")
-    CumBases = [0;cumsum(Mesh.NBases)]
-    RDict = Dict{String,Array}()
+  function MakeR(;Model,Mesh)
+    # interpolant approximation to r(x)
+    EvalPoints = Mesh.CellNodes
+    EvalPoints[1,:] .+= sqrt(eps()) # LH edges + eps
+    EvalPoints[end,:] .+= -sqrt(eps()) # RH edges - eps
+    EvalR = abs.(Model.r(EvalPoints[:]))
+    RDict = Dict{String,Array{Float64,1}}()
     for i in 1:Model.NPhases
-      RDict[string(i)] = zeros(Mesh.TotalNBases)
+      RDict[string(i)] = 1.0./EvalR[:,i]
     end
-    for i in 1:Model.NPhases, k in 1:Mesh.NIntervals, n in 1:Mesh.NBases[k]
-      integrand(x) = Model.r(x)[i]*Mesh.Bases[k](x)[n]
-      integral = abs(SymPy.integrate(integrand(x),(x,Mesh.MeshArray[k,1],Mesh.MeshArray[k,2])))
-      if integral != 0
-        RDict[string(i)][CumBases[k]+n] = (1)./integral
-      end
-    end
-    R=zeros(Float64,Model.NPhases*Mesh.TotalNBases)
+
+    R = zeros(Float64,Model.NPhases*Mesh.TotalNBases)
     for i in 1:Model.NPhases
       Ri = RDict[string(i)]
       R[(i-1)*Mesh.TotalNBases+1:i*Mesh.TotalNBases] = Ri
       for ℓ in Model.Signs
-        RDict[string(i,ℓ)] = Ri[Mesh.Fil[string(i,ℓ)]]
+        FilBases = repeat(Mesh.Fil[string(i,ℓ)]',Mesh.NBases,1)[:]
+        RDict[string(i,ℓ)] = Ri[FilBases]
       end
     end
     for ℓ in Model.Signs
-      RDict[ℓ] = R[Mesh.Fil[ℓ]]
+      FlBases = repeat(Mesh.Fil[string(ℓ)]',Mesh.NBases,1)[:]
+      RDict[ℓ] = R[FlBases]
     end
     println("R.Fields with Fields (.RDict, .R)")
     return (RDict=RDict, R=R)
   end
 
-  function ApproximateD(;RDict,BDict,Model,Mesh)
+  function  MakeD(;R,B,Model,Mesh)
+    RDict = R.RDict
+    BDict = B.BDict
     DDict = Dict{String,Any}()
     for ℓ in ["+","-"], m in ["+","-"]
-      Id = LinearAlgebra.I(sum(Mesh.Fil[ℓ]))
+      Id = LinearAlgebra.I(sum(Mesh.Fil[ℓ])*Mesh.NBases)
       if in("0",Model.Signs)
-        if ℓ==m
-          DDict[ℓ*m] = function(;s)
-                          RDict[ℓ].*(BDict[ℓ*m]-s*Id +
-                          BDict[string(0,ℓ)]*inv(s*Id-BDict["00"])*BDict[string(0,m)])
-                        end
-        else
-          DDict[ℓ*m] = function(;s)
-                          RDict[ℓ].*(BDict[ℓ*m] +
-                          BDict[string(0,ℓ)]*inv(s*Id-BDict["00"])*BDict[string(0,m)])
-                        end
-        end
+        DDict[ℓ*m] = function(;s=0)#::Array{Float64}
+                     return if (ℓ==m)
+                              RDict[ℓ].*(BDict[ℓ*m]-s*Id.*(ℓ==m) +
+                                BDict["0"*ℓ]*inv(s*Id-BDict["00"])*BDict["0"*m])
+                            else
+                              RDict[ℓ].*(BDict[ℓ*m] +
+                                BDict["0"*ℓ]*inv(s*Id-BDict["00"])*BDict["0"*m])
+                            end
+                     end # end function
       else
-        if ℓ==m
-          DDict[ℓ*m] = function(;s)
-                          RDict[ℓ].*(BDict[ℓ*m]-s*Id)
-                        end
-        else
-          DDict[ℓ*m] = function(;s)
-                          RDict[ℓ].*(BDict[ℓ*m])
-                        end
-        end
-      end
-    end
+        DDict[ℓ*m] = function(;s=0)#::Array{Float64}
+                     return if (ℓ==m)
+                              RDict[ℓ].*(BDict[ℓ*m]-s*Id*(ℓ==m))
+                            else
+                              RDict[ℓ].*BDict[ℓ*m]
+                            end
+                   end # end function
+      end # end if ...
+    end # end for ℓ ...
     return (DDict=DDict)
   end
 
-  function PsiFun(;s=0,DDict,MaxIters=1000,err=1e-8)
+  function PsiFun(;s=0,D,MaxIters=1000,err=1e-8)
+    #
     exitflag = ""
-    EvalD1 = DDict["+-"](s=s)
-    Dimensions = size(EvalD1)
-    EvalDDict = Dict{String,Array{Float64}}("+-" => EvalD1)
+
+    EvalD = Dict{String,Array{Float64}}("+-" => D["+-"](s=s))
+    Dimensions = size(EvalD["+-"])
     for ℓ in ["++","--","-+"]
-      EvalDDict[ℓ] = DDict[ℓ](s=s)
+      EvalD[ℓ] = D[ℓ](s=s)
     end
     Psi = zeros(Float64,Dimensions)
-    A = EvalDDict["++"]
-    B = EvalDDict["--"]
-    C = EvalDDict["+-"]
+    A = EvalD["++"]
+    B = EvalD["--"]
+    C = EvalD["+-"]
     OldPsi = Psi
     flag = 1
     for n = 1:MaxIters
       Psi = LinearAlgebra.sylvester(A,B,C)
       if maximum(abs.(OldPsi - Psi)) < err
         flag = 0
-        exitflag = string("Reached err tolerance in ",n," iterations with error ",string(maximum(abs.(OldPsi - Psi))))
+        exitflag = string("Reached err tolerance in ",n,
+                    " iterations with error ",
+                    string(maximum(abs.(OldPsi - Psi))))
+        break
+      elseif any(isnan.(Psi))
+        flag = 0
+        exitflag = string("Produced NaNs at iteration ",n)
         break
       end
       OldPsi=Psi
-      #A = EvalDDict["++"] + Psi*EvalDDict["-+"]
-      #B = EvalDDict["--"] + EvalDDict["-+"]*Psi
-      C = EvalDDict["+-"] + Psi*EvalDDict["-+"]*Psi
+      A = EvalD["++"] + Psi*EvalD["-+"]
+      B = EvalD["--"] + EvalD["-+"]*Psi
+      C = EvalD["+-"] - Psi*EvalD["-+"]*Psi
     end
     if flag == 1
-      exitflag = string("Reached Max Iters ", MaxIters, " with error ", string(maximum(abs.(OldPsi - Psi))))
+      exitflag = string("Reached Max Iters ", MaxIters, " with error ",
+                  string(maximum(abs.(OldPsi - Psi))))
     end
-    return (Psi=Psi,exitflag=exitflag)
+    display(exitflag)
+    return Psi
   end
 
 end # end module
