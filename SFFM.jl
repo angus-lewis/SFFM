@@ -342,16 +342,16 @@ function MakeMatrices(;Model,Mesh,Basis::String="legendre")
 
   ## Construct blocks
   V = vandermonde(NBases=Mesh.NBases)
-  if Basis=="lagrange"
-    MLocal = V.inv'*V.inv
-    GLocal = MLocal*(V.D*V.inv)
-    MInvLocal = V.V*V.V'
-    Phi = (V.inv*V.V)[[1;end],:]
-  elseif Basis=="legendre"
+  if Basis=="legendre"
     MLocal = Matrix{Float64}(LinearAlgebra.I(Mesh.NBases))
     GLocal = V.inv*V.D
     MInvLocal = Matrix{Float64}(LinearAlgebra.I(Mesh.NBases))
     Phi = V.V[[1;end],:]
+  elseif Basis=="lagrange"
+    MLocal = V.inv'*V.inv
+    GLocal = MLocal*(V.D*V.inv)
+    MInvLocal = V.V*V.V'
+    Phi = (V.inv*V.V)[[1;end],:]
   end
 
   ## Assemble into block diagonal matrices
@@ -402,11 +402,20 @@ function MakeMatricesR(;Model,Mesh,Basis::String="legendre")
   ## Construct blocks
   V = vandermonde(NBases=Mesh.NBases)
   if Basis=="legendre"
-
     MLocal = function (x::Array{Float64},i::Int)
+      # Numerical integration of ϕᵢ(x)|r(x)|ϕⱼ(x) over Dk with Gauss-Lobatto
+      # quadrature
+      # Inputs:
+      #   - x a vector of Gauss-Lobatto points on Dk
+      #   - i a phase
       V.V'*LinearAlgebra.diagm(0=>V.w./abs.(Model.r(x)[:,i]))*V.V
     end
     GLocal = function (x::Array{Float64},i::Int)
+      # Numerical integration of ϕᵢ(x)|r(x)|ϕⱼ'(x) over Dk with Gauss-Lobatto
+      # quadrature
+      # Inputs:
+      #   - x a vector of Gauss-Lobatto points on Dk
+      #   - i a phase
       V.V'*LinearAlgebra.diagm(0=>V.w./abs.(Model.r(x)[:,i]))*V.D
     end
     MInvLocal = function (x::Array{Float64},i::Int)
@@ -415,18 +424,26 @@ function MakeMatricesR(;Model,Mesh,Basis::String="legendre")
     Phi = V.V[[1;end],:]
 
   elseif Basis=="lagrange"
-
     MLocal = function (x::Array{Float64},i::Int)
+      # Numerical integration of ϕᵢ(x)|r(x)|ϕⱼ(x) over Dk with Gauss-Lobatto
+      # quadrature
+      # Inputs:
+      #   - x a vector of Gauss-Lobatto points on Dk
+      #   - i a phase
       LinearAlgebra.diagm(V.w./abs.(Model.r(x)[:,i]))
     end
     GLocal = function (x::Array{Float64},i::Int)
+      # Numerical integration of ϕᵢ(x)|r(x)|ϕⱼ'(x) over Dk with Gauss-Lobatto
+      # quadrature
+      # Inputs:
+      #   - x a vector of Gauss-Lobatto points on Dk
+      #   - i a phase
       V.inv'*V.inv*MLocal(x,i)*V.inv'*V.D
     end
     MInvLocal = function (x::Array{Float64},i::Int)
       MLocal(x,i)^-1
     end
     Phi = (V.inv*V.V)[[1;end],:]
- 
   end
 
   ## Assemble into block diagonal matrices
@@ -527,7 +544,6 @@ function MakeR(;Model,Mesh)
   EvalPoints[1,:] .+= sqrt(eps()) # LH edges + eps
   EvalPoints[end,:] .+= -sqrt(eps()) # RH edges - eps
   EvalR = abs.(Model.r(EvalPoints[:]))
-  display(Model.r(EvalPoints[:]))
   RDict = Dict{String,Array{Float64,1}}()
   for i in 1:Model.NPhases
     RDict[string(i)] = 1.0./EvalR[:,i]
@@ -577,6 +593,65 @@ function  MakeD(;R,B,Model,Mesh)
                  end # end function
     end # end if ...
   end # end for ℓ ...
+  return (DDict=DDict)
+end
+
+function  MakeDR(;Matrices,MatricesR,Model,Mesh)
+  RDict = R.RDict
+  BDict = B.BDict
+  DDict = Dict{String,Any}()
+
+  MR = zeros(Float64,Model.NPhases*Mesh.TotalNBases,
+                                               Model.NPhases*Mesh.TotalNBases)
+  Minv = zeros(Float64,Model.NPhases*Mesh.TotalNBases,
+                                              Model.NPhases*Mesh.TotalNBases)
+  FGR = zeros(Float64,Model.NPhases*Mesh.TotalNBases,
+                                              Model.NPhases*Mesh.TotalNBases)
+  for i in 1:Model.NPhases
+    idx = (i-1)*Mesh.TotalNBases+1:i*Mesh.TotalNBases
+    MR[idx,idx] = MatricesR.Global.M[:,:,i]
+    Minv[idx,idx] = Matrices.Global.Minv[:,:,i]
+    FGR[idx,idx] = MatricesR.Global.F
+  end
+  • = repeat(Mesh.Fil["+"] .| Mesh.Fil["-"],Mesh.NBases,1)[:]
+  D(s) = MR[•,•]*(kron(T,LinearAlgebra.I(Mesh.NBases))
+          -s*LinearAlgebra.I(sum(•)))*Minv[•,•]
+          +
+
+  for ℓ in ["+","-"], m in ["+","-"]
+    Idℓ = LinearAlgebra.I(sum(Mesh.Fil[ℓ])*Mesh.NBases)
+    if in("0",Model.Signs)
+      F0Bases = repeat(Mesh.Fil["0"]',Mesh.NBases,1)[:]
+      Id0 = LinearAlgebra.I(sum(Mesh.Fil["0"])*Mesh.NBases)
+      DDict[ℓ*m] = function(;s=0)#::Array{Float64}
+        return if (ℓ==m)
+          FlBases = repeat(Mesh.Fil[string(ℓ)]',Mesh.NBases,1)[:]
+          FmBases = repeat(Mesh.Fil[string(m)]',Mesh.NBases,1)[:]
+
+          MRtemp = MatricesR.Global.M[FlBases,FlBases]
+          Mtemp = Matrices.Global.M[FmBases,FmBases]
+          GRtemp = MatricesR.Global.G[FlBases,FmBases]
+          G0temp = Matrices.Global.G[F0Bases,F0Bases]
+          FRtemp = MatricesR.Global.F[FlBases,FmBases]
+          F0temp = MatricesR.Global.F[F0Bases,F0Bases]
+
+          RDict[ℓ].*(BDict[ℓ*m]-s*Idℓ +
+            BDict[ℓ*"0"]*inv(s*Id0-BDict["00"])*BDict["0"*m])
+        else
+          RDict[ℓ].*(BDict[ℓ*m] +
+            BDict[ℓ*"0"]*inv(s*Id0-BDict["00"])*BDict["0"*m])
+        end
+      end # end function
+    else
+      DDict[ℓ*m] = function(;s=0)#::Array{Float64}
+        return if (ℓ==m)
+          RDict[ℓ].*(BDict[ℓ*m]-s*Idℓ)
+        else
+          RDict[ℓ].*BDict[ℓ*m]
+        end
+      end # end function
+    end # end if ...
+  end # end for ℓ, m ...
   return (DDict=DDict)
 end
 
