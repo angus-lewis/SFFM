@@ -1,5 +1,5 @@
 module SFFM
-import Jacobi, Plots, LinearAlgebra, SymPy, FastGaussQuadrature
+import Jacobi, Plots, LinearAlgebra
 using Plots: Animation, frame, gif
 
 # Fil = Dict{String,BitArray{1}}("1+" => Bool[1, 1, 0, 0, 0],
@@ -118,7 +118,8 @@ function vandermonde(;NBases::Int)
     DV .= 0
   end
   # Compute the Gauss-Lobatto weights for numerical quadrature
-  w = 2.0./(NBases*(NBases-1)*legendre.(Jacobi.zglj(NBases,0,0),NBases-1).^2)
+  w = 2.0./(NBases*(NBases-1)*Jacobi.legendre.(
+                                          Jacobi.zglj(NBases,0,0),NBases-1).^2)
   return (V=V, inv=inv(V), D = DV, w = w)
 end
 
@@ -138,6 +139,26 @@ function MakeBlockDiagonalMatrix(;Mesh,Blocks::Array{Float64,2},
   for i in 1:Mesh.NIntervals
     idx = (1:Mesh.NBases) .+ (i-1)*Mesh.NBases;
     BlockMatrix[idx,idx] = Blocks*Factors[i];
+  end
+  return (BlockMatrix=BlockMatrix)
+end
+
+function MakeBlockDiagonalMatrixR(;Model,Mesh,Blocks,Factors::Array)
+  # MakeBlockDiagonalMatrix makes a matrix from diagonal block elements
+  # inputs:
+  # Model - A Model tuple from MakeModel
+  # Mesh - A tuple from MakeMesh
+  # Blocks - Mesh.NBases×Mesh.NBases Array{Float64}, blocks to put along the
+  #           diagonal
+  # Factors - Mesh.NIntervals×1 Array, factors which multiply blocks
+  # output:
+  # BlockMatrix - Mesh.TotalNBases×Mesh.TotalNBases Array{Float64,2}, the
+  #             block matrix
+
+  BlockMatrix = zeros(Float64,Mesh.TotalNBases,Mesh.TotalNBases,Model.NPhases);
+  for i in 1:Mesh.NIntervals, j in 1:Model.NPhases
+    idx = (1:Mesh.NBases) .+ (i-1)*Mesh.NBases;
+    BlockMatrix[idx,idx,j] = Blocks(Mesh.CellNodes[:,i],j)*Factors[i];
   end
   return (BlockMatrix=BlockMatrix)
 end
@@ -298,7 +319,7 @@ function MakeFluxMatrixR(; Mesh, Model, Phi)
 end
 
 function MakeMatrices(;Model,Mesh,Basis::String="legendre")
-  # Creates the local and global mass, stiffness and flux
+  # Creates the Local and global mass, stiffness and flux
   # matrices.
   # inputs:
   # Model - A model tuple from MakeModel
@@ -314,30 +335,30 @@ function MakeMatrices(;Model,Mesh,Basis::String="legendre")
   #   .Q - TotalNBases×TotalNBases×NPhases Array{Float64}, global DG flux
   #         operator
   # Local - A tuple with fields
-  #   .G - NBases×NBases Array{Float64}, local stiffness matrix
-  #   .M - NBases×NBases Array{Float64}, local mass matrix
+  #   .G - NBases×NBases Array{Float64}, Local stiffness matrix
+  #   .M - NBases×NBases Array{Float64}, Local mass matrix
   #   .MInv - the inverse of Local.M
   #   .V - tuple used to make M, G, Minv, as output from SFFM.vandermonde
 
   ## Construct blocks
   V = vandermonde(NBases=Mesh.NBases)
   if Basis=="lagrange"
-    Mlocal = V.inv'*V.inv
-    Glocal = Mlocal*(V.D*V.inv)
-    MInvlocal = V.V*V.V'
+    MLocal = V.inv'*V.inv
+    GLocal = MLocal*(V.D*V.inv)
+    MInvLocal = V.V*V.V'
     Phi = (V.inv*V.V)[[1;end],:]
   elseif Basis=="legendre"
-    Mlocal = Matrix{Float64}(LinearAlgebra.I(Mesh.NBases))
-    Glocal = V.inv*V.D
-    MInvlocal = Matrix{Float64}(LinearAlgebra.I(Mesh.NBases))
+    MLocal = Matrix{Float64}(LinearAlgebra.I(Mesh.NBases))
+    GLocal = V.inv*V.D
+    MInvLocal = Matrix{Float64}(LinearAlgebra.I(Mesh.NBases))
     Phi = V.V[[1;end],:]
   end
 
   ## Assemble into block diagonal matrices
-  G = SFFM.MakeBlockDiagonalMatrix(Mesh=Mesh,Blocks=Glocal,
+  G = SFFM.MakeBlockDiagonalMatrix(Mesh=Mesh,Blocks=GLocal,
                                       Factors=ones(Mesh.NIntervals))
-  M = SFFM.MakeBlockDiagonalMatrix(Mesh=Mesh,Blocks=Mlocal,Factors=Mesh.Δ*0.5)
-  MInv = SFFM.MakeBlockDiagonalMatrix(Mesh=Mesh,Blocks=MInvlocal,
+  M = SFFM.MakeBlockDiagonalMatrix(Mesh=Mesh,Blocks=MLocal,Factors=Mesh.Δ*0.5)
+  MInv = SFFM.MakeBlockDiagonalMatrix(Mesh=Mesh,Blocks=MInvLocal,
                                           Factors=2.0./Mesh.Δ)
 
   F = SFFM.MakeFluxMatrix(Mesh=Mesh,Model=Model,Phi=Phi)
@@ -348,7 +369,7 @@ function MakeMatrices(;Model,Mesh,Basis::String="legendre")
     Q[:,:,i] = Model.C[i]*(G+F[:,:,i])*MInv;
   end
 
-  Local = (G=Glocal,M=Mlocal,MInv=MInvlocal, V=V)
+  Local = (G=GLocal,M=MLocal,MInv=MInvLocal, V=V)
   Global = (G=G,M=M,MInv=MInv,F=F,Q=Q)
   println("Matrices.Fields with Fields (.Local, .Global)")
   println("Matrices.Local.Fields with Fields (.G, .M, .MInv, .V)")
@@ -357,7 +378,7 @@ function MakeMatrices(;Model,Mesh,Basis::String="legendre")
 end
 
 function MakeMatricesR(;Model,Mesh,Basis::String="legendre")
-  # Creates the local and global mass, stiffness and flux
+  # Creates the Local and global mass, stiffness and flux
   # matrices.
   # inputs:
   # Model - A model tuple from MakeModel
@@ -373,43 +394,58 @@ function MakeMatricesR(;Model,Mesh,Basis::String="legendre")
   #   .Q - TotalNBases×TotalNBases×NPhases Array{Float64}, global DG flux
   #         operator
   # Local - A tuple with fields
-  #   .G - NBases×NBases Array{Float64}, local stiffness matrix
-  #   .M - NBases×NBases Array{Float64}, local mass matrix
+  #   .G - NBases×NBases Array{Float64}, Local stiffness matrix
+  #   .M - NBases×NBases Array{Float64}, Local mass matrix
   #   .MInv - the inverse of Local.M
   #   .V - tuple used to make M, G, Minv, as output from SFFM.vandermonde
 
   ## Construct blocks
   V = vandermonde(NBases=Mesh.NBases)
-  if Basis=="lagrange"
-    Mlocal(x,i) = diagm(V.w./abs.(r.(x)[:,i]))
-    Glocal(x,i) = V.inv'*V.inv*Mlocal(x,i)*V.inv'*V.D
-    MInvlocal(x,i) = Mlocal(x,i)^-1
-    Phi = (V.inv*V.V)[[1;end],:]
-  elseif Basis=="legendre"
-    #ADD HERE TO MAKE MR, GR
-    wRlocal(x,i) = diagm(V.w./abs.(r.(x)[:,i]))
-    Mlocal(x,i) = V.V'*wRLocal(x,i)*V.V
-    Glocal(x,i) = V.V'*wRLocal(x,i)*V.D
-    MInvlocal(x,i) = Mlocal(x,i)^-1
+  if Basis=="legendre"
+
+    MLocal = function (x::Array{Float64},i::Int)
+      V.V'*LinearAlgebra.diagm(0=>V.w./abs.(Model.r(x)[:,i]))*V.V
+    end
+    GLocal = function (x::Array{Float64},i::Int)
+      V.V'*LinearAlgebra.diagm(0=>V.w./abs.(Model.r(x)[:,i]))*V.D
+    end
+    MInvLocal = function (x::Array{Float64},i::Int)
+      MLocal(x,i)^-1
+    end
     Phi = V.V[[1;end],:]
+
+  elseif Basis=="lagrange"
+
+    MLocal = function (x::Array{Float64},i::Int)
+      LinearAlgebra.diagm(V.w./abs.(Model.r(x)[:,i]))
+    end
+    GLocal = function (x::Array{Float64},i::Int)
+      V.inv'*V.inv*MLocal(x,i)*V.inv'*V.D
+    end
+    MInvLocal = function (x::Array{Float64},i::Int)
+      MLocal(x,i)^-1
+    end
+    Phi = (V.inv*V.V)[[1;end],:]
+
   end
 
   ## Assemble into block diagonal matrices
-  G = SFFM.MakeBlockDiagonalMatrix(Mesh=Mesh,Blocks=Glocal,
+  G = SFFM.MakeBlockDiagonalMatrixR(Model=Model,Mesh=Mesh,Blocks=GLocal,
                                       Factors=ones(Mesh.NIntervals))
-  M = SFFM.MakeBlockDiagonalMatrix(Mesh=Mesh,Blocks=Mlocal,Factors=Mesh.Δ*0.5)
-  MInv = SFFM.MakeBlockDiagonalMatrix(Mesh=Mesh,Blocks=MInvlocal,
+  M = SFFM.MakeBlockDiagonalMatrixR(Model=Model,Mesh=Mesh,Blocks=MLocal,
+                                      Factors=Mesh.Δ*0.5)
+  MInv = SFFM.MakeBlockDiagonalMatrixR(Model=Model,Mesh=Mesh,Blocks=MInvLocal,
                                           Factors=2.0./Mesh.Δ)
 
-  F = SFFM.MakeFluxMatrix(Mesh=Mesh,Model=Model,Phi=Phi)
+  F = SFFM.MakeFluxMatrixR(Mesh=Mesh,Model=Model,Phi=Phi)
 
   ## Assemble the DG drift operator
   Q = zeros(Float64,Mesh.TotalNBases,Mesh.TotalNBases,length(Model.C))
   for i in 1:Model.NPhases
-    Q[:,:,i] = Model.C[i]*(G+F[:,:,i])*MInv;
+    Q[:,:,i] = Model.C[i]*(G[:,:,i]+F[:,:,i])*MInv[:,:,i];
   end
 
-  Local = (G=Glocal,M=Mlocal,MInv=MInvlocal, V=V)
+  Local = (G=GLocal,M=MLocal,MInv=MInvLocal, V=V)
   Global = (G=G,M=M,MInv=MInv,F=F,Q=Q)
   println("Matrices.Fields with Fields (.Local, .Global)")
   println("Matrices.Local.Fields with Fields (.G, .M, .MInv, .V)")
@@ -491,6 +527,7 @@ function MakeR(;Model,Mesh)
   EvalPoints[1,:] .+= sqrt(eps()) # LH edges + eps
   EvalPoints[end,:] .+= -sqrt(eps()) # RH edges - eps
   EvalR = abs.(Model.r(EvalPoints[:]))
+  display(Model.r(EvalPoints[:]))
   RDict = Dict{String,Array{Float64,1}}()
   for i in 1:Model.NPhases
     RDict[string(i)] = 1.0./EvalR[:,i]
