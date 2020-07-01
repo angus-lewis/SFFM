@@ -426,7 +426,7 @@ function MakeMatricesR(;Model,Mesh,Basis::String="legendre")
       MLocal(x,i)^-1
     end
     Phi = (V.inv*V.V)[[1;end],:]
-
+ 
   end
 
   ## Assemble into block diagonal matrices
