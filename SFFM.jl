@@ -278,23 +278,23 @@ function MakeFluxMatrixR(; Mesh, Model, Phi)
       idx = (1:Mesh.NBases) .+ (k-1)*Mesh.NBases;
       if Model.C[i] > 0
         xright = Mesh.CellNodes[end,k]
-        R = 1.0./abs(Model.r(xright)[i])
+        R = 1.0./abs(Model.r.r(xright)[i])
         F[idx,idx,i] = PosDiagBlock*R
       elseif Model.C[i] < 0
         xleft = Mesh.CellNodes[1,k]
-        R = 1.0./abs(Model.r(xleft)[i])
+        R = 1.0./abs(Model.r.r(xleft)[i])
         F[idx,idx,i] = NegDiagBlock*R
       end # end if C[i]
       if k>1
         idxup = (1:Mesh.NBases) .+ (k-2)*Mesh.NBases;
         if Model.C[i] > 0
           xright = Mesh.CellNodes[end,k-1]
-          R = 1.0./abs(Model.r(xright)[i])
+          R = 1.0./abs(Model.r.r(xright)[i])
           η = (Mesh.Δ[k]/Mesh.NBases)/(Mesh.Δ[k-1]/Mesh.NBases)
           F[idxup,idx,i] = UpDiagBlock*η*R
         elseif Model.C[i] < 0
           xleft = Mesh.CellNodes[1,k]
-          R = 1.0./abs(Model.r(xleft)[i])
+          R = 1.0./abs(Model.r.r(xleft)[i])
           η = (Mesh.Δ[k-1]/Mesh.NBases)/(Mesh.Δ[k]/Mesh.NBases)
           F[idx,idxup,i] = LowDiagBlock*η*R
         end # end if C[i]
@@ -408,7 +408,7 @@ function MakeMatricesR(;Model,Mesh,Basis::String="legendre")
       # Inputs:
       #   - x a vector of Gauss-Lobatto points on Dk
       #   - i a phase
-      V.V'*LinearAlgebra.diagm(0=>V.w./abs.(Model.r(x)[:,i]))*V.V
+      V.V'*LinearAlgebra.diagm(0=>V.w./abs.(Model.r.r(x)[:,i]))*V.V
     end
     GLocal = function (x::Array{Float64},i::Int)
       # Numerical integration of ϕᵢ(x)|r(x)|ϕⱼ'(x) over Dk with Gauss-Lobatto
@@ -416,7 +416,7 @@ function MakeMatricesR(;Model,Mesh,Basis::String="legendre")
       # Inputs:
       #   - x a vector of Gauss-Lobatto points on Dk
       #   - i a phase
-      V.V'*LinearAlgebra.diagm(0=>V.w./abs.(Model.r(x)[:,i]))*V.D
+      V.V'*LinearAlgebra.diagm(0=>V.w./abs.(Model.r.r(x)[:,i]))*V.D
     end
     MInvLocal = function (x::Array{Float64},i::Int)
       MLocal(x,i)^-1
@@ -430,7 +430,7 @@ function MakeMatricesR(;Model,Mesh,Basis::String="legendre")
       # Inputs:
       #   - x a vector of Gauss-Lobatto points on Dk
       #   - i a phase
-      LinearAlgebra.diagm(V.w./abs.(Model.r(x)[:,i]))
+      LinearAlgebra.diagm(V.w./abs.(Model.r.r(x)[:,i]))
     end
     GLocal = function (x::Array{Float64},i::Int)
       # Numerical integration of ϕᵢ(x)|r(x)|ϕⱼ'(x) over Dk with Gauss-Lobatto
@@ -543,7 +543,7 @@ function MakeR(;Model,Mesh)
   EvalPoints = Mesh.CellNodes
   EvalPoints[1,:] .+= sqrt(eps()) # LH edges + eps
   EvalPoints[end,:] .+= -sqrt(eps()) # RH edges - eps
-  EvalR = abs.(Model.r(EvalPoints[:]))
+  EvalR = abs.(Model.r.r(EvalPoints[:]))
   RDict = Dict{String,Array{Float64,1}}()
   for i in 1:Model.NPhases
     RDict[string(i)] = 1.0./EvalR[:,i]
@@ -596,13 +596,9 @@ function  MakeD(;R,B,Model,Mesh)
   return (DDict=DDict)
 end
 
-function  MakeDR(;Matrices,MatricesR,Model,Mesh)
-  RDict = R.RDict
-  BDict = B.BDict
-  DDict = Dict{String,Any}()
-
+function  MakeDR(;Matrices,MatricesR,Model,Mesh,R,B)
   MR = zeros(Float64,Model.NPhases*Mesh.TotalNBases,
-                                               Model.NPhases*Mesh.TotalNBases)
+                                              Model.NPhases*Mesh.TotalNBases)
   Minv = zeros(Float64,Model.NPhases*Mesh.TotalNBases,
                                               Model.NPhases*Mesh.TotalNBases)
   FGR = zeros(Float64,Model.NPhases*Mesh.TotalNBases,
@@ -610,49 +606,26 @@ function  MakeDR(;Matrices,MatricesR,Model,Mesh)
   for i in 1:Model.NPhases
     idx = (i-1)*Mesh.TotalNBases+1:i*Mesh.TotalNBases
     MR[idx,idx] = MatricesR.Global.M[:,:,i]
-    Minv[idx,idx] = Matrices.Global.Minv[:,:,i]
-    FGR[idx,idx] = MatricesR.Global.F
+    Minv[idx,idx] = Matrices.Global.M^-1
+    FGR[idx,idx] = (MatricesR.Global.F[:,:,i]+MatricesR.Global.G[:,:,i])*Model.C[i]*Minv[idx,idx]
   end
-  • = repeat(Mesh.Fil["+"] .| Mesh.Fil["-"],Mesh.NBases,1)[:]
-  D(s) = MR[•,•]*(kron(T,LinearAlgebra.I(Mesh.NBases))
-          -s*LinearAlgebra.I(sum(•)))*Minv[•,•]
-          +
+  bullet = repeat(Mesh.Fil["+"] .| Mesh.Fil["-"],Mesh.NBases,1)[:]
+  idx0 = repeat(Mesh.Fil["0"],Mesh.NBases,1)[:]
+  T = kron(Model.T,LinearAlgebra.I(Mesh.TotalNBases))
+  D(s) = MR[bullet,bullet]*(T[bullet,bullet]-s*LinearAlgebra.I(sum(bullet)))*Minv[bullet,bullet]+FGR[bullet,bullet]+MR[bullet,bullet]*
+         T[bullet,idx0]*(B.BDict["00"]-s*LinearAlgebra.I(sum(idx0)))^-1*T[idx0,bullet]
 
+  DDict = Dict{String,Any}()
   for ℓ in ["+","-"], m in ["+","-"]
-    Idℓ = LinearAlgebra.I(sum(Mesh.Fil[ℓ])*Mesh.NBases)
-    if in("0",Model.Signs)
-      F0Bases = repeat(Mesh.Fil["0"]',Mesh.NBases,1)[:]
-      Id0 = LinearAlgebra.I(sum(Mesh.Fil["0"])*Mesh.NBases)
+      FlBases = Mesh.Fil[string(ℓ)][.!Mesh.Fil["0"]]
+      FmBases = Mesh.Fil[string(m)][.!Mesh.Fil["0"]]
+      FlBases = repeat(FlBases',Mesh.NBases,1)[:]
+      FmBases = repeat(FmBases',Mesh.NBases,1)[:]
       DDict[ℓ*m] = function(;s=0)#::Array{Float64}
-        return if (ℓ==m)
-          FlBases = repeat(Mesh.Fil[string(ℓ)]',Mesh.NBases,1)[:]
-          FmBases = repeat(Mesh.Fil[string(m)]',Mesh.NBases,1)[:]
-
-          MRtemp = MatricesR.Global.M[FlBases,FlBases]
-          Mtemp = Matrices.Global.M[FmBases,FmBases]
-          GRtemp = MatricesR.Global.G[FlBases,FmBases]
-          G0temp = Matrices.Global.G[F0Bases,F0Bases]
-          FRtemp = MatricesR.Global.F[FlBases,FmBases]
-          F0temp = MatricesR.Global.F[F0Bases,F0Bases]
-
-          RDict[ℓ].*(BDict[ℓ*m]-s*Idℓ +
-            BDict[ℓ*"0"]*inv(s*Id0-BDict["00"])*BDict["0"*m])
-        else
-          RDict[ℓ].*(BDict[ℓ*m] +
-            BDict[ℓ*"0"]*inv(s*Id0-BDict["00"])*BDict["0"*m])
-        end
+          D(s)[FlBases,FmBases]
       end # end function
-    else
-      DDict[ℓ*m] = function(;s=0)#::Array{Float64}
-        return if (ℓ==m)
-          RDict[ℓ].*(BDict[ℓ*m]-s*Idℓ)
-        else
-          RDict[ℓ].*BDict[ℓ*m]
-        end
-      end # end function
-    end # end if ...
   end # end for ℓ, m ...
-  return (DDict=DDict)
+  return (D=D, DDict=DDict)
 end
 
 function PsiFun(;s=0,D,MaxIters=1000,err=1e-8)
@@ -727,12 +700,11 @@ function SimSFM(;Model, StoppingTime, InitCondition)
     φ = InitCondition[m,1]
     X = InitCondition[m,2]
     n = 0
-    τ = StoppingTime(Model=Model,t=t,φ=φ,X=X,n=n)
     while 1==1
       S = log(rand())/Λ[φ]
       t = t+S
-      X = X + Model.C[φ]*S
-      τ = StoppingTime(Model=Model,t=t,φ=φ,X=X,n=n)
+      X = X+Model.C[φ]*S
+      τ = StoppingTime(Model,t,φ,X,n,S)
       if τ.Ind
         (tSims[m], φSims[m], XSims[m], nSims[m]) = τ.SFM
         break
@@ -746,7 +718,8 @@ end
 
 function FixedTime(;T)
   # Defines a simple stopping time, 1(t>T).
-  function FixedTimeFun(;Model,t::Float64,φ,X,n::Int)
+  # SFM method
+  function FixedTimeFun(Model,t::Float64,φ,X,n::Int,S)
     Ind = t>T
     if Ind
       X = X - (t-T)*Model.C[φ]
@@ -754,7 +727,34 @@ function FixedTime(;T)
     SFM = (T,φ,X,n)
     return (Ind=Ind,SFM=SFM)
   end
+  # SFM METHOD
+  function FixedTimeFun(Model,t::Float64,φ,X,Y,n::Int,S)
+    Ind = t>T
+    if Ind
+      X = X - (t-T)*Model.C[φ]
+      Y = Y - (Model.r.R(X)[φ] - Model.r.R(X-(t-T)*Model.C[φ])[φ])
+    end
+    SFFM = (T,φ,X,Y,n)
+    return (Ind=Ind,SFFM=SFFM)
+  end
   return FixedTimeFun
+end
+
+function NJumps(;N::Int)
+  # Defines a simple stopping time, 1(n>N), where n is the number of jumps of φ.
+  # SFM method
+  function NJumpsFun(Model,t::Float64,φ,X,n::Int,S)
+    Ind = n>=N
+    SFM = (t,φ,X,n)
+    return (Ind=Ind,SFM=SFM)
+  end
+  # SFFM method
+  function NJumpsFun(Model,t::Float64,φ,X,Y,n::Int,S)
+    Ind = n>=N
+    SFFM = (t,φ,X,Y,n)
+    return (Ind=Ind,SFFM=SFFM)
+  end
+  return NJumpsFun
 end
 
 function FirstExit(;u,v)
@@ -767,7 +767,9 @@ function FirstExit(;u,v)
   #   the number of transition to time t, and returns a tuple (Ind,SFM),
   #   where Ind is a boolen specifying whether the stopping time, τ, has
   #   occured or not, and SFM is a tuple (τ,φ(τ),X(τ),n).
-  function FirstExitFun(;Model,t::Float64,φ,X,n::Int)
+
+  # SFM Method
+  function FirstExitFun(Model,t::Float64,φ,X,n::Int,S)
     Ind = X>v || X<u
     if Ind
       if X>v
@@ -784,6 +786,55 @@ function FirstExit(;u,v)
     return (Ind=Ind,SFM=SFM)
   end
   return FirstExitFun
+end
+
+function InOutYLevel(;y::Real)
+  # Defines a first exit stopping time rule for the Y-in-out fluid hitting y
+  # Inputs:
+  #   y - scalars
+  # Outputs:
+  #   FirstExitFun(Model,t::Float64,φ,X,n::Int), a function with inputs;
+  #   t is the current time, φ the current phase, X, the current level, n
+  #   the number of transition to time t, and returns a tuple (Ind,SFM),
+  #   where Ind is a boolen specifying whether the stopping time, τ, has
+  #   occured or not, and SFM is a tuple (τ,φ(τ),X(τ),n).
+
+  # SFFM Method
+  function InOutYLevelFun(Model,t::Float64,φ,X,Y,n::Int,S)
+    Ind = Y>y
+    if Ind
+      X0 = X-Model.C[φ]*S
+      XFun(t) = X0+Model.C[φ]*t
+      R0 = Model.r.R(X0)[φ]
+      Y0 = Y+(R0-Model.r.R(X)[φ])/Model.C[φ]
+      YFun(t) = Y0+(Model.r.R(XFun(t))[φ]-R0)/Model.C[φ]-y
+      tstar = fzero(f=YFun,a=0,b=S)
+      X = XFun(tstar)
+      t = t-tstar
+      Y = y
+    end
+    SFFM = (t,φ,X,Y,n)
+    return (Ind=Ind,SFFM=SFFM)
+  end
+  return InOutYLevelFun
+end
+
+function fzero(;f::Function,a::Real,b::Real,err::Float64=1e-14)
+  # finds zeros of f using the bisection method
+  c = a+(b-a)/2
+  while a<c<b
+    fc = f(c)
+    if abs(fc)<err
+      break
+    end
+    if f(a)*fc < 0
+      a,b = a,c
+    else
+      a,b = c,b
+    end
+    c = a+(b-a)/2
+  end
+  return c
 end
 
 end # end module
