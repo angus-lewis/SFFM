@@ -14,16 +14,16 @@ display([1 x]*CM*exp(CM^-1*T*1)*CM^-1*abs.(CM))
 r = (r = function (x); [1.0.+0.01*x 1.0.+0.01*x].*ones(size(x)); end,
         R = function (x); [1*x.+0.01.*x.^2.0./2 1*x.+0.01.*x.^2.0./2]; end) # [1*(x.<=2.0).-2.0*(x.>1.0) -2.0*(x.<=2.0).+(x.>2.0)] # [1.0 -2.0].*ones(size(x))#
 
-Model = SFFM.MakeModel(T=T,C=C,r=r,Signs=["+";"-";"0"],Bounds=[-1,1])
+Model = SFFM.MakeModel(T=T,C=C,r=r,Signs=["+";"-";"0"],Bounds=[-1 1; -Inf Inf])
 
 Nodes = collect(0.0:1:5.0)
 MaxIters = 100
-Fil = Dict{String,BitArray{1}}("1+" => Bool[1, 1, 1, 1, 1],
+Fil = Dict{String,BitArray{1}}("1+" => Bool[1, 1, 0, 0, 0],
                                 "10" => Bool[0, 0, 0, 0, 0],
                                 "20" => Bool[0, 0, 0, 0, 0],
                                 "2+" => Bool[1, 1, 1, 1, 1],
                                 "2-" => Bool[0, 0, 0, 0, 0],
-                                "1-" => Bool[0, 0, 0, 0, 0])
+                                "1-" => Bool[0, 0, 1, 1, 1])
 # Fil = Dict{String,BitArray{1}}("1+" => Bool[1, 1, 0, 0, 0],
 #                                 "10" => Bool[0, 0, 0, 0, 0],
 #                                 "20" => Bool[0, 0, 0, 0, 0],
@@ -297,3 +297,69 @@ SFFMsim = SFFM.SimSFFM(
     InitCondition=repeat([1 0 0],1000,1)
 )
 histogram(SFFMsim.X)
+
+function MakeModel(;
+  T::Array{Float64},
+  C::Array{Float64,1},
+  r,
+  Signs::Array{String,1} = ["+"; "-"; "0"],
+  Bounds::Array{<:Number,2} = [-Inf Inf; -Inf Inf],
+)
+  # Make a 'Model' object which carries all the info we need to
+  # know about the SFFM.
+  # T - n×n Array{Float64}, a generator matrix of φ(t)
+  # C - n×1 Array{Float64}, rates of the first fluid
+  # Signs - n×1 Array{String}, the m∈{"+","-","0"} where Fᵢᵐ≂̸∅
+  # IsBounded - Bool, whether the first fluid is bounded or not
+  # r - array of rates for the second fluid,
+  #     functions r(x) = [r₁(x) r₂(x) ... r_n(x)], where x is a column vector
+  #
+  # output is a NamedTuple with fields
+  #                         .T, .C, .r, .Signs, .IsBounded, .NPhases, .NSigns
+
+  NPhases = length(C)
+  NSigns = length(Signs)
+  println("Model.Field with Fields (.T, .C, .r, .Signs, .IsBounded, .NPhases,
+            .NSigns)")
+  IsBounded = true
+  return (
+    T = T,
+    C = C,
+    r = r,
+    Signs = Signs,
+    IsBounded = IsBounded,
+    Bounds = Bounds,
+    NPhases = NPhases,
+    NSigns = NSigns,
+  )
+end
+
+struct SFFModel
+  T::Array{Float64}
+  C::Array{Float64,1}
+  r::NamedTuple{(:r, :R)}
+  Signs::Array{String,1}
+  Bounds::Array{<:Number,2}
+  NPhases::Int
+  NSigns::Int
+  IsBounded::Bool
+
+  function ModelGen(T,C,r)
+      Signs::Array{String,1} = ["+"; "-"]
+      Bounds::Array{<:Number,2} = [-Inf Inf; -Inf Inf]
+      NPhases = length(C)
+      NSigns = length(Signs)
+      IsBounded = true
+  end
+end
+
+struct mystruct
+    a::Int
+    b=sin(a)
+end
+
+function makeastruct(a)
+    return (a=a, b=a+1)
+end
+
+mystruct
