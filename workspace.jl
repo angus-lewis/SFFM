@@ -14,7 +14,7 @@ display([1 x]*CM*exp(CM^-1*T*1)*CM^-1*abs.(CM))
 r = (r = function (x); [1.0.+0.01*x 1.0.+0.01*x].*ones(size(x)); end,
         R = function (x); [1*x.+0.01.*x.^2.0./2 1*x.+0.01.*x.^2.0./2]; end) # [1*(x.<=2.0).-2.0*(x.>1.0) -2.0*(x.<=2.0).+(x.>2.0)] # [1.0 -2.0].*ones(size(x))#
 
-Model = SFFM.MakeModel(T=T,C=C,r=r,Signs=["+";"-";"0"])
+Model = SFFM.MakeModel(T=T,C=C,r=r,Signs=["+";"-";"0"],Bounds=[-1,1])
 
 Nodes = collect(0.0:1:5.0)
 MaxIters = 100
@@ -239,3 +239,61 @@ function NJumpsFun(Model,t::Float64,φ,X::Int,n::Int)
     SFM = (t,φ,X,n)
     return (Ind=Ind,SFM=SFM)
 end
+
+
+
+
+
+##
+T = [-2.0 1.0 1.0; 1.0 -2.0 1.0; 1.0 1.0 -2]
+C = [1.0;-2.0;0]
+r = (
+    r = function (x); [1.0.+0.01*x 1.0.+0.01*x 0*x]; end,
+    R = function (x); [1*x.+0.01.*x.^2.0./2 1*x.+0.01.*x.^2.0./2 0*x]; end
+) # [1*(x.<=2.0).-2.0*(x.>1.0) -2.0*(x.<=2.0).+(x.>2.0)] # [1.0 -2.0].*ones(size(x))#
+Bounds = [-Inf 2;-Inf Inf]
+
+Model = SFFM.MakeModel(T=T,C=C,r=r,Signs=["+";"-";"0"],Bounds=Bounds)
+include("./SFFM.jl")
+SFMsim = SFFM.SimSFM(
+    Model=Model,
+    StoppingTime=SFFM.NJumps(N=10),#SFFM.NJumps(N=10),#SFFM.FixedTime(T=10),
+    InitCondition=repeat([1 0],1000,1)
+)
+histogram(SFMsim.X)
+SFFMsim = SFFM.SimSFFM(
+    Model=Model,
+    StoppingTime=SFFM.NJumps(N=10),
+    InitCondition=repeat([1 0 0],1000,1)
+)
+histogram(SFFMsim.X)
+SFMsim = SFFM.SimSFM(
+    Model=Model,
+    StoppingTime=SFFM.FixedTime(T=10),
+    InitCondition=repeat([1 0],1000,1)
+)
+histogram(SFMsim.X)
+SFFMsim = SFFM.SimSFFM(
+    Model=Model,
+    StoppingTime=SFFM.FixedTime(T=10),
+    InitCondition=repeat([1 0 0],1000,1)
+)
+histogram(SFFMsim.X)
+SFMsim = SFFM.SimSFM(
+    Model=Model,
+    StoppingTime=SFFM.FirstExitX(u=-1,v=1),
+    InitCondition=repeat([1 0],1000,1)
+)
+histogram(SFMsim.X)
+SFFMsim = SFFM.SimSFFM(
+    Model=Model,
+    StoppingTime=SFFM.FirstExitX(u=-1,v=1),
+    InitCondition=repeat([1 0 0],1000,1)
+)
+histogram(SFFMsim.X)
+SFFMsim = SFFM.SimSFFM(
+    Model=Model,
+    StoppingTime=SFFM.InOutYLevel(y=4),
+    InitCondition=repeat([1 0 0],1000,1)
+)
+histogram(SFFMsim.X)
