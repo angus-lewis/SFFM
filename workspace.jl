@@ -155,8 +155,7 @@ end
 
 ##
 include("./SFFM.jl")
-using Plots, LinearAlgebra
-using KernelDensity
+using Plots, LinearAlgebra, KernelDensity
 
 T = [-2.0 1.0 1.0; 1.0 -2.0 1.0; 1.0 1.0 -2]
 C = [1.0;-2.0;0]
