@@ -154,212 +154,116 @@ end
 
 
 ##
-
 include("./SFFM.jl")
-1
+using Plots, LinearAlgebra
+using KernelDensity
 
-function SimSFFM(;Model, StoppingTime, InitCondition)
-    d = LinearAlgebra.diag(Model.T)
-    P = (Model.T-LinearAlgebra.diagm(0=>d))./-d
-    CumP = cumsum(P,dims=2)
-    Λ = LinearAlgebra.diag(Model.T)
-
-    M = size(InitCondition,1)
-    tSims = Array{Float64,1}(undef,M)
-    φSims = Array{Float64,1}(undef,M)
-    XSims = Array{Float64,1}(undef,M)
-    YSims = Array{Float64,1}(undef,M)
-    nSims = Array{Float64,1}(undef,M)
-
-    for m in 1:M
-      t = 0.0
-      φ = InitCondition[m,1]
-      X = InitCondition[m,2]
-      Y = InitCondition[m,3]
-      n = 0
-      while 1==1
-        S = log(rand())/Λ[φ]
-        t = t+S
-        X = X+Model.C[φ]*S
-        Y = Y+(Model.r.R(X)[φ]-Model.r.R(X-Model.C[φ]*S)[φ])/Model.C[φ]
-        τ = StoppingTime(Model,t,φ,X,Y,n,S)
-        if τ.Ind
-          (tSims[m], φSims[m], XSims[m], YSims[m], nSims[m]) = τ.SFFM
-          break
-        end
-        φ = findfirst(rand().<CumP[φ,:])
-        n = n+1
-      end
-    end
-    return (t=tSims,φ=φSims,X=XSims,Y=YSims,n=nSims)
-end
-
-function SimSFM(;Model, StoppingTime, InitCondition)
-  d = LinearAlgebra.diag(Model.T)
-  P = (Model.T-LinearAlgebra.diagm(0=>d))./-d
-  CumP = cumsum(P,dims=2)
-  Λ = LinearAlgebra.diag(Model.T)
-
-  M = size(InitCondition,1)
-  tSims = Array{Float64,1}(undef,M)
-  φSims = Array{Float64,1}(undef,M)
-  XSims = Array{Float64,1}(undef,M)
-  nSims = Array{Float64,1}(undef,M)
-
-  for m in 1:M
-    t = 0.0
-    φ = InitCondition[m,1]
-    X = InitCondition[m,2]
-    n = 0
-    while 1==1
-      S = log(rand())/Λ[φ]
-      t = t+S
-      X = X + Model.C[φ]*S
-      τ = StoppingTime(Model=Model,t=t,φ=φ,X=X,n=n)
-      if τ.Ind
-        (tSims[m], φSims[m], XSims[m], nSims[m]) = τ.SFM
-        break
-      end
-      φ = findfirst(rand().<CumP[φ,:])
-      n = n+1
-    end
-  end
-  return (t=tSims,φ=φSims,X=XSims,n=nSims)
-end
-
-
-function NJumpsFun(Model,t::Float64,φ,X,n::Int)
-    Ind = n>=N
-    SFM = (t,φ,X,n)
-    return (Ind=Ind,SFM=SFM)
-end
-
-function NJumpsFun(Model,t::Float64,φ,X::Int,n::Int)
-    Ind = n>=N
-    SFM = (t,φ,X,n)
-    return (Ind=Ind,SFM=SFM)
-end
-
-
-
-
-
-##
 T = [-2.0 1.0 1.0; 1.0 -2.0 1.0; 1.0 1.0 -2]
 C = [1.0;-2.0;0]
 r = (
-    r = function (x); [1.0.+0.01*x 1.0.+0.01*x 0*x]; end,
-    R = function (x); [1*x.+0.01.*x.^2.0./2 1*x.+0.01.*x.^2.0./2 0*x]; end
+    r =
+        function (x)
+            [1.0.+sin.(x) 2*(x.>0).*x.^2.0.+1 (x.>0).*x.+1]
+        end, # r = function (x); [1.0.+0.01*x 1.0.+0.01*x 1*ones(size(x))]; end,
+    R = function (x); [x.-cos.(x) 2*(x.>0).*x.^3/3.0.+1*x (x.>0).*x.^2/2.0.+1*x]; end # R = function (x); [1*x.+0.01.*x.^2.0./2 1*x.+0.01.*x.^2.0./2 1*x]; end
 ) # [1*(x.<=2.0).-2.0*(x.>1.0) -2.0*(x.<=2.0).+(x.>2.0)] # [1.0 -2.0].*ones(size(x))#
-Bounds = [-Inf 2;-Inf Inf]
+Bounds = [-Inf Inf;-Inf Inf]
 
-Model = SFFM.MakeModel(T=T,C=C,r=r,Signs=["+";"-";"0"],Bounds=Bounds)
-include("./SFFM.jl")
-SFMsim = SFFM.SimSFM(
-    Model=Model,
-    StoppingTime=SFFM.NJumps(N=10),#SFFM.NJumps(N=10),#SFFM.FixedTime(T=10),
-    InitCondition=repeat([1 0],1000,1)
-)
-histogram(SFMsim.X)
-SFFMsim = SFFM.SimSFFM(
-    Model=Model,
-    StoppingTime=SFFM.NJumps(N=10),
-    InitCondition=repeat([1 0 0],1000,1)
-)
-histogram(SFFMsim.X)
-SFMsim = SFFM.SimSFM(
-    Model=Model,
-    StoppingTime=SFFM.FixedTime(T=10),
-    InitCondition=repeat([1 0],1000,1)
-)
-histogram(SFMsim.X)
-SFFMsim = SFFM.SimSFFM(
-    Model=Model,
-    StoppingTime=SFFM.FixedTime(T=10),
-    InitCondition=repeat([1 0 0],1000,1)
-)
-histogram(SFFMsim.X)
-SFMsim = SFFM.SimSFM(
-    Model=Model,
-    StoppingTime=SFFM.FirstExitX(u=-1,v=1),
-    InitCondition=repeat([1 0],1000,1)
-)
-histogram(SFMsim.X)
-SFFMsim = SFFM.SimSFFM(
-    Model=Model,
-    StoppingTime=SFFM.FirstExitX(u=-1,v=1),
-    InitCondition=repeat([1 0 0],1000,1)
-)
-histogram(SFFMsim.X)
-SFFMsim = SFFM.SimSFFM(
-    Model=Model,
-    StoppingTime=SFFM.InOutYLevel(y=4),
-    InitCondition=repeat([1 0 0],1000,1)
-)
-histogram(SFFMsim.X)
+Model = SFFM.MakeModel(T=T,C=C,r=r,Bounds=Bounds)
 
-function MakeModel(;
-  T::Array{Float64},
-  C::Array{Float64,1},
-  r,
-  Signs::Array{String,1} = ["+"; "-"; "0"],
-  Bounds::Array{<:Number,2} = [-Inf Inf; -Inf Inf],
+y = 2
+NSim = 40000
+IC = (φ=ones(Int,NSim), X=zeros(NSim), Y=zeros(NSim))
+sims = SFFM.SimSFFM(
+    Model=Model,
+    StoppingTime=SFFM.InOutYLevel(y=y),
+    InitCondition=IC
 )
-  # Make a 'Model' object which carries all the info we need to
-  # know about the SFFM.
-  # T - n×n Array{Float64}, a generator matrix of φ(t)
-  # C - n×1 Array{Float64}, rates of the first fluid
-  # Signs - n×1 Array{String}, the m∈{"+","-","0"} where Fᵢᵐ≂̸∅
-  # IsBounded - Bool, whether the first fluid is bounded or not
-  # r - array of rates for the second fluid,
-  #     functions r(x) = [r₁(x) r₂(x) ... r_n(x)], where x is a column vector
-  #
-  # output is a NamedTuple with fields
-  #                         .T, .C, .r, .Signs, .IsBounded, .NPhases, .NSigns
+histogram(sims.X[sims.φ.==1])
+Nodes = collect(-10.0:0.5:10.0)
+Fil = Dict{String,BitArray{1}}("1+" => trues(length(Nodes)-1),
+                                "2+" => trues(length(Nodes)-1),
+                                "3+" => trues(length(Nodes)-1))
+NBases = 2
 
-  NPhases = length(C)
-  NSigns = length(Signs)
-  println("Model.Field with Fields (.T, .C, .r, .Signs, .IsBounded, .NPhases,
-            .NSigns)")
-  IsBounded = true
-  return (
-    T = T,
-    C = C,
-    r = r,
-    Signs = Signs,
-    IsBounded = IsBounded,
-    Bounds = Bounds,
-    NPhases = NPhases,
-    NSigns = NSigns,
-  )
+Mesh = SFFM.MakeMesh(Model=Model,Nodes=Nodes,NBases=NBases,Fil=Fil)
+Matrices = SFFM.MakeMatrices(Model=Model,Mesh=Mesh)
+MatricesR = SFFM.MakeMatricesR(Model=Model,Mesh=Mesh)
+B = SFFM.MakeB(Model=Model,Mesh=Mesh,Matrices=Matrices)
+R = SFFM.MakeR(Model=Model,Mesh=Mesh)
+D = SFFM.MakeD(Model=Model,Mesh=Mesh,R=R,B=B)
+DR = SFFM.MakeDR(Matrices=Matrices,MatricesR=MatricesR,Model=Model,Mesh=Mesh,R=R,B=B)
+
+function Integrater(; D, y, x0)
+    h = 0.0001
+    x = x0
+    for t in h:h:y
+        dx = h*x*D
+        x = x+dx
+    end
+    return x
+end
+#x0 = ones(1,size(B.B,1))/size(B.B,1)
+x0 = Matrix([
+    zeros(Mesh.NBases*Mesh.NIntervals*2÷3);
+    Mesh.Δ[1]; zeros(NBases-1); zeros(Mesh.NBases*Mesh.NIntervals*1÷3-NBases+1);
+    zeros(Mesh.TotalNBases*2)
+    ]')
+yvalsR = Integrater(D=DR.DDict["++"](s=0), y = y, x0 = x0)[1:NBases:end]./Mesh.Δ[1]
+yvals = Integrater(D=D["++"](s=0), y = y, x0 = x0)[1:NBases:end]./Mesh.Δ[1]
+# Matrix([
+#     zeros(Mesh.TotalNBases*2);
+#     1;
+#     zeros(Mesh.TotalNBases-1)
+#     ]' * exp(D["++"](s=0)*y)
+# )
+p = plot(legend=:topleft)
+Y = zeros(length(Nodes)-1,Model.NPhases)
+YR = zeros(length(Nodes)-1,Model.NPhases)
+let cum = 0
+    for i in 1:Model.NPhases
+        idx = findall(.!Fil[string(i)*"0"]) .- cum .+ (i - 1)*Mesh.NIntervals
+        cum = cum + sum(Fil[string(i)*"0"])
+        p = plot!(
+            Mesh.CellNodes[1,.!Fil[string(i)*"0"]][:],
+            yvals[idx],
+            label="φ="*string(i)*" - D"
+            )
+        Y[:,i] = yvals[idx]
+        p = plot!(
+            Mesh.CellNodes[1,.!Fil[string(i)*"0"]][:],
+            yvalsR[idx],
+            label = "φ="*string(i)*" - DR"
+            )
+        YR[:,i] = yvalsR[idx]
+    end
+end
+display(p)
+H = zeros(length(Nodes)-1,Model.NPhases)
+for whichφ in 1:Model.NPhases
+    #pltvals = kde(sims.X[sims.φ.==whichφ])
+    #p = histogram!(sims.X[sims.φ.==whichφ],bins=Nodes,normalize=:probability,alpha=0.2)
+    # plot!(
+    #     range(
+    #         minimum(sims.X[sims.φ.==whichφ]),
+    #         maximum(sims.X[sims.φ.==whichφ]),length=100
+    #     ),
+    #     z->pdf(pltvals,z)*sum(sims.φ.==whichφ)/length(sims.φ),
+    #     label = "φ="*string(i)*" - sim"
+    # )
+    h = fit(Histogram,sims.X[sims.φ.==whichφ],Nodes)
+    h = h.weights./sum(h.weights)*sum(sims.φ.==whichφ)/length(sims.φ)
+    H[:,whichφ] = h
+    p = plot!(Nodes[1:end-1]+diff(Nodes)/2,h,label="hist"*string(whichφ))
 end
 
-struct SFFModel
-  T::Array{Float64}
-  C::Array{Float64,1}
-  r::NamedTuple{(:r, :R)}
-  Signs::Array{String,1}
-  Bounds::Array{<:Number,2}
-  NPhases::Int
-  NSigns::Int
-  IsBounded::Bool
+display(p)
 
-  function ModelGen(T,C,r)
-      Signs::Array{String,1} = ["+"; "-"]
-      Bounds::Array{<:Number,2} = [-Inf Inf; -Inf Inf]
-      NPhases = length(C)
-      NSigns = length(Signs)
-      IsBounded = true
-  end
-end
-
-struct mystruct
-    a::Int
-    b=sin(a)
-end
-
-function makeastruct(a)
-    return (a=a, b=a+1)
-end
-
-mystruct
+err = H-Y
+errR = H-YR
+plot(Nodes[1:end-1]+diff(Nodes)/2,err,legend=:bottomleft)
+plot!(Nodes[1:end-1]+diff(Nodes)/2,errR)
+display(sum(abs.(err)*Mesh.Δ[1]))
+display(sum(abs.(errR)*Mesh.Δ[1]))
+display(abs.(err))
+display(abs.(errR))
