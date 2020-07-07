@@ -15,7 +15,7 @@ function MakeModel(;
   T::Array{Float64},
   C::Array{Float64,1},
   r::NamedTuple{(:r, :R)},
-  Bounds::Array{<:Number,2} = [-Inf Inf; -Inf Inf]
+  Bounds::Array{<:Number,2} = [-Inf Inf; -Inf Inf],
 )
   # Make a 'Model' object which carries all the info we need to
   # know about the SFFM.
@@ -38,14 +38,12 @@ function MakeModel(;
     r = r,
     IsBounded = IsBounded,
     Bounds = Bounds,
-    NPhases = NPhases
+    NPhases = NPhases,
   )
 end
 
 function MakeMesh(;
-  Model::NamedTuple{
-    (:T, :C, :r, :IsBounded, :Bounds, :NPhases),
-  },
+  Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
   Nodes::Array{Float64,1},
   NBases::Int,
   Fil::Dict{String,BitArray{1}},
@@ -93,12 +91,12 @@ function MakeMesh(;
 
   ## Construct the sets Fᵐ = ⋃ᵢ Fᵢᵐ, global index for sets of type m
   CurrKeys = keys(Fil)
-  for ℓ in ["+","-","0"], i in 1:Model.NPhases
-    if !in(string(i)*ℓ, CurrKeys)
+  for ℓ in ["+", "-", "0"], i = 1:Model.NPhases
+    if !in(string(i) * ℓ, CurrKeys)
       Fil[string(i)*ℓ] = falses(NIntervals)
     end
   end
-  for ℓ in ["+","-","0"]
+  for ℓ in ["+", "-", "0"]
     Fil[string(ℓ)] = falses(NIntervals * Model.NPhases)
     for i = 1:Model.NPhases
       idx = findall(Fil[string(i, ℓ)]) .+ (i - 1) * NIntervals
@@ -157,7 +155,18 @@ function vandermonde(; NBases::Int)
 end
 
 function MakeBlockDiagonalMatrix(;
-  Mesh,
+  Mesh::NamedTuple{
+    (
+      :NBases,
+      :CellNodes,
+      :Fil,
+      :Δ,
+      :NIntervals,
+      :MeshArray,
+      :Nodes,
+      :TotalNBases,
+    ),
+  },
   Blocks::Array{Float64,2},
   Factors::Array,
 )
@@ -180,10 +189,19 @@ function MakeBlockDiagonalMatrix(;
 end
 
 function MakeBlockDiagonalMatrixR(;
-  Model::NamedTuple{
-    (:T, :C, :r, :IsBounded, :Bounds, :NPhases),
+  Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+  Mesh::NamedTuple{
+    (
+      :NBases,
+      :CellNodes,
+      :Fil,
+      :Δ,
+      :NIntervals,
+      :MeshArray,
+      :Nodes,
+      :TotalNBases,
+    ),
   },
-  Mesh,
   Blocks,
   Factors::Array,
 )
@@ -260,10 +278,19 @@ function PlotVt(; Nodes, Vt, C, YMAX = 1, PointMass = true, labels = [])
 end # end PlotVt
 
 function MakeFluxMatrix(;
-  Mesh,
-  Model::NamedTuple{
-    (:T, :C, :r, :IsBounded, :Bounds, :NPhases),
+  Mesh::NamedTuple{
+    (
+      :NBases,
+      :CellNodes,
+      :Fil,
+      :Δ,
+      :NIntervals,
+      :MeshArray,
+      :Nodes,
+      :TotalNBases,
+    ),
   },
+  Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
   Phi,
 )
   # MakeFluxMatrix creates the global block tridiagonal flux matrix for the
@@ -320,10 +347,19 @@ function MakeFluxMatrix(;
 end
 
 function MakeFluxMatrixR(;
-  Mesh,
-  Model::NamedTuple{
-    (:T, :C, :r, :IsBounded, :Bounds, :NPhases),
+  Mesh::NamedTuple{
+    (
+      :NBases,
+      :CellNodes,
+      :Fil,
+      :Δ,
+      :NIntervals,
+      :MeshArray,
+      :Nodes,
+      :TotalNBases,
+    ),
   },
+  Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
   Phi,
 )
   # MakeFluxMatrix creates the global block tridiagonal flux matrix for the
@@ -388,10 +424,19 @@ function MakeFluxMatrixR(;
 end
 
 function MakeMatrices(;
-  Model::NamedTuple{
-    (:T, :C, :r, :IsBounded, :Bounds, :NPhases),
+  Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+  Mesh::NamedTuple{
+    (
+      :NBases,
+      :CellNodes,
+      :Fil,
+      :Δ,
+      :NIntervals,
+      :MeshArray,
+      :Nodes,
+      :TotalNBases,
+    ),
   },
-  Mesh,
   Basis::String = "legendre",
 )
   # Creates the Local and global mass, stiffness and flux
@@ -463,10 +508,19 @@ function MakeMatrices(;
 end
 
 function MakeMatricesR(;
-  Model::NamedTuple{
-    (:T, :C, :r, :IsBounded, :Bounds, :NPhases),
+  Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+  Mesh::NamedTuple{
+    (
+      :NBases,
+      :CellNodes,
+      :Fil,
+      :Δ,
+      :NIntervals,
+      :MeshArray,
+      :Nodes,
+      :TotalNBases,
+    ),
   },
-  Mesh,
   Basis::String = "legendre",
 )
   # Creates the Local and global mass, stiffness and flux
@@ -574,10 +628,19 @@ function MakeMatricesR(;
 end
 
 function MakeB(;
-  Model::NamedTuple{
-    (:T, :C, :r, :IsBounded, :Bounds, :NPhases),
+  Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+  Mesh::NamedTuple{
+    (
+      :NBases,
+      :CellNodes,
+      :Fil,
+      :Δ,
+      :NIntervals,
+      :MeshArray,
+      :Nodes,
+      :TotalNBases,
+    ),
   },
-  Mesh,
   Matrices,
 )
   # MakeB, makes the DG approximation to B, the transition operator +
@@ -613,7 +676,7 @@ function MakeB(;
 
   ## Make a Dictionary so that the blocks of B are easy to access
   BDict = Dict{String,Array{Float64,2}}()
-  for ℓ in ["+","-","0"], m in ["+","-","0"]
+  for ℓ in ["+", "-", "0"], m in ["+", "-", "0"]
     for i = 1:Model.NPhases, j = 1:Model.NPhases
       FilBases = repeat(Mesh.Fil[string(i, ℓ)]', Mesh.NBases, 1)[:]
       i_idx = [
@@ -672,10 +735,19 @@ function SFFMGIF(;
 end
 
 function MakeR(;
-  Model::NamedTuple{
-    (:T, :C, :r, :IsBounded, :Bounds, :NPhases),
+  Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+  Mesh::NamedTuple{
+    (
+      :NBases,
+      :CellNodes,
+      :Fil,
+      :Δ,
+      :NIntervals,
+      :MeshArray,
+      :Nodes,
+      :TotalNBases,
+    ),
   },
-  Mesh,
 )
   # interpolant approximation to r(x)
   EvalPoints = Mesh.CellNodes
@@ -691,12 +763,12 @@ function MakeR(;
   for i = 1:Model.NPhases
     Ri = RDict[string(i)]
     R[(i-1)*Mesh.TotalNBases+1:i*Mesh.TotalNBases] = Ri
-    for ℓ in ["+","-"]
+    for ℓ in ["+", "-"]
       FilBases = repeat(Mesh.Fil[string(i, ℓ)]', Mesh.NBases, 1)[:]
       RDict[string(i, ℓ)] = Ri[FilBases]
     end
   end
-  for ℓ in ["+","-"]
+  for ℓ in ["+", "-"]
     FlBases = repeat(Mesh.Fil[string(ℓ)]', Mesh.NBases, 1)[:]
     RDict[ℓ] = R[FlBases]
   end
@@ -707,17 +779,26 @@ end
 function MakeD(;
   R,
   B,
-  Model::NamedTuple{
-    (:T, :C, :r, :IsBounded, :Bounds, :NPhases),
+  Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+  Mesh::NamedTuple{
+    (
+      :NBases,
+      :CellNodes,
+      :Fil,
+      :Δ,
+      :NIntervals,
+      :MeshArray,
+      :Nodes,
+      :TotalNBases,
+    ),
   },
-  Mesh,
 )
   RDict = R.RDict
   BDict = B.BDict
   DDict = Dict{String,Any}()
   for ℓ in ["+", "-"], m in ["+", "-"]
     Idℓ = LinearAlgebra.I(sum(Mesh.Fil[ℓ]) * Mesh.NBases)
-    if sum(Mesh.Fil["0"])>0 # in("0", Model.Signs)
+    if sum(Mesh.Fil["0"]) > 0 # in("0", Model.Signs)
       Id0 = LinearAlgebra.I(sum(Mesh.Fil["0"]) * Mesh.NBases)
       DDict[ℓ*m] = function (; s = 0)#::Array{Float64}
         return if (ℓ == m)
@@ -748,10 +829,19 @@ end
 function MakeDR(;
   Matrices,
   MatricesR,
-  Model::NamedTuple{
-    (:T, :C, :r, :IsBounded, :Bounds, :NPhases),
+  Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+  Mesh::NamedTuple{
+    (
+      :NBases,
+      :CellNodes,
+      :Fil,
+      :Δ,
+      :NIntervals,
+      :MeshArray,
+      :Nodes,
+      :TotalNBases,
+    ),
   },
-  Mesh,
   R,
   B,
 )
@@ -853,14 +943,58 @@ function PsiFun(; s = 0, D, MaxIters = 1000, err = 1e-8)
   return Psi
 end
 
+function MakeAll(;
+  Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+  Mesh::NamedTuple{
+    (
+      :NBases,
+      :CellNodes,
+      :Fil,
+      :Δ,
+      :NIntervals,
+      :MeshArray,
+      :Nodes,
+      :TotalNBases,
+    ),
+  },
+)
+
+  Matrices = MakeMatrices(Model = Model, Mesh = Mesh)
+  MatricesR = MakeMatricesR(Model = Model, Mesh = Mesh)
+  B = MakeB(Model = Model, Mesh = Mesh, Matrices = Matrices)
+  R = MakeR(Model = Model, Mesh = Mesh)
+  D = MakeD(Model = Model, Mesh = Mesh, R = R, B = B)
+  DR = MakeDR(
+    Matrices = Matrices,
+    MatricesR = MatricesR,
+    Model = Model,
+    Mesh = Mesh,
+    R = R,
+    B = B,
+  )
+  return (
+    Matrices = Matrices,
+    MatricesR = MatricesR,
+    B = B,
+    R = R,
+    D = D,
+    DR = DR,
+  )
+end
+
+function EulerDG(; D, y, x0, h=0.0001)
+    x = x0
+    for t in h:h:y
+        dx = h*x*D
+        x = x+dx
+    end
+    return x
+end
+
 function SimSFM(;
-  Model::NamedTuple{
-    (:T, :C, :r, :IsBounded, :Bounds, :NPhases),
-  },
+  Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
   StoppingTime::Function,
-  InitCondition::NamedTuple{
-    (:φ, :X)
-  },
+  InitCondition::NamedTuple{(:φ, :X)},
 )
   # Simulates a SFM defined by Model until the StoppingTime has occured,
   # given the InitialConditions on (φ(0),X(0))
@@ -908,13 +1042,9 @@ function SimSFM(;
 end
 
 function SimSFFM(;
-  Model::NamedTuple{
-    (:T, :C, :r, :IsBounded, :Bounds, :NPhases),
-  },
+  Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
   StoppingTime::Function,
-  InitCondition::NamedTuple{
-    (:φ, :X, :Y)
-  },
+  InitCondition::NamedTuple{(:φ, :X, :Y)},
 )
   d = LinearAlgebra.diag(Model.T)
   P = (Model.T - LinearAlgebra.diagm(0 => d)) ./ -d
@@ -956,9 +1086,7 @@ function SimSFFM(;
 end
 
 function UpdateXt(;
-  Model::NamedTuple{
-    (:T, :C, :r, :IsBounded, :Bounds, :NPhases),
-  },
+  Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
   SFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
   S::Real,
 )
@@ -972,9 +1100,7 @@ function UpdateXt(;
 end
 
 function UpdateYt(;
-  Model::NamedTuple{
-    (:T, :C, :r, :IsBounded, :Bounds, :NPhases),
-  },
+  Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
   SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
   S::Real,
 )
@@ -1006,9 +1132,7 @@ function FixedTime(; T::Real)
   # Defines a simple stopping time, 1(t>T).
   # SFM method
   function FixedTimeFun(
-    Model::NamedTuple{
-      (:T, :C, :r, :IsBounded, :Bounds, :NPhases),
-    },
+    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     SFM::NamedTuple{(:t, :φ, :X, :n)},
     SFM0::NamedTuple{(:t, :φ, :X, :n)},
   )
@@ -1022,9 +1146,7 @@ function FixedTime(; T::Real)
   end
   # SFFM METHOD
   function FixedTimeFun(
-    Model::NamedTuple{
-      (:T, :C, :r, :IsBounded, :Bounds, :NPhases),
-    },
+    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
     SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
   )
@@ -1044,9 +1166,7 @@ function NJumps(; N::Int)
   # Defines a simple stopping time, 1(n>N), where n is the number of jumps of φ.
   # SFM method
   function NJumpsFun(
-    Model::NamedTuple{
-      (:T, :C, :r, :IsBounded, :Bounds, :NPhases),
-    },
+    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     SFM::NamedTuple{(:t, :φ, :X, :n)},
     SFM0::NamedTuple{(:t, :φ, :X, :n)},
   )
@@ -1055,9 +1175,7 @@ function NJumps(; N::Int)
   end
   # SFFM method
   function NJumpsFun(
-    Model::NamedTuple{
-      (:T, :C, :r, :IsBounded, :Bounds, :NPhases),
-    },
+    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
     SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
   )
@@ -1080,9 +1198,7 @@ function FirstExitX(; u::Real, v::Real)
 
   # SFM Method
   function FirstExitXFun(
-    Model::NamedTuple{
-      (:T, :C, :r, :IsBounded, :Bounds, :NPhases),
-    },
+    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     SFM::NamedTuple{(:t, :φ, :X, :n)},
     SFM0::NamedTuple{(:t, :φ, :X, :n)},
   )
@@ -1101,9 +1217,7 @@ function FirstExitX(; u::Real, v::Real)
   end
   # SFFM Method
   function FirstExitXFun(
-    Model::NamedTuple{
-      (:T, :C, :r, :IsBounded, :Bounds, :NPhases),
-    },
+    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
     SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
   )
@@ -1137,9 +1251,7 @@ function InOutYLevel(; y::Real)
 
   # SFFM Method
   function InOutYLevelFun(
-    Model::NamedTuple{
-      (:T, :C, :r, :IsBounded, :Bounds, :NPhases),
-    },
+    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
     SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
   )
@@ -1176,9 +1288,7 @@ function fzero(; f::Function, a::Real, b::Real, err::Float64 = 1e-14)
   return c
 end
 
-function PlotSFFM(;
-  Model,
-  )
+function PlotSFFM(; Model)
   body
 end
 
