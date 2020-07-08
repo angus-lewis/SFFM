@@ -14,7 +14,7 @@ display([1 x]*CM*exp(CM^-1*T*1)*CM^-1*abs.(CM))
 r = (r = function (x); [1.0.+0.01*x 1.0.+0.01*x].*ones(size(x)); end,
         R = function (x); [1*x.+0.01.*x.^2.0./2 1*x.+0.01.*x.^2.0./2]; end) # [1*(x.<=2.0).-2.0*(x.>1.0) -2.0*(x.<=2.0).+(x.>2.0)] # [1.0 -2.0].*ones(size(x))#
 
-Model = SFFM.MakeModel(T=T,C=C,r=r,Signs=["+";"-";"0"],Bounds=[-1 1; -Inf Inf])
+Model = SFFM.MakeModel(T=T,C=C,r=r,Bounds=[-1 1; -Inf Inf])
 
 Nodes = collect(0.0:1:5.0)
 MaxIters = 100
@@ -39,7 +39,7 @@ Fil = Dict{String,BitArray{1}}("1+" => Bool[1, 1, 0, 0, 0],
 NBases = 2
 
 Mesh = SFFM.MakeMesh(Model=Model,Nodes=Nodes,NBases=NBases,Fil=Fil)
-Matrices = SFFM.MakeMatrices(Model=Model,Mesh=Mesh)
+Matrices = SFFM.MakeMatrices(Model=Model,Mesh=Mesh,Basis="lagrange")
 MatricesR = SFFM.MakeMatricesR(Model=Model,Mesh=Mesh)
 B = SFFM.MakeB(Model=Model,Mesh=Mesh,Matrices=Matrices)
 R = SFFM.MakeR(Model=Model,Mesh=Mesh)
@@ -110,7 +110,6 @@ display(Ψlagrange*repeat(sum(Matrices.Local.M,dims=2),sum(Fil["-"])))
 display(sum(VinvtΨlegendreVinv,dims=2))
 
 ##
-
 for NBases in 1:4
     Mesh = SFFM.MakeMesh(Model=Model,Nodes=Nodes,NBases=NBases,Fil=Fil)
     Matrices = SFFM.MakeMatrices(Model=Model,Mesh=Mesh,Basis="legendre")
