@@ -39,7 +39,7 @@ Fil = Dict{String,BitArray{1}}("1+" => Bool[1, 1, 0, 0, 0],
 NBases = 2
 
 Mesh = SFFM.MakeMesh(Model=Model,Nodes=Nodes,NBases=NBases,Fil=Fil)
-Matrices = SFFM.MakeMatrices(Model=Model,Mesh=Mesh,Basis="lagrange")
+Matrices = SFFM.MakeMatrices(Model=Model,Mesh=Mesh,Basis="legendre")
 MatricesR = SFFM.MakeMatricesR(Model=Model,Mesh=Mesh)
 B = SFFM.MakeB(Model=Model,Mesh=Mesh,Matrices=Matrices)
 R = SFFM.MakeR(Model=Model,Mesh=Mesh)
@@ -161,7 +161,7 @@ C = [1.0;-2.0;0]
 r = (
     r =
         function (x)
-            [1.0.+sin.(x) 2*(x.>0).*x.^2.0.+1 (x.>0).*x.+1]
+            [1.0.+sin.(x) 2*(x.>0).*x.^2.0.+1 (x.>0).*0]
         end, # r = function (x); [1.0.+0.01*x 1.0.+0.01*x 1*ones(size(x))]; end,
     R = function (x); [x.-cos.(x) 2*(x.>0).*x.^3/3.0.+1*x (x.>0).*x.^2/2.0.+1*x]; end # R = function (x); [1*x.+0.01.*x.^2.0./2 1*x.+0.01.*x.^2.0./2 1*x]; end
 ) # [1*(x.<=2.0).-2.0*(x.>1.0) -2.0*(x.<=2.0).+(x.>2.0)] # [1.0 -2.0].*ones(size(x))#
@@ -178,14 +178,18 @@ sims = SFFM.SimSFFM(
     InitCondition=IC
 )
 histogram(sims.X[sims.φ.==1])
-Nodes = collect(-10.0:0.5:10.0)
+Nodes = collect(-10.0:5:10.0)
 Fil = Dict{String,BitArray{1}}("1+" => trues(length(Nodes)-1),
                                 "2+" => trues(length(Nodes)-1),
-                                "3+" => trues(length(Nodes)-1))
+                                "3+" => trues(length(Nodes)-1),
+                                "q1+" => trues(1),
+                                "p2+" => trues(1),
+                                "p3+" => trues(1),
+                                "q3+" => trues(1))
 NBases = 2
 
 Mesh = SFFM.MakeMesh(Model=Model,Nodes=Nodes,NBases=NBases,Fil=Fil)
-Matrices = SFFM.MakeMatrices(Model=Model,Mesh=Mesh)
+Matrices = SFFM.MakeMatrices(Model=Model,Mesh=Mesh,Basis="lagrange")
 MatricesR = SFFM.MakeMatricesR(Model=Model,Mesh=Mesh)
 B = SFFM.MakeB(Model=Model,Mesh=Mesh,Matrices=Matrices)
 R = SFFM.MakeR(Model=Model,Mesh=Mesh)
