@@ -240,45 +240,43 @@ function MakeDR(;
     # Boundary behaviour
     # Lower boundary
     # At boundary
-    BR[1:N₋, 1:N₋] =
-        1.0 ./ Model.r.r(Mesh.CellNodes[1])'[Model.C.<=0] .*
-        Model.T[Model.C.<=0, Model.C.<=0]
+    BR[1:N₋, 1:N₋] = (1.0./Model.r.r(Mesh.CellNodes[1])'.*Model.T)[Model.C.<=0, Model.C.<=0]
     # Out of boundary
     idxup = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .> 0) .- 1)')[:] .+ N₋
     BR[1:N₋, idxup] = kron(
-        Model.T[Model.C.<=0, Model.C.>0],
-        (Matrices.Local.Phi[1, :] .* 1.0 ./ Model.r.r(Mesh.CellNodes[1])[Model.C.<=0])' * Matrices.Local.MInv,
+        (1.0./Model.r.r(Mesh.CellNodes[1])'.*Model.T)[Model.C.<=0, Model.C.>0],
+        Matrices.Local.Phi[1, :]' * Matrices.Local.MInv,
     )
     # Into boundary
     idxdown = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .<= 0) .- 1)')[:] .+ N₋
     BR[idxdown, 1:N₋] = LinearAlgebra.kron(
-        LinearAlgebra.diagm(0 => Model.C[Model.C.<=0]),
-        -Matrices.Local.Phi[1, :] .* 1.0 ./ Model.r.r(Mesh.CellNodes[1])[Model.C.<=0] * 2 / Mesh.Δ[1],
+        LinearAlgebra.diagm(
+            0 => Model.C[Model.C.<=0] ./ Model.r.r(Mesh.CellNodes[1])[Model.C.<=0],
+        ),
+        -Matrices.Local.Phi[1, :] * 2 / Mesh.Δ[1],
     )
 
     # Upper boundary
     # At boundary
     BR[(end-N₊+1):end, (end-N₊+1):end] =
-        1.0 ./ Model.r.r(Mesh.CellNodes[end])'[Model.C.>=0] .*
-        Model.T[Model.C.>=0, Model.C.>=0]
+        (1.0./Model.r.r(Mesh.CellNodes[end])'.*Model.T)[Model.C.>=0, Model.C.>=0]
     # Out of boundary
     idxdown =
         ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .< 0) .- 1)')[:] .+
         (N₋ + Mesh.TotalNBases - Mesh.NBases)
     BR[(end-N₊+1):end, idxdown] = kron(
-        Model.T[Model.C.>=0, Model.C.<0],
-        (
-            Matrices.Local.Phi[end, :] .* 1.0 ./
-            Model.r.r(Mesh.CellNodes[end])[Model.C.<=0]
-        )' * Matrices.Local.MInv,
+        (1.0./Model.r.r(Mesh.CellNodes[end])'.*Model.T)[Model.C.>=0, Model.C.<0],
+        Matrices.Local.Phi[end, :]' * Matrices.Local.MInv,
     )
     # Into boundary
     idxup =
         ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .>= 0) .- 1)')[:] .+
         (N₋ + Mesh.TotalNBases - Mesh.NBases)
     BR[idxup, (end-N₊+1):end] = LinearAlgebra.kron(
-        LinearAlgebra.diagm(0 => Model.C[Model.C.>=0]),
-        Matrices.Local.Phi[end, :] .* 1.0 ./ Model.r.r(Mesh.CellNodes[end])[Model.C.<=0] * 2 / Mesh.Δ[end],
+        LinearAlgebra.diagm(
+            0 => Model.C[Model.C.>=0] ./ Model.r.r(Mesh.CellNodes[end])[Model.C.<=0],
+        ),
+        Matrices.Local.Phi[end, :] * 2 / Mesh.Δ[end],
     )
 
     idx0 = [Mesh.Fil["p0"]; repeat(Mesh.Fil["0"]', Mesh.NBases, 1)[:]; Mesh.Fil["q0"]]
@@ -287,11 +285,19 @@ function MakeDR(;
         repeat((Mesh.Fil["+"] .| Mesh.Fil["-"])', Mesh.NBases, 1)[:]
         (Mesh.Fil["q+"] .| Mesh.Fil["q-"])
     ]
+    MR = [
+        LinearAlgebra.I(N₋) zeros(Float64, N₋, BigN - N₋)
+        zeros(Float64, BigN - N₊ - N₋, N₋) MR zeros(Float64, BigN - N₊ - N₋, N₊)
+        zeros(Float64, N₊, BigN - N₊) LinearAlgebra.I(N₊)
+    ]
+    Minv = [
+        LinearAlgebra.I(N₋) zeros(Float64, N₋, BigN - N₋)
+        zeros(Float64, BigN - N₊ - N₋, N₋) Minv zeros(Float64, BigN - N₊ - N₋, N₊)
+        zeros(Float64, N₊, BigN - N₊) LinearAlgebra.I(N₊)
+    ]
 
     BR[idx0, :] = B.B[idx0, :]
-    SFFM.MyPrint(round.(BR, digits = 1))
-    SFFM.MyPrint(sum(BR, dims = 2))
-
+    
     DR = function (s)
         BR[bullet, bullet] -
         MR[bullet, bullet] * s * LinearAlgebra.I(sum(bullet)) * Minv[bullet, bullet] +

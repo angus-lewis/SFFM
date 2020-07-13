@@ -185,8 +185,8 @@ Fil = Dict{String,BitArray{1}}("1+" => trues(length(Nodes)-1),
                                 "30" => .![trues(length(Nodes)-3);falses(2)],
                                 "3+" => .![falses(2);trues(length(Nodes)-3)],
                                 "q1+" => trues(1),
-                                "p2+" => trues(1),
-                                "p30" => trues(1),
+                                "p20" => trues(1),
+                                "p3+" => trues(1),
                                 "q30" => trues(1))
 NBases = 2
 
