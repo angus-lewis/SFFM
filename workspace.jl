@@ -1,6 +1,6 @@
 ## Workspace
-include("./SFFM.jl")
-using LinearAlgebra
+push!(LOAD_PATH,"/Users/a1627293/Documents/SFFM")
+using LinearAlgebra, SFFM
 
 T = [-1.0 1.0; 1.0 -1.0]
 C = [1.0;-2.0]

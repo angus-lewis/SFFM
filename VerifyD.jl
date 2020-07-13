@@ -1,5 +1,5 @@
-include("./SFFM.jl")
-using Plots, LinearAlgebra, KernelDensity, StatsBase
+push!(LOAD_PATH,"/Users/a1627293/Documents/SFFM")
+using Plots, LinearAlgebra, KernelDensity, StatsBase, SFFM
 
 ## Define the model
 T = [-2.0 1.0 1.0; 1.0 -2.0 1.0; 1.0 1.0 -2]

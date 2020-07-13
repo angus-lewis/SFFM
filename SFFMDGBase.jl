@@ -421,8 +421,8 @@ function MakeR(;
     EvalR = abs.(Model.r.r(EvalPoints[:]))
     RDict = Dict{String,Array{Float64,1}}()
 
-    N₋ = sum(Model.C.<=0)
-    N₊ = sum(Model.C.>=0)
+    N₋ = sum(Model.C .<= 0)
+    N₊ = sum(Model.C .>= 0)
 
     R = zeros(Float64, Model.NPhases * Mesh.TotalNBases + N₋ + N₊)
     R[1:N₋] = 1.0 ./ abs.(Model.r.r(Mesh.CellNodes[1])[Model.C.<=0])
@@ -471,9 +471,15 @@ function MakeD(;
     BDict = B.BDict
     DDict = Dict{String,Any}()
     for ℓ in ["+", "-"], m in ["+", "-"]
-        Idℓ = LinearAlgebra.I(sum(Mesh.Fil["p"*ℓ])+sum(Mesh.Fil[ℓ]) * Mesh.NBases+sum(Mesh.Fil["q"*ℓ]))
+        Idℓ = LinearAlgebra.I(
+            sum(Mesh.Fil["p"*ℓ]) + sum(Mesh.Fil[ℓ]) * Mesh.NBases + sum(Mesh.Fil["q"*ℓ]),
+        )
         if any(Mesh.Fil["p0"]) || any(Mesh.Fil["0"]) || any(Mesh.Fil["q0"]) # in("0", Model.Signs)
-            Id0 = LinearAlgebra.I(sum(Mesh.Fil["p0"])+sum(Mesh.Fil["0"]) * Mesh.NBases+sum(Mesh.Fil["q0"]))
+            Id0 = LinearAlgebra.I(
+                sum(Mesh.Fil["p0"]) +
+                sum(Mesh.Fil["0"]) * Mesh.NBases +
+                sum(Mesh.Fil["q0"]),
+            )
             DDict[ℓ*m] = function (; s = 0)#::Array{Float64}
                 return if (ℓ == m)
                     RDict[ℓ] .* (
