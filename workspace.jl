@@ -39,7 +39,7 @@ Fil = Dict{String,BitArray{1}}("1+" => Bool[1, 1, 0, 0, 0],
 NBases = 2
 
 Mesh = SFFM.MakeMesh(Model=Model,Nodes=Nodes,NBases=NBases,Fil=Fil)
-Matrices = SFFM.MakeMatrices(Model=Model,Mesh=Mesh,Basis="lagrange")
+Matrices = SFFM.MakeMatrices(Model=Model,Mesh=Mesh,Basis="legendre")
 MatricesR = SFFM.MakeMatricesR(Model=Model,Mesh=Mesh)
 B = SFFM.MakeB(Model=Model,Mesh=Mesh,Matrices=Matrices)
 R = SFFM.MakeR(Model=Model,Mesh=Mesh)
@@ -154,7 +154,7 @@ end
 
 ##
 include("./SFFM.jl")
-using Plots, LinearAlgebra, KernelDensity
+using Plots, LinearAlgebra, KernelDensity, BaseStats
 
 T = [-2.0 1.0 1.0; 1.0 -2.0 1.0; 1.0 1.0 -2]
 C = [1.0;-2.0;0]
@@ -206,11 +206,11 @@ function Integrater(; D, y, x0)
     return x
 end
 #x0 = ones(1,size(B.B,1))/size(B.B,1)
-x0 = Matrix([
+x0 = Matrix([0;0;
     zeros(Mesh.NBases*Mesh.NIntervals*2÷3);
     Mesh.Δ[1]; zeros(NBases-1); zeros(Mesh.NBases*Mesh.NIntervals*1÷3-NBases+1);
     zeros(Mesh.TotalNBases*2)
-    ]')
+    0;0]')
 yvalsR = Integrater(D=DR.DDict["++"](s=0), y = y, x0 = x0)[1:NBases:end]./Mesh.Δ[1]
 yvals = Integrater(D=D["++"](s=0), y = y, x0 = x0)[1:NBases:end]./Mesh.Δ[1]
 # Matrix([
