@@ -77,18 +77,18 @@ function MakeFluxMatrixR(;
         end # for k in ...
     end # end for i in NPhases
 
-    ## Check if bounded and make sure no mass can leave
-    if Model.IsBounded
-        for i = 1:Model.NPhases
-            if Model.C[i] < 0
-                idx = 1:Mesh.NBases
-                F[idx, idx, i] .= 0
-            elseif Model.C[i] > 0
-                idx = (1:Mesh.NBases) .+ (Mesh.NIntervals - 1) * Mesh.NBases
-                F[idx, idx, i] .= 0
-            end # end if C[i]
-        end # end for i ...
-    end # end if IsBounded
+    # ## Check if bounded and make sure no mass can leave
+    # if Model.IsBounded
+    #     for i = 1:Model.NPhases
+    #         if Model.C[i] < 0
+    #             idx = 1:Mesh.NBases
+    #             F[idx, idx, i] .= 0
+    #         elseif Model.C[i] > 0
+    #             idx = (1:Mesh.NBases) .+ (Mesh.NIntervals - 1) * Mesh.NBases
+    #             F[idx, idx, i] .= 0
+    #         end # end if C[i]
+    #     end # end for i ...
+    # end # end if IsBounded
 
     return (F = F)
 end
@@ -214,12 +214,16 @@ function MakeDR(;
     R,
     B,
 )
+    N₊ = sum(Model.C .>= 0)
+    N₋ = sum(Model.C .<= 0)
+
+    BigN = Model.NPhases * Mesh.TotalNBases + N₊ + N₋
     MR = zeros(Float64, Model.NPhases * Mesh.TotalNBases, Model.NPhases * Mesh.TotalNBases)
     Minv =
         zeros(Float64, Model.NPhases * Mesh.TotalNBases, Model.NPhases * Mesh.TotalNBases)
     FGR = zeros(Float64, Model.NPhases * Mesh.TotalNBases, Model.NPhases * Mesh.TotalNBases)
     for i = 1:Model.NPhases
-        idx = (i-1)*Mesh.TotalNBases+1:i*Mesh.TotalNBases
+        idx = ((i-1)*Mesh.TotalNBases+1:i*Mesh.TotalNBases)
         MR[idx, idx] = MatricesR.Global.M[:, :, i]
         Minv[idx, idx] = Matrices.Global.M^-1
         FGR[idx, idx] =
@@ -227,10 +231,75 @@ function MakeDR(;
             Model.C[i] *
             Minv[idx, idx]
     end
-    bullet = repeat(Mesh.Fil["+"] .| Mesh.Fil["-"], Mesh.NBases, 1)[:]
-    idx0 = repeat(Mesh.Fil["0"], Mesh.NBases, 1)[:]
+
+    # Interior behaviour
     T = kron(Model.T, LinearAlgebra.I(Mesh.TotalNBases))
-    D(s) =
+    BR = zeros(Float64, BigN, BigN)
+    BR[(N₋+1):(end-N₊), (N₋+1):(end-N₊)] = MR * T * Minv + FGR
+
+    # Boundary behaviour
+    # Lower boundary
+    # At boundary
+    BR[1:N₋, 1:N₋] =
+        1.0 ./ Model.r.r(Mesh.CellNodes[1])'[Model.C.<=0] .*
+        Model.T[Model.C.<=0, Model.C.<=0]
+    # Out of boundary
+    idxup = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .> 0) .- 1)')[:] .+ N₋
+    BR[1:N₋, idxup] = kron(
+        Model.T[Model.C.<=0, Model.C.>0],
+        (Matrices.Local.Phi[1, :] .* 1.0 ./ Model.r.r(Mesh.CellNodes[1])[Model.C.<=0])' * Matrices.Local.MInv,
+    )
+    # Into boundary
+    idxdown = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .<= 0) .- 1)')[:] .+ N₋
+    BR[idxdown, 1:N₋] = LinearAlgebra.kron(
+        LinearAlgebra.diagm(0 => Model.C[Model.C.<=0]),
+        -Matrices.Local.Phi[1, :] .* 1.0 ./ Model.r.r(Mesh.CellNodes[1])[Model.C.<=0] * 2 / Mesh.Δ[1],
+    )
+
+    # Upper boundary
+    # At boundary
+    BR[(end-N₊+1):end, (end-N₊+1):end] =
+        1.0 ./ Model.r.r(Mesh.CellNodes[end])'[Model.C.>=0] .*
+        Model.T[Model.C.>=0, Model.C.>=0]
+    # Out of boundary
+    idxdown =
+        ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .< 0) .- 1)')[:] .+
+        (N₋ + Mesh.TotalNBases - Mesh.NBases)
+    BR[(end-N₊+1):end, idxdown] = kron(
+        Model.T[Model.C.>=0, Model.C.<0],
+        (
+            Matrices.Local.Phi[end, :] .* 1.0 ./
+            Model.r.r(Mesh.CellNodes[end])[Model.C.<=0]
+        )' * Matrices.Local.MInv,
+    )
+    # Into boundary
+    idxup =
+        ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .>= 0) .- 1)')[:] .+
+        (N₋ + Mesh.TotalNBases - Mesh.NBases)
+    BR[idxup, (end-N₊+1):end] = LinearAlgebra.kron(
+        LinearAlgebra.diagm(0 => Model.C[Model.C.>=0]),
+        Matrices.Local.Phi[end, :] .* 1.0 ./ Model.r.r(Mesh.CellNodes[end])[Model.C.<=0] * 2 / Mesh.Δ[end],
+    )
+
+    idx0 = [Mesh.Fil["p0"]; repeat(Mesh.Fil["0"]', Mesh.NBases, 1)[:]; Mesh.Fil["q0"]]
+    bullet = [
+        (Mesh.Fil["p+"] .| Mesh.Fil["p-"])
+        repeat((Mesh.Fil["+"] .| Mesh.Fil["-"])', Mesh.NBases, 1)[:]
+        (Mesh.Fil["q+"] .| Mesh.Fil["q-"])
+    ]
+
+    BR[idx0, :] = B.B[idx0, :]
+    SFFM.MyPrint(round.(BR, digits = 1))
+    SFFM.MyPrint(sum(BR, dims = 2))
+
+    DR = function (s)
+        BR[bullet, bullet] -
+        MR[bullet, bullet] * s * LinearAlgebra.I(sum(bullet)) * Minv[bullet, bullet] +
+        BR[bullet, idx0] *
+        (BR[idx0, idx0] - s * LinearAlgebra.I(sum(idx0)))^-1 *
+        BR[idx0, bullet]
+    end
+    D = function (s)
         MR[bullet, bullet] *
         (T[bullet, bullet] - s * LinearAlgebra.I(sum(bullet))) *
         Minv[bullet, bullet] +
@@ -239,6 +308,7 @@ function MakeDR(;
         T[bullet, idx0] *
         (B.BDict["00"] - s * LinearAlgebra.I(sum(idx0)))^-1 *
         T[idx0, bullet]
+    end
 
     DDict = Dict{String,Any}()
     for ℓ in ["+", "-"], m in ["+", "-"]
@@ -250,5 +320,5 @@ function MakeDR(;
             D(s)[FlBases, FmBases]
         end # end function
     end # end for ℓ, m ...
-    return (D = D, DDict = DDict)
+    return (D = D, DDict = DDict, DR = DR)
 end

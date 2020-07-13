@@ -154,16 +154,16 @@ end
 
 ##
 include("./SFFM.jl")
-using Plots, LinearAlgebra, KernelDensity, BaseStats
+using Plots, LinearAlgebra, KernelDensity, StatsBase
 
 T = [-2.0 1.0 1.0; 1.0 -2.0 1.0; 1.0 1.0 -2]
 C = [1.0;-2.0;0]
 r = (
     r =
         function (x)
-            [1.0.+sin.(x) 2*(x.>0).*x.^2.0.+1 (x.>0).*x.+1]
+            [1.0.+sin.(x) (x.>=0) (x.<=0)]
         end, # r = function (x); [1.0.+0.01*x 1.0.+0.01*x 1*ones(size(x))]; end,
-    R = function (x); [x.-cos.(x) 2*(x.>0).*x.^3/3.0.+1*x (x.>0).*x.^2/2.0.+1*x]; end # R = function (x); [1*x.+0.01.*x.^2.0./2 1*x.+0.01.*x.^2.0./2 1*x]; end
+    R = function (x); [x.-cos.(x) 2*(x.>0).*x.^3/3.0.+1*x 0.0.*x]; end # R = function (x); [1*x.+0.01.*x.^2.0./2 1*x.+0.01.*x.^2.0./2 1*x]; end
 ) # [1*(x.<=2.0).-2.0*(x.>1.0) -2.0*(x.<=2.0).+(x.>2.0)] # [1.0 -2.0].*ones(size(x))#
 Bounds = [-Inf Inf;-Inf Inf]
 
@@ -172,20 +172,22 @@ Model = SFFM.MakeModel(T=T,C=C,r=r,Bounds=Bounds)
 y = 2
 NSim = 40000
 IC = (φ=ones(Int,NSim), X=zeros(NSim), Y=zeros(NSim))
-sims = SFFM.SimSFFM(
-    Model=Model,
-    StoppingTime=SFFM.InOutYLevel(y=y),
-    InitCondition=IC
-)
-histogram(sims.X[sims.φ.==1])
+# sims = SFFM.SimSFFM(
+#     Model=Model,
+#     StoppingTime=SFFM.InOutYLevel(y=y),
+#     InitCondition=IC
+# )
+# histogram(sims.X[sims.φ.==1])
 Nodes = collect(-10.0:5:10.0)
 Fil = Dict{String,BitArray{1}}("1+" => trues(length(Nodes)-1),
-                                "2+" => trues(length(Nodes)-1),
-                                "3+" => trues(length(Nodes)-1),
+                                "20" => [trues(length(Nodes)-3);falses(2)],
+                                "2+" => [falses(2);trues(length(Nodes)-3)],
+                                "30" => .![trues(length(Nodes)-3);falses(2)],
+                                "3+" => .![falses(2);trues(length(Nodes)-3)],
                                 "q1+" => trues(1),
                                 "p2+" => trues(1),
-                                "p3+" => trues(1),
-                                "q3+" => trues(1))
+                                "p30" => trues(1),
+                                "q30" => trues(1))
 NBases = 2
 
 Mesh = SFFM.MakeMesh(Model=Model,Nodes=Nodes,NBases=NBases,Fil=Fil)
