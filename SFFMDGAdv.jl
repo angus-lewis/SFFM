@@ -211,7 +211,6 @@ function MakeDR(;
     Mesh::NamedTuple{
         (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases),
     },
-    R,
     B,
 )
     N₊ = sum(Model.C .>= 0)
@@ -297,7 +296,7 @@ function MakeDR(;
     ]
 
     BR[idx0, :] = B.B[idx0, :]
-    
+
     DR = function (s)
         BR[bullet, bullet] -
         MR[bullet, bullet] * s * LinearAlgebra.I(sum(bullet)) * Minv[bullet, bullet] +

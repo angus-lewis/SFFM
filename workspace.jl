@@ -191,12 +191,12 @@ Fil = Dict{String,BitArray{1}}("1+" => trues(length(Nodes)-1),
 NBases = 2
 
 Mesh = SFFM.MakeMesh(Model=Model,Nodes=Nodes,NBases=NBases,Fil=Fil)
-Matrices = SFFM.MakeMatrices(Model=Model,Mesh=Mesh,Basis="lagrange")
+Matrices = SFFM.MakeMatrices(Model=Model,Mesh=Mesh,Basis="legendre")
 MatricesR = SFFM.MakeMatricesR(Model=Model,Mesh=Mesh)
 B = SFFM.MakeB(Model=Model,Mesh=Mesh,Matrices=Matrices)
 R = SFFM.MakeR(Model=Model,Mesh=Mesh)
 D = SFFM.MakeD(Model=Model,Mesh=Mesh,R=R,B=B)
-DR = SFFM.MakeDR(Matrices=Matrices,MatricesR=MatricesR,Model=Model,Mesh=Mesh,R=R,B=B)
+DR = SFFM.MakeDR(Matrices=Matrices,MatricesR=MatricesR,Model=Model,Mesh=Mesh,B=B)
 
 function Integrater(; D, y, x0)
     h = 0.0001
