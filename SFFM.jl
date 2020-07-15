@@ -56,7 +56,6 @@ function MakeAll(;
         MatricesR = MatricesR,
         Model = Model,
         Mesh = Mesh,
-        R = R,
         B = B,
     )
     return (Matrices = Matrices, MatricesR = MatricesR, B = B, R = R, D = D, DR = DR)

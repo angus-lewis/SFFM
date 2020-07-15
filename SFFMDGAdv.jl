@@ -297,33 +297,41 @@ function MakeDR(;
 
     BR[idx0, :] = B.B[idx0, :]
 
-    DR = function (s)
+    DR = function (;s=0)
         BR[bullet, bullet] -
         MR[bullet, bullet] * s * LinearAlgebra.I(sum(bullet)) * Minv[bullet, bullet] +
         BR[bullet, idx0] *
         (BR[idx0, idx0] - s * LinearAlgebra.I(sum(idx0)))^-1 *
         BR[idx0, bullet]
     end
-    D = function (s)
-        MR[bullet, bullet] *
-        (T[bullet, bullet] - s * LinearAlgebra.I(sum(bullet))) *
-        Minv[bullet, bullet] +
-        FGR[bullet, bullet] +
-        MR[bullet, bullet] *
-        T[bullet, idx0] *
-        (B.BDict["00"] - s * LinearAlgebra.I(sum(idx0)))^-1 *
-        T[idx0, bullet]
-    end
+    # D = function (s)
+    #     MR[bullet, bullet] *
+    #     (T[bullet, bullet] - s * LinearAlgebra.I(sum(bullet))) *
+    #     Minv[bullet, bullet] +
+    #     FGR[bullet, bullet] +
+    #     MR[bullet, bullet] *
+    #     T[bullet, idx0] *
+    #     (B.BDict["00"] - s * LinearAlgebra.I(sum(idx0)))^-1 *
+    #     T[idx0, bullet]
+    # end
 
     DDict = Dict{String,Any}()
     for ℓ in ["+", "-"], m in ["+", "-"]
-        FlBases = Mesh.Fil[string(ℓ)][.!Mesh.Fil["0"]]
-        FmBases = Mesh.Fil[string(m)][.!Mesh.Fil["0"]]
-        FlBases = repeat(FlBases', Mesh.NBases, 1)[:]
-        FmBases = repeat(FmBases', Mesh.NBases, 1)[:]
+        FlBases = Mesh.Fil[ℓ][.!Mesh.Fil["0"]]
+        FmBases = Mesh.Fil[m][.!Mesh.Fil["0"]]
+        FlBases = [
+            Mesh.Fil["p"*ℓ][.!Mesh.Fil["p0"]]
+            repeat(FlBases', Mesh.NBases, 1)[:]
+            Mesh.Fil["q"*ℓ][.!Mesh.Fil["q0"]]
+        ]
+        FmBases = [
+            Mesh.Fil["p"*m][.!Mesh.Fil["p0"]]
+            repeat(FmBases', Mesh.NBases, 1)[:]
+            Mesh.Fil["q"*m][.!Mesh.Fil["q0"]]
+        ]
         DDict[ℓ*m] = function (; s = 0)#::Array{Float64}
-            D(s)[FlBases, FmBases]
+            DR(s)[FlBases, FmBases]
         end # end function
     end # end for ℓ, m ...
-    return (D = D, DDict = DDict, DR = DR)
+    return (DDict = DDict, DR = DR)
 end
