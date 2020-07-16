@@ -318,13 +318,13 @@ function MakeB(;
     idxup = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .> 0) .- 1)')[:] .+ N₋
     B[1:N₋, idxup] = kron(
         Model.T[Model.C.<=0, Model.C.>0],
-        Matrices.Local.Phi[1, :]' * Matrices.Local.MInv,
+        Matrices.Local.Phi[1, :]' * Matrices.Local.MInv * 2/Mesh.Δ[1] * Mesh.Δ[1]/2,
     )
     # Into boundary
     idxdown = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .<= 0) .- 1)')[:] .+ N₋
     B[idxdown, 1:N₋] = LinearAlgebra.kron(
         LinearAlgebra.diagm(0 => Model.C[Model.C.<=0]),
-        -Matrices.Local.Phi[1, :] * 2 / Mesh.Δ[1],
+        -Matrices.Local.Phi[1, :] * 2 / Mesh.Δ[1] /  Mesh.Δ[1],
     )
 
     # Upper boundary
@@ -336,7 +336,7 @@ function MakeB(;
         (N₋ + Mesh.TotalNBases - Mesh.NBases)
     B[(end-N₊+1):end, idxdown] = kron(
         Model.T[Model.C.>=0, Model.C.<0],
-        Matrices.Local.Phi[end, :]' * Matrices.Local.MInv,
+        Matrices.Local.Phi[end, :]' * Matrices.Local.MInv * 2/Mesh.Δ[end] * Mesh.Δ[end]/2,
     )
     # Into boundary
     idxup =
@@ -344,7 +344,7 @@ function MakeB(;
         (N₋ + Mesh.TotalNBases - Mesh.NBases)
     B[idxup, (end-N₊+1):end] = LinearAlgebra.kron(
         LinearAlgebra.diagm(0 => Model.C[Model.C.>=0]),
-        Matrices.Local.Phi[end, :] * 2 / Mesh.Δ[end],
+        Matrices.Local.Phi[end, :] * 2 / Mesh.Δ[end] / Mesh.Δ[end],
     )
 
     ## Make a Dictionary so that the blocks of B are easy to access
@@ -457,6 +457,59 @@ function MakeR(;
     end
     println("R.Fields with Fields (.RDict, .R)")
     return (RDict = RDict, R = R)
+end
+
+function MakeMyD(;
+    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+    Mesh::NamedTuple{
+        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases),
+    },
+    MatricesR,
+    B,
+)
+    MyR = zeros(
+        Float64,
+        Mesh.TotalNBases * Model.NPhases + sum(Model.C .<= 0) + sum(Model.C .>= 0),
+        Mesh.TotalNBases * Model.NPhases + sum(Model.C .<= 0) + sum(Model.C .>= 0),
+    )
+    for i = 1:Model.NPhases
+        idx = sum(Model.C .<= 0) .+ (1:Mesh.TotalNBases) .+ (Mesh.TotalNBases .* (i - 1))
+        MyR[idx, idx] = MatricesR.Global.M[:, :, i]
+    end
+    MyR[1:sum(Model.C .<= 0), 1:sum(Model.C .<= 0)] =
+        LinearAlgebra.diagm(1.0 ./ abs.(Model.r.r(Mesh.Nodes[1])[Model.C.<=0]))
+    MyR[end-sum(Model.C .>= 0).+1:end, end-sum(Model.C .>= 0).+1:end] =
+        LinearAlgebra.diagm(1.0 ./ abs.(Model.r.r(Mesh.Nodes[end])[Model.C.>=0]))
+    idx0 = [Mesh.Fil["p0"]; repeat(Mesh.Fil["0"]', Mesh.NBases, 1)[:]; Mesh.Fil["q0"]]
+    MyD = function (; s = 0)
+        MyR[.!idx0, .!idx0] * (
+            B.B[.!idx0, .!idx0] - LinearAlgebra.I(sum(.!idx0)) * s +
+            B.B[.!idx0, idx0] *
+            (LinearAlgebra.I(sum(idx0)) * s - B.B[idx0, idx0])^-1 *
+            B.B[idx0, .!idx0]
+        )
+    end
+
+    DDict = Dict{String,Any}()
+    for ℓ in ["+", "-"], m in ["+", "-"]
+        FlBases = Mesh.Fil[ℓ][.!Mesh.Fil["0"]]
+        FmBases = Mesh.Fil[m][.!Mesh.Fil["0"]]
+        FlBases = [
+            Mesh.Fil["p"*ℓ][.!Mesh.Fil["p0"]]
+            repeat(FlBases', Mesh.NBases, 1)[:]
+            Mesh.Fil["q"*ℓ][.!Mesh.Fil["q0"]]
+        ]
+        FmBases = [
+            Mesh.Fil["p"*m][.!Mesh.Fil["p0"]]
+            repeat(FmBases', Mesh.NBases, 1)[:]
+            Mesh.Fil["q"*m][.!Mesh.Fil["q0"]]
+        ]
+        DDict[ℓ*m] = function (; s = 0)#::Array{Float64}
+            MyD(s = s)[FlBases, FmBases]
+        end # end function
+    end # end for ℓ, m ...
+
+    return (D = MyD, DDict = DDict)
 end
 
 function MakeD(;

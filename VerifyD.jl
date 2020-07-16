@@ -2,14 +2,14 @@ include("./SFFM.jl")
 using Plots, LinearAlgebra, KernelDensity, StatsBase
 
 ## Define the model
-T = [-2.0 1.0 1.0; 1.0 -2.0 1.0; 1.0 1.0 -2]
-C = [1.0; -2.0; 0]
+T = [-2.0 1.0 1.0; 1.0 -2.0 1.0; 1.0 1.0 -2.0]
+C = [1.0; -2.0; 0.0]
 r = (
     r = function (x)
-        [(1.1 .+ sin.(x)) (sqrt.(x .* (x .> 0)) .+ 1) ((x .> 0) .* x .+ 1)]
+        [(1.1 .+ sin.(4*x)) (sqrt.(x .* (x .> 0)) .+ 1) ((x .> 0) .* x .+ 1)]
     end, # r = function (x); [1.0.+0.01*x 1.0.+0.01*x 1*ones(size(x))]; end,
     R = function (x)
-        [(1.1 .* x .- cos.(x)) ((x .* (x .> 0)) .^ (3 / 2) .* 2 / 3 .+ 1 * x) (
+        [(1.1 .* x .- cos.(4*x)./4) ((x .* (x .> 0)) .^ (3 / 2) .* 2 / 3 .+ 1 * x) (
             (x .> 0) .* x .^ 2 / 2.0 .+ 1 * x
         )]
     end, # R = function (x); [1*x.+0.01.*x.^2.0./2 1*x.+0.01.*x.^2.0./2 1*x]; end
@@ -22,18 +22,18 @@ y = 10
 
 ## Simulate the model
 NSim = 40000
-# IC = (φ = ones(Int, NSim), X = zeros(NSim), Y = zeros(NSim))
+IC = (φ = ones(Int, NSim), X = zeros(NSim), Y = zeros(NSim))
 # IC = (φ = 2 .*ones(Int, NSim), X = -10*ones(NSim), Y = zeros(NSim))
-IC = (
-    φ = sum(rand(NSim) .< [1 / 3 2 / 3 1], dims = 2),
-    X = 20.0 .* rand(NSim) .- 10,
-    Y = zeros(NSim),
-)
+# IC = (
+#     φ = sum(rand(NSim) .< [1 / 3 2 / 3 1], dims = 2),
+#     X = 20.0 .* rand(NSim) .- 10,
+#     Y = zeros(NSim),
+# )
 sims =
     SFFM.SimSFFM(Model = Model, StoppingTime = SFFM.InOutYLevel(y = y), InitCondition = IC)
 
 ## Define the mesh
-Δ = 0.25
+Δ = 20/3
 Nodes = collect(Bounds[1, 1]:Δ:Bounds[1, 2])
 Fil = Dict{String,BitArray{1}}(
     "1+" => trues(length(Nodes) - 1),
@@ -44,7 +44,7 @@ Fil = Dict{String,BitArray{1}}(
     "q1+" => trues(1),
     "q3+" => trues(1),
 )
-NBases = 4
+NBases = 3
 Mesh = SFFM.MakeMesh(Model = Model, Nodes = Nodes, NBases = NBases, Fil = Fil)
 
 ## Construct all DG operators
@@ -55,27 +55,28 @@ B = All.B
 R = All.R
 D = All.D
 DR = All.DR
+MyD = SFFM.MakeMyD(Model = Model, Mesh = Mesh, MatricesR = MatricesR, B = B)
 
 ## initial condition
-# x0 = Matrix(
-#     [
-#         zeros(sum(Model.C.<=0)) # LHS point mass
-#         zeros(Mesh.NBases * Mesh.NIntervals * 1 ÷ 2) # phase 1
-#         Mesh.Δ[1] # phase 2
-#         zeros(NBases - 1) # phase 2
-#         zeros(Mesh.NBases * Mesh.NIntervals * 1 ÷ 2 - NBases)
-#         zeros(Mesh.TotalNBases * 2)
-#         zeros(sum(Model.C.>=0)) # RHS point mass
-#     ]',
-# )
 x0 = Matrix(
     [
-        zeros(sum(Model.C .<= 0)) # LHS point mass
-        repeat([1; zeros(NBases - 1)], Model.NPhases * Mesh.NIntervals, 1) ./
-        (Model.NPhases * Mesh.NIntervals)
-        zeros(sum(Model.C .>= 0)) # RHS point mass
+        zeros(sum(Model.C.<=0)) # LHS point mass
+        zeros(Mesh.NBases * Mesh.NIntervals * 1 ÷ 2) # phase 1
+        1 # phase 2
+        zeros(NBases - 1) # phase 2
+        zeros(Mesh.NBases * Mesh.NIntervals * 1 ÷ 2 - NBases)
+        zeros(Mesh.TotalNBases * 2)
+        zeros(sum(Model.C.>=0)) # RHS point mass
     ]',
 )
+# x0 = Matrix(
+#     [
+#         zeros(sum(Model.C .<= 0)) # LHS point mass
+#         repeat([1; zeros(NBases - 1)], Model.NPhases * Mesh.NIntervals, 1) ./
+#         (Model.NPhases * Mesh.NIntervals)
+#         zeros(sum(Model.C .>= 0)) # RHS point mass
+#     ]',
+# )
 
 ## DG approximations to exp(Dy)
 yvalsR =
@@ -90,13 +91,19 @@ yvals =
         sum(Model.C .<= 0).+1:NBases:end.-sum(Model.C .>= 0)
         end.-sum(Model.C .>= 0).+1:end
     ]]
-
+MyDyvals =
+    SFFM.EulerDG(D = MyD.D(s = 0), y = y, x0 = x0, h = 0.0001)[[
+        1:sum(Model.C .<= 0)
+        sum(Model.C .<= 0).+1:NBases:end.-sum(Model.C .>= 0)
+        end.-sum(Model.C .>= 0).+1:end
+    ]]
 ## analysis and plots
 
 # plot solutions
 p = plot(legend = false, layout = (3, 1))
 Y = zeros(length(Nodes) - 1, Model.NPhases)
 YR = zeros(length(Nodes) - 1, Model.NPhases)
+MyY = zeros(length(Nodes) - 1, Model.NPhases)
 let cum = 0
     for i = 1:Model.NPhases
         idx =
@@ -123,6 +130,16 @@ let cum = 0
             subplot = i,
         )
         YR[:, i] = yvalsR[idx]
+        p = plot!(
+            (
+                Mesh.CellNodes[1, .!Fil[string(i)*"0"]][:] +
+                Mesh.CellNodes[end, .!Fil[string(i)*"0"]][:]
+            ) / 2,
+            MyDyvals[idx],
+            label = "φ=" * string(i) * " - MyD",
+            subplot = i,
+        )
+        MyY[:, i] = MyDyvals[idx]
     end
 end
 p = plot!(subplot = 1, legend = :topright)
@@ -130,10 +147,11 @@ pmdata = [
     [Nodes[1] * ones(sum(Model.C .<= 0)); Nodes[end] * ones(sum(Model.C .>= 0))]'
     yvals[[.!Mesh.Fil["p0"]; falses(Model.NPhases * Mesh.NIntervals); .!Mesh.Fil["q0"]]]'
     yvalsR[[.!Mesh.Fil["p0"]; falses(Model.NPhases * Mesh.NIntervals); .!Mesh.Fil["q0"]]]'
+    MyDyvals[[.!Mesh.Fil["p0"]; falses(Model.NPhases * Mesh.NIntervals); .!Mesh.Fil["q0"]]]'
     [(sum(repeat(sims.X,1,Model.NPhases).*(sims.φ.==[1 2 3]).==Nodes[1],dims=1)./NSim)[Model.C.<=0];
     (sum(repeat(sims.X,1,Model.NPhases).*(sims.φ.==[1 2 3]).==Nodes[end],dims=1)./NSim)[Model.C.<=0]]'
 ]
-SFFM.MyPrint([".";"pm";"pmR";"sim"])
+SFFM.MyPrint([".";"pm";"pmR";"pmMyD";"sim"])
 SFFM.MyPrint(pmdata)
 
 display(p)
@@ -177,6 +195,7 @@ display(p)
 # display errors
 err = H - Y
 errR = H - YR
+MyDerr = H - MyY
 plot(
     Nodes[1:end-1] + diff(Nodes) / 2,
     err,
@@ -185,7 +204,9 @@ plot(
     layout = (3, 1),
 )
 plot!(Nodes[1:end-1] + diff(Nodes) / 2, errR, label = "errR")
+plot!(Nodes[1:end-1] + diff(Nodes) / 2, MyDerr, label = "MyDerr")
 display(sum(abs.(err) ))
 display(sum(abs.(errR)))
+display(sum(abs.(MyDerr)))
 display(abs.(err))
 display(abs.(errR))

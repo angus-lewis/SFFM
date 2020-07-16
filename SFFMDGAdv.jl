@@ -239,18 +239,18 @@ function MakeDR(;
     # Boundary behaviour
     # Lower boundary
     # At boundary
-    BR[1:N₋, 1:N₋] = (1.0./Model.r.r(Mesh.CellNodes[1])'.*Model.T)[Model.C.<=0, Model.C.<=0]
+    BR[1:N₋, 1:N₋] = (1.0./abs.(Model.r.r(Mesh.CellNodes[1]))'.*Model.T)[Model.C.<=0, Model.C.<=0]
     # Out of boundary
     idxup = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .> 0) .- 1)')[:] .+ N₋
     BR[1:N₋, idxup] = kron(
-        (1.0./Model.r.r(Mesh.CellNodes[1])'.*Model.T)[Model.C.<=0, Model.C.>0],
+        (1.0./abs.(Model.r.r(Mesh.CellNodes[1]))'.*Model.T)[Model.C.<=0, Model.C.>0],
         Matrices.Local.Phi[1, :]' * Matrices.Local.MInv,
     )
     # Into boundary
     idxdown = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .<= 0) .- 1)')[:] .+ N₋
     BR[idxdown, 1:N₋] = LinearAlgebra.kron(
         LinearAlgebra.diagm(
-            0 => Model.C[Model.C.<=0] ./ Model.r.r(Mesh.CellNodes[1])[Model.C.<=0],
+            0 => Model.C[Model.C.<=0] ./ abs.(Model.r.r(Mesh.CellNodes[1]))[Model.C.<=0],
         ),
         -Matrices.Local.Phi[1, :] * 2 / Mesh.Δ[1],
     )
@@ -258,13 +258,13 @@ function MakeDR(;
     # Upper boundary
     # At boundary
     BR[(end-N₊+1):end, (end-N₊+1):end] =
-        (1.0./Model.r.r(Mesh.CellNodes[end])'.*Model.T)[Model.C.>=0, Model.C.>=0]
+        (1.0./abs.(Model.r.r(Mesh.CellNodes[end]))'.*Model.T)[Model.C.>=0, Model.C.>=0]
     # Out of boundary
     idxdown =
         ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .< 0) .- 1)')[:] .+
         (N₋ + Mesh.TotalNBases - Mesh.NBases)
     BR[(end-N₊+1):end, idxdown] = kron(
-        (1.0./Model.r.r(Mesh.CellNodes[end])'.*Model.T)[Model.C.>=0, Model.C.<0],
+        (1.0./abs.(Model.r.r(Mesh.CellNodes[end]))'.*Model.T)[Model.C.>=0, Model.C.<0],
         Matrices.Local.Phi[end, :]' * Matrices.Local.MInv,
     )
     # Into boundary
@@ -273,7 +273,7 @@ function MakeDR(;
         (N₋ + Mesh.TotalNBases - Mesh.NBases)
     BR[idxup, (end-N₊+1):end] = LinearAlgebra.kron(
         LinearAlgebra.diagm(
-            0 => Model.C[Model.C.>=0] ./ Model.r.r(Mesh.CellNodes[end])[Model.C.<=0],
+            0 => Model.C[Model.C.>=0] ./ abs.(Model.r.r(Mesh.CellNodes[end]))[Model.C.<=0],
         ),
         Matrices.Local.Phi[end, :] * 2 / Mesh.Δ[end],
     )
@@ -330,7 +330,7 @@ function MakeDR(;
             Mesh.Fil["q"*m][.!Mesh.Fil["q0"]]
         ]
         DDict[ℓ*m] = function (; s = 0)#::Array{Float64}
-            DR(s)[FlBases, FmBases]
+            DR(s=s)[FlBases, FmBases]
         end # end function
     end # end for ℓ, m ...
     return (DDict = DDict, DR = DR)
