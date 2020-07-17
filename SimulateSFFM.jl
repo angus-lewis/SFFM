@@ -73,20 +73,27 @@ function SimSFFM(;
             Y = InitCondition.Y[m],
             n = 0,
         )
-        while 1 == 1
-            S = log(rand()) / Λ[SFFM0.φ]
-            t = SFFM0.t + S
-            X = UpdateXt(Model = Model, SFM0 = SFFM0, S = S)
-            Y = UpdateYt(Model = Model, SFFM0 = SFFM0, S = S)
-            φ = findfirst(rand() .< CumP[SFFM0.φ, :])
-            n = SFFM0.n + 1
-            SFFM = (t = t, φ = φ, X = X, Y = Y, n = n)
-            τ = StoppingTime(Model, SFFM, SFFM0)
-            if τ.Ind
-                (tSims[m], φSims[m], XSims[m], YSims[m], nSims[m]) = τ.SFFM
-                break
+        if !(Model.Bounds[1, 1] <= SFFM0.X <= Model.Bounds[1, 2]) ||
+           !(Model.Bounds[2, 1] <= SFFM0.Y <= Model.Bounds[2, 2]) ||
+           !in(SFFM0.φ,1:Model.NPhases)
+            (tSims[m], φSims[m], XSims[m], YSims[m], nSims[m]) =
+                (t = NaN, φ = NaN, X = NaN, Y = NaN, n = NaN)
+        else
+            while 1 == 1
+                S = log(rand()) / Λ[SFFM0.φ]
+                t = SFFM0.t + S
+                X = UpdateXt(Model = Model, SFM0 = SFFM0, S = S)
+                Y = UpdateYt(Model = Model, SFFM0 = SFFM0, S = S)
+                φ = findfirst(rand() .< CumP[SFFM0.φ, :])
+                n = SFFM0.n + 1
+                SFFM = (t = t, φ = φ, X = X, Y = Y, n = n)
+                τ = StoppingTime(Model, SFFM, SFFM0)
+                if τ.Ind
+                    (tSims[m], φSims[m], XSims[m], YSims[m], nSims[m]) = τ.SFFM
+                    break
+                end
+                SFFM0 = SFFM
             end
-            SFFM0 = SFFM
         end
     end
     return (t = tSims, φ = φSims, X = XSims, Y = YSims, n = nSims)
@@ -113,8 +120,8 @@ function UpdateYt(;
     if Model.C[SFFM0.φ] == 0
         Y = SFFM0.Y + S * Model.r.r(SFFM0.X)[SFFM0.φ]
     else
-        ind = (SFFM0.X.==Model.Bounds[1, :])[:]
         X = UpdateXt(Model = Model, SFM0 = SFFM0, S = S)
+        ind = (X.==Model.Bounds[1, :])[:]
         if any(ind)
             # time at which Xt hits u or v
             t0 = (Model.Bounds[1, ind][1] - SFFM0.X) / Model.C[SFFM0.φ]
@@ -258,7 +265,7 @@ function InOutYLevel(; y::Real)
         SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )
-        Ind = SFFM.Y > y && SFFM0.Y <= y
+        Ind = SFFM.Y >= y && SFFM0.Y < y
         if Ind
             YFun(t) = UpdateYt(Model = Model, SFFM0 = SFFM0, S = t) - y
             S = SFFM.t - SFFM0.t
@@ -273,7 +280,7 @@ function InOutYLevel(; y::Real)
     return InOutYLevelFun
 end
 
-function fzero(; f::Function, a::Real, b::Real, err::Float64 = 1e-14)
+function fzero(; f::Function, a::Real, b::Real, err::Float64 = 1e-8)
     # finds zeros of f using the bisection method
     c = a + (b - a) / 2
     while a < c < b

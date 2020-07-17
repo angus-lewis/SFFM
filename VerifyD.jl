@@ -33,7 +33,7 @@ sims =
     SFFM.SimSFFM(Model = Model, StoppingTime = SFFM.InOutYLevel(y = y), InitCondition = IC)
 
 ## Define the mesh
-Δ = 20/3
+Δ = 1
 Nodes = collect(Bounds[1, 1]:Δ:Bounds[1, 2])
 Fil = Dict{String,BitArray{1}}(
     "1+" => trues(length(Nodes) - 1),
@@ -48,7 +48,7 @@ NBases = 3
 Mesh = SFFM.MakeMesh(Model = Model, Nodes = Nodes, NBases = NBases, Fil = Fil)
 
 ## Construct all DG operators
-All = SFFM.MakeAll(Model = Model, Mesh = Mesh)
+All = SFFM.MakeAll(Model = Model, Mesh = Mesh, Basis = "lagrange")
 Matrices = All.Matrices
 MatricesR = All.MatricesR
 B = All.B

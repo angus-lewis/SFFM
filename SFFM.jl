@@ -44,10 +44,11 @@ function MakeAll(;
     Mesh::NamedTuple{
         (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases),
     },
+    Basis = "legendre",
 )
 
-    Matrices = MakeMatrices(Model = Model, Mesh = Mesh)
-    MatricesR = MakeMatricesR(Model = Model, Mesh = Mesh)
+    Matrices = MakeMatrices(Model = Model, Mesh = Mesh, Basis = Basis)
+    MatricesR = MakeMatricesR(Model = Model, Mesh = Mesh, Basis = Basis)
     B = MakeB(Model = Model, Mesh = Mesh, Matrices = Matrices)
     R = MakeR(Model = Model, Mesh = Mesh)
     D = MakeD(Model = Model, Mesh = Mesh, R = R, B = B)

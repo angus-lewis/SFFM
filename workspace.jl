@@ -156,95 +156,163 @@ end
 include("./SFFM.jl")
 using Plots, LinearAlgebra, KernelDensity, StatsBase
 
-T = [-2.0 1.0 1.0; 1.0 -2.0 1.0; 1.0 1.0 -2]
-C = [1.0;-2.0;0]
+## Define the model
+T = [-2.0 1.0 1.0; 1.0 -2.0 1.0; 1.0 1.0 -2.0]
+C = [1.0; -1.0; 0]
 r = (
-    r =
-        function (x)
-            [1.0.+sin.(x) (x.>=0) (x.<=0)]
-        end, # r = function (x); [1.0.+0.01*x 1.0.+0.01*x 1*ones(size(x))]; end,
-    R = function (x); [x.-cos.(x) 2*(x.>0).*x.^3/3.0.+1*x 0.0.*x]; end # R = function (x); [1*x.+0.01.*x.^2.0./2 1*x.+0.01.*x.^2.0./2 1*x]; end
+    r = function (x)
+        [ones(size(x)) ones(size(x)) ones(size(x))]
+    end, # r = function (x); [1.0.+0.01*x 1.0.+0.01*x 1*ones(size(x))]; end,
+    R = function (x)
+        [x x x]
+    end, # R = function (x); [1*x.+0.01.*x.^2.0./2 1*x.+0.01.*x.^2.0./2 1*x]; end
 ) # [1*(x.<=2.0).-2.0*(x.>1.0) -2.0*(x.<=2.0).+(x.>2.0)] # [1.0 -2.0].*ones(size(x))#
-Bounds = [-Inf Inf;-Inf Inf]
+Bounds = [-1 1; -Inf Inf]
+Model = SFFM.MakeModel(T = T, C = C, r = r, Bounds = Bounds)
 
-Model = SFFM.MakeModel(T=T,C=C,r=r,Bounds=Bounds)
+# in out Y-level
+y = 4
 
-y = 2
-NSim = 40000
-IC = (φ=ones(Int,NSim), X=zeros(NSim), Y=zeros(NSim))
-# sims = SFFM.SimSFFM(
-#     Model=Model,
-#     StoppingTime=SFFM.InOutYLevel(y=y),
-#     InitCondition=IC
+## Simulate the model
+NSim = 20000
+# IC = (φ = ones(Int, NSim), X = zeros(NSim), Y = zeros(NSim))
+# IC = (φ = 2 .*ones(Int, NSim), X = -10*ones(NSim), Y = zeros(NSim))
+IC = (
+    φ = sum(rand(NSim) .< [1 / 3 2 / 3 1], dims = 2),
+    X = (Bounds[1,2]-Bounds[1,1]) .* rand(NSim) .- -Bounds[1,1],
+    Y = zeros(NSim),
+)
+sims =
+    SFFM.SimSFFM(Model = Model, StoppingTime = SFFM.InOutYLevel(y = y), InitCondition = IC)
+
+## Define the mesh
+Δ = 0.2
+Nodes = collect(Bounds[1, 1]:Δ:Bounds[1, 2])
+Fil = Dict{String,BitArray{1}}(
+    "1+" => trues(length(Nodes) - 1),
+    "2+" => trues(length(Nodes) - 1),
+    "3+" => trues(length(Nodes) - 1),
+    "p2+" => trues(1),
+    "p3+" => trues(1),
+    "q1+" => trues(1),
+    "q3+" => trues(1),
+)
+NBases = 5
+Mesh = SFFM.MakeMesh(Model = Model, Nodes = Nodes, NBases = NBases, Fil = Fil)
+
+## Construct all DG operators
+All = SFFM.MakeAll(Model = Model, Mesh = Mesh, Basis = "lagrange")
+Matrices = All.Matrices
+MatricesR = All.MatricesR
+B = All.B
+R = All.R
+D = All.D
+DR = All.DR
+MyD = SFFM.MakeMyD(Model = Model, Mesh = Mesh, MatricesR = MatricesR, B = B)
+
+## initial condition
+# x0 = Matrix(
+#     [
+#         zeros(sum(Model.C.<=0)) # LHS point mass
+#         zeros(Mesh.NBases * Mesh.NIntervals * 1 ÷ 2) # phase 1
+#         1 # phase 1
+#         zeros(NBases - 1) # phase 1
+#         zeros(Mesh.NBases * Mesh.NIntervals * 1 ÷ 2 - NBases) # phase 1
+#         zeros(Mesh.TotalNBases * 2) # phases 2 and 3
+#         zeros(sum(Model.C.>=0)) # RHS point mass
+#     ]',
 # )
-# histogram(sims.X[sims.φ.==1])
-Nodes = collect(-10.0:5:10.0)
-Fil = Dict{String,BitArray{1}}("1+" => trues(length(Nodes)-1),
-                                "20" => [trues(length(Nodes)-3);falses(2)],
-                                "2+" => [falses(2);trues(length(Nodes)-3)],
-                                "30" => .![trues(length(Nodes)-3);falses(2)],
-                                "3+" => .![falses(2);trues(length(Nodes)-3)],
-                                "q1+" => trues(1),
-                                "p20" => trues(1),
-                                "p3+" => trues(1),
-                                "q30" => trues(1))
-NBases = 2
+x0 = Matrix(
+    [
+        zeros(sum(Model.C .<= 0)) # LHS point mass
+        repeat(Matrices.Local.V.w./2.0, Model.NPhases * Mesh.NIntervals, 1) ./
+        (Model.NPhases * Mesh.NIntervals)
+        zeros(sum(Model.C .>= 0)) # RHS point mass
+    ]',
+)
 
-Mesh = SFFM.MakeMesh(Model=Model,Nodes=Nodes,NBases=NBases,Fil=Fil)
-Matrices = SFFM.MakeMatrices(Model=Model,Mesh=Mesh,Basis="legendre")
-MatricesR = SFFM.MakeMatricesR(Model=Model,Mesh=Mesh)
-B = SFFM.MakeB(Model=Model,Mesh=Mesh,Matrices=Matrices)
-R = SFFM.MakeR(Model=Model,Mesh=Mesh)
-D = SFFM.MakeD(Model=Model,Mesh=Mesh,R=R,B=B)
-DR = SFFM.MakeDR(Matrices=Matrices,MatricesR=MatricesR,Model=Model,Mesh=Mesh,B=B)
+## DG approximations to exp(Dy)
+yvalsR =
+    SFFM.EulerDG(D = DR.DDict["++"](s = 0), y = y, x0 = x0, h = 0.0001)[[
+        1:sum(Model.C .<= 0)
+        sum(Model.C .<= 0).+1:1:end.-sum(Model.C .>= 0)
+        end.-sum(Model.C .>= 0).+1:end
+    ]]
+yvalsR = [yvalsR[1:2]' sum(reshape(yvalsR[3:end-2],NBases,length(yvalsR[3:end-2])÷NBases),dims=1) yvalsR[end-1:end]']
+yvals =
+    SFFM.EulerDG(D = D["++"](s = 0), y = y, x0 = x0, h = 0.0001)[[
+        1:sum(Model.C .<= 0)
+        sum(Model.C .<= 0).+1:1:end.-sum(Model.C .>= 0)
+        end.-sum(Model.C .>= 0).+1:end
+    ]]
+yvals = [yvals[1:2]' sum(reshape(yvals[3:end-2],NBases,length(yvals[3:end-2])÷NBases),dims=1) yvals[end-1:end]']
+MyDyvals =
+    SFFM.EulerDG(D = MyD.D(s = 0), y = y, x0 = x0, h = 0.0001)[[
+        1:sum(Model.C .<= 0)
+        sum(Model.C .<= 0).+1:1:end.-sum(Model.C .>= 0)
+        end.-sum(Model.C .>= 0).+1:end
+    ]]
+MyDyvals = [MyDyvals[1:2]' sum(reshape(MyDyvals[3:end-2],NBases,length(MyDyvals[3:end-2])÷NBases),dims=1) MyDyvals[end-1:end]']
+## analysis and plots
 
-function Integrater(; D, y, x0)
-    h = 0.0001
-    x = x0
-    for t in h:h:y
-        dx = h*x*D
-        x = x+dx
-    end
-    return x
-end
-#x0 = ones(1,size(B.B,1))/size(B.B,1)
-x0 = Matrix([0;0;
-    zeros(Mesh.NBases*Mesh.NIntervals*2÷3);
-    Mesh.Δ[1]; zeros(NBases-1); zeros(Mesh.NBases*Mesh.NIntervals*1÷3-NBases+1);
-    zeros(Mesh.TotalNBases*2)
-    0;0]')
-yvalsR = Integrater(D=DR.DDict["++"](s=0), y = y, x0 = x0)[1:NBases:end]./Mesh.Δ[1]
-yvals = Integrater(D=D["++"](s=0), y = y, x0 = x0)[1:NBases:end]./Mesh.Δ[1]
-# Matrix([
-#     zeros(Mesh.TotalNBases*2);
-#     1;
-#     zeros(Mesh.TotalNBases-1)
-#     ]' * exp(D["++"](s=0)*y)
-# )
-p = plot(legend=:topleft)
-Y = zeros(length(Nodes)-1,Model.NPhases)
-YR = zeros(length(Nodes)-1,Model.NPhases)
+# plot solutions
+p = plot(legend = false, layout = (3, 1))
+Y = zeros((length(Nodes) - 1), Model.NPhases)
+YR = zeros((length(Nodes) - 1), Model.NPhases)
+MyY = zeros((length(Nodes) - 1), Model.NPhases)
 let cum = 0
-    for i in 1:Model.NPhases
-        idx = findall(.!Fil[string(i)*"0"]) .- cum .+ (i - 1)*Mesh.NIntervals
-        cum = cum + sum(Fil[string(i)*"0"])
+    for i = 1:Model.NPhases
+        idx = findall(.!Fil[string(i)*"0"]) .- cum .+ (i-1)*Mesh.NIntervals .+ sum(Model.C .<= 0)
+        cum = cum + sum(Fil[string(i)*"0"])*NBases
         p = plot!(
-            Mesh.CellNodes[1,.!Fil[string(i)*"0"]][:],
+            (
+                Mesh.CellNodes[1, .!Fil[string(i)*"0"]][:] +
+                Mesh.CellNodes[end, .!Fil[string(i)*"0"]][:]
+            ) / 2,
             yvals[idx],
-            label="φ="*string(i)*" - D"
-            )
-        Y[:,i] = yvals[idx]
+            label = "φ=" * string(i) * " - D",
+            subplot = i,
+        )
+        Y[:, i] = yvals[idx]
+        # p = plot!(
+        #     (
+        #         Mesh.CellNodes[1, .!Fil[string(i)*"0"]][:] +
+        #         Mesh.CellNodes[end, .!Fil[string(i)*"0"]][:]
+        #     ) / 2,
+        #     yvalsR[idx],
+        #     label = "φ=" * string(i) * " - DR",
+        #     subplot = i,
+        # )
+        # YR[:, i] = yvalsR[idx]
         p = plot!(
-            Mesh.CellNodes[1,.!Fil[string(i)*"0"]][:],
-            yvalsR[idx],
-            label = "φ="*string(i)*" - DR"
-            )
-        YR[:,i] = yvalsR[idx]
+            (
+                Mesh.CellNodes[1, .!Fil[string(i)*"0"]][:] +
+                Mesh.CellNodes[end, .!Fil[string(i)*"0"]][:]
+            ) / 2,
+            MyDyvals[idx],
+            label = "φ=" * string(i) * " - MyD",
+            subplot = i,
+        )
+        MyY[:, i] = MyDyvals[idx]
     end
 end
+p = plot!(subplot = 1, legend = :topright)
+pmdata = [
+    [Nodes[1] * ones(sum(Model.C .<= 0)); Nodes[end] * ones(sum(Model.C .>= 0))]'
+    yvals[[.!Mesh.Fil["p0"]; falses(Model.NPhases * Mesh.NIntervals); .!Mesh.Fil["q0"]]]'
+    yvalsR[[.!Mesh.Fil["p0"]; falses(Model.NPhases * Mesh.NIntervals); .!Mesh.Fil["q0"]]]'
+    MyDyvals[[.!Mesh.Fil["p0"]; falses(Model.NPhases * Mesh.NIntervals); .!Mesh.Fil["q0"]]]'
+    [(sum(repeat(sims.X,1,Model.NPhases).*(sims.φ.==[1 2 3]).==Nodes[1],dims=1)./NSim)[Model.C.<=0];
+    (sum(repeat(sims.X,1,Model.NPhases).*(sims.φ.==[1 2 3]).==Nodes[end],dims=1)./NSim)[Model.C.>=0]]'
+]
+SFFM.MyPrint([".";"pm";"pmR";"pmMyD";"sim"])
+SFFM.MyPrint(pmdata)
+
 display(p)
-H = zeros(length(Nodes)-1,Model.NPhases)
-for whichφ in 1:Model.NPhases
+
+# plot sims
+H = zeros(length(Nodes) - 1, Model.NPhases)
+for whichφ = 1:Model.NPhases
     #pltvals = kde(sims.X[sims.φ.==whichφ])
     #p = histogram!(sims.X[sims.φ.==whichφ],bins=Nodes,normalize=:probability,alpha=0.2)
     # plot!(
@@ -255,19 +323,44 @@ for whichφ in 1:Model.NPhases
     #     z->pdf(pltvals,z)*sum(sims.φ.==whichφ)/length(sims.φ),
     #     label = "φ="*string(i)*" - sim"
     # )
-    h = fit(Histogram,sims.X[sims.φ.==whichφ],Nodes)
-    h = h.weights./sum(h.weights)*sum(sims.φ.==whichφ)/length(sims.φ)
-    H[:,whichφ] = h
-    p = plot!(Nodes[1:end-1]+diff(Nodes)/2,h,label="hist"*string(whichφ))
+    h = fit(
+        Histogram,
+        sims.X[(sims.φ.==whichφ) .& (sims.X.!=Nodes[1]) .& (sims.X.!=Nodes[end])],
+        Nodes,
+    )
+    h = h.weights ./ NSim
+    H[:, whichφ] = h
+    #p = plot!(
+    #    Nodes[1:end-1] + diff(Nodes) / 2,
+    #    h,
+    #    label = "hist" * string(whichφ),
+    #)
+    p = bar!(
+        (Nodes[1:end-1] + Nodes[2:end]) / 2,
+        h,
+        alpha = 0.2,
+        bar_width = Mesh.Δ,
+        label = "sims",
+        subplot = whichφ,
+    )
 end
-
 display(p)
 
-err = H-Y
-errR = H-YR
-plot(Nodes[1:end-1]+diff(Nodes)/2,err,legend=:bottomleft)
-plot!(Nodes[1:end-1]+diff(Nodes)/2,errR)
-display(sum(abs.(err)*Mesh.Δ[1]))
-display(sum(abs.(errR)*Mesh.Δ[1]))
+# display errors
+err = H - Y
+errR = H - YR
+MyDerr = H - MyY
+plot(
+    Nodes[1:end-1] + diff(Nodes) / 2,
+    err,
+    label = "err",
+    legend = :topleft,
+    layout = (3, 1),
+)
+plot!(Nodes[1:end-1] + diff(Nodes) / 2, errR, label = "errR")
+plot!(Nodes[1:end-1] + diff(Nodes) / 2, MyDerr, label = "MyDerr")
+display(sum(abs.(err) ))
+display(sum(abs.(errR)))
+display(sum(abs.(MyDerr)))
 display(abs.(err))
 display(abs.(errR))
