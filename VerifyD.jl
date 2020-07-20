@@ -14,6 +14,16 @@ r = (
         )]
     end, # R = function (x); [1*x.+0.01.*x.^2.0./2 1*x.+0.01.*x.^2.0./2 1*x]; end
 ) # [1*(x.<=2.0).-2.0*(x.>1.0) -2.0*(x.<=2.0).+(x.>2.0)] # [1.0 -2.0].*ones(size(x))#
+
+# r = (
+#     r = function (x)
+#         [ones(size(x)) ones(size(x)) ones(size(x))]
+#     end, # r = function (x); [1.0.+0.01*x 1.0.+0.01*x 1*ones(size(x))]; end,
+#     R = function (x)
+#         [x x x]
+#     end, # R = function (x); [1*x.+0.01.*x.^2.0./2 1*x.+0.01.*x.^2.0./2 1*x]; end
+# )
+
 Bounds = [-10 10; -Inf Inf]
 Model = SFFM.MakeModel(T = T, C = C, r = r, Bounds = Bounds)
 
@@ -21,7 +31,7 @@ Model = SFFM.MakeModel(T = T, C = C, r = r, Bounds = Bounds)
 y = 10
 
 ## Simulate the model
-NSim = 40000
+NSim = 30000
 IC = (φ = ones(Int, NSim), X = zeros(NSim), Y = zeros(NSim))
 # IC = (φ = 2 .*ones(Int, NSim), X = -10*ones(NSim), Y = zeros(NSim))
 # IC = (
@@ -44,18 +54,18 @@ Fil = Dict{String,BitArray{1}}(
     "q1+" => trues(1),
     "q3+" => trues(1),
 )
-NBases = 3
+NBases = 8
 Mesh = SFFM.MakeMesh(Model = Model, Nodes = Nodes, NBases = NBases, Fil = Fil)
 
 ## Construct all DG operators
-All = SFFM.MakeAll(Model = Model, Mesh = Mesh, Basis = "lagrange")
+All = SFFM.MakeAll(Model = Model, Mesh = Mesh, Basis = "legendre")
 Matrices = All.Matrices
 MatricesR = All.MatricesR
 B = All.B
 R = All.R
 D = All.D
 DR = All.DR
-MyD = SFFM.MakeMyD(Model = Model, Mesh = Mesh, MatricesR = MatricesR, B = B)
+MyD = SFFM.MakeMyD(Model = Model, Mesh = Mesh, B = B, V = Matrices.Local.V)
 
 ## initial condition
 x0 = Matrix(

@@ -197,11 +197,11 @@ Fil = Dict{String,BitArray{1}}(
     "p3+" => trues(1),
     "q3+" => trues(1),
 )
-NBases = 3
+NBases = 6
 Mesh = SFFM.MakeMesh(Model = Model, Nodes = Nodes, NBases = NBases, Fil = Fil)
 
 ## Construct all DG operators
-All = SFFM.MakeAll(Model = Model, Mesh = Mesh, Basis = "lagrange")
+All = SFFM.MakeAll(Model = Model, Mesh = Mesh, Basis = "legendre")
 Matrices = All.Matrices
 MatricesR = All.MatricesR
 B = All.B
@@ -225,7 +225,7 @@ MyD = SFFM.MakeMyD(Model = Model, Mesh = Mesh, MatricesR = MatricesR, B = B)
 x0 = Matrix(
     [
         zeros(sum(Model.C .<= 0)) # LHS point mass
-        repeat(Matrices.Local.V.w./2.0, Model.NPhases * Mesh.NIntervals, 1) ./
+        repeat([1.0; zeros(Float64, NBases-1)], Model.NPhases * Mesh.NIntervals, 1) ./
         (Model.NPhases * Mesh.NIntervals)
         zeros(sum(Model.C .>= 0)) # RHS point mass
     ]',
@@ -262,7 +262,8 @@ YR = zeros((length(Nodes) - 1), Model.NPhases)
 MyY = zeros((length(Nodes) - 1), Model.NPhases)
 let cum = 0
     for i = 1:Model.NPhases
-        idx = findall(.!Fil[string(i)*"0"]) .- cum .+ (i-1)*Mesh.NIntervals .+ sum(Model.C .<= 0)
+        idx = findall(.!Fil[string(i)*"0"]) .- cum .+ (i - 1) * Mesh.NIntervals .+
+            sum(Model.C .<= 0)
         cum = cum + sum(Fil[string(i)*"0"])*NBases
         p = plot!(
             (

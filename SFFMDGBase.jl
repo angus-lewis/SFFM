@@ -156,7 +156,7 @@ function MakeFluxMatrix(;
     },
     Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     Phi,
-    V,
+    Dw,
 )
     # MakeFluxMatrix creates the global block tridiagonal flux matrix for the
     # lagrange basis
@@ -167,26 +167,10 @@ function MakeFluxMatrix(;
     # F - TotalNBases×TotalNBases×NPhases Array{Float64,3}, global flux matrix
 
     ## Create the blocks
-    PosDiagBlock =
-        -LinearAlgebra.diagm(0 => 1.0 ./ V.w) *
-        Phi[end, :] *
-        Phi[end, :]' *
-        LinearAlgebra.diagm(0 => V.w)
-    NegDiagBlock =
-        LinearAlgebra.diagm(0 => 1.0 ./ V.w) *
-        Phi[1, :] *
-        Phi[1, :]' *
-        LinearAlgebra.diagm(0 => V.w)
-    UpDiagBlock =
-        LinearAlgebra.diagm(0 => 1.0 ./ V.w) *
-        Phi[end, :] *
-        Phi[1, :]' *
-        LinearAlgebra.diagm(0 => V.w)
-    LowDiagBlock =
-        -LinearAlgebra.diagm(0 => 1.0 ./ V.w) *
-        Phi[1, :] *
-        Phi[end, :]' *
-        LinearAlgebra.diagm(0 => V.w)
+    PosDiagBlock = -Dw.DwInv * Phi[end, :] * Phi[end, :]' * Dw.Dw
+    NegDiagBlock = Dw.DwInv * Phi[1, :] * Phi[1, :]' * Dw.Dw
+    UpDiagBlock = Dw.DwInv * Phi[end, :] * Phi[1, :]' * Dw.Dw
+    LowDiagBlock = -Dw.DwInv * Phi[1, :] * Phi[end, :]' * Dw.Dw
 
     ## Construct global block diagonal matrix
     F = zeros(Float64, Mesh.TotalNBases, Mesh.TotalNBases, Model.NPhases)
@@ -201,10 +185,10 @@ function MakeFluxMatrix(;
             if k > 1
                 idxup = (1:Mesh.NBases) .+ (k - 2) * Mesh.NBases
                 if Model.C[i] > 0
-                    η = (Mesh.Δ[k] / 2) / (Mesh.Δ[k-1] / 2)
+                    η = Mesh.Δ[k] / Mesh.Δ[k-1]
                     F[idxup, idx, i] = UpDiagBlock * η
                 elseif Model.C[i] < 0
-                    η = (Mesh.Δ[k-1] / 2) / (Mesh.Δ[k] / 2)
+                    η = Mesh.Δ[k-1] / Mesh.Δ[k]
                     F[idx, idxup, i] = LowDiagBlock * η
                 end # end if C[i]
             end # end if k>1
@@ -245,27 +229,22 @@ function MakeMatrices(;
     ## Construct blocks
     V = vandermonde(NBases = Mesh.NBases)
     if Basis == "legendre"
+        Dw = (
+            DwInv = LinearAlgebra.diagm(0 => ones(Float64, Mesh.NBases)),
+            Dw = LinearAlgebra.diagm(0 => ones(Float64, Mesh.NBases)),
+        )
         MLocal = Matrix{Float64}(LinearAlgebra.I(Mesh.NBases))
         GLocal = V.inv * V.D
         MInvLocal = Matrix{Float64}(LinearAlgebra.I(Mesh.NBases))
         Phi = V.V[[1; end], :]
     elseif Basis == "lagrange"
-        MLocal =
-            LinearAlgebra.diagm(0 => 1.0 ./ V.w) *
-            V.inv' *
-            V.inv *
-            LinearAlgebra.diagm(0 => V.w)
-        GLocal =
-            LinearAlgebra.diagm(0 => 1.0 ./ V.w) *
-            V.inv' *
-            V.inv *
-            (V.D * V.inv) *
-            LinearAlgebra.diagm(0 => V.w)
-        MInvLocal =
-            LinearAlgebra.diagm(0 => 1.0 ./ V.w) *
-            V.V *
-            V.V' *
-            LinearAlgebra.diagm(0 => V.w)
+        Dw = (
+            DwInv = LinearAlgebra.diagm(0 => 1.0 ./ V.w),
+            Dw = LinearAlgebra.diagm(0 => V.w),
+        )
+        MLocal = Dw.DwInv * V.inv' * V.inv * Dw.Dw
+        GLocal = Dw.DwInv * V.inv' * V.inv * (V.D * V.inv) * Dw.Dw
+        MInvLocal = Dw.DwInv * V.V * V.V' * Dw.Dw
         Phi = (V.inv*V.V)[[1; end], :]
     end
 
@@ -281,8 +260,7 @@ function MakeMatrices(;
         Blocks = MInvLocal,
         Factors = 2.0 ./ Mesh.Δ,
     )
-
-    F = SFFM.MakeFluxMatrix(Mesh = Mesh, Model = Model, Phi = Phi, V = V)
+    F = SFFM.MakeFluxMatrix(Mesh = Mesh, Model = Model, Phi = Phi, Dw = Dw)
 
     ## Assemble the DG drift operator
     Q = zeros(Float64, Mesh.TotalNBases, Mesh.TotalNBases, length(Model.C))
@@ -290,10 +268,10 @@ function MakeMatrices(;
         Q[:, :, i] = Model.C[i] * (G + F[:, :, i]) * MInv
     end
 
-    Local = (G = GLocal, M = MLocal, MInv = MInvLocal, V = V, Phi = Phi)
+    Local = (G = GLocal, M = MLocal, MInv = MInvLocal, V = V, Phi = Phi, Dw = Dw)
     Global = (G = G, M = M, MInv = MInv, F = F, Q = Q)
     println("Matrices.Fields with Fields (.Local, .Global)")
-    println("Matrices.Local.Fields with Fields (.G, .M, .MInv, .V, .Phi)")
+    println("Matrices.Local.Fields with Fields (.G, .M, .MInv, .V, .Phi , .Dw)")
     println("Matrices.Global.Fields with Fields (.G, .M, .MInv, F, .Q)")
     return (Local = Local, Global = Global)
 end
@@ -339,7 +317,6 @@ function MakeB(;
     # interior behaviour
     B[(N₋+1):(end-N₊), (N₋+1):(end-N₊)] =
         B[(N₋+1):(end-N₊), (N₋+1):(end-N₊)] + LinearAlgebra.kron(Model.T, Id)
-
     # Boundary behaviour
     # Lower boundary
     # At boundary
@@ -348,16 +325,13 @@ function MakeB(;
     idxup = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .> 0) .- 1)')[:] .+ N₋
     B[1:N₋, idxup] = kron(
         Model.T[Model.C.<=0, Model.C.>0],
-        Matrices.Local.Phi[1, :]' *
-        LinearAlgebra.diagm(0 => Matrices.Local.V.w) *
-        Matrices.Local.MInv,
+        Matrices.Local.Phi[1, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv,
     )
     # Into boundary
     idxdown = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .<= 0) .- 1)')[:] .+ N₋
     B[idxdown, 1:N₋] = LinearAlgebra.kron(
         LinearAlgebra.diagm(0 => Model.C[Model.C.<=0]),
-        -LinearAlgebra.diagm(0 => 1.0 ./ Matrices.Local.V.w) * 2.0 ./ Mesh.Δ[1] *
-        Matrices.Local.Phi[1, :],
+        -Matrices.Local.Dw.DwInv * 2.0 ./ Mesh.Δ[1] * Matrices.Local.Phi[1, :],
     )
 
     # Upper boundary
@@ -369,9 +343,7 @@ function MakeB(;
         (N₋ + Mesh.TotalNBases - Mesh.NBases)
     B[(end-N₊+1):end, idxdown] = kron(
         Model.T[Model.C.>=0, Model.C.<0],
-        Matrices.Local.Phi[end, :]' *
-        LinearAlgebra.diagm(0 => Matrices.Local.V.w) *
-        Matrices.Local.MInv,
+        Matrices.Local.Phi[end, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv,
     )
     # Into boundary
     idxup =
@@ -379,8 +351,7 @@ function MakeB(;
         (N₋ + Mesh.TotalNBases - Mesh.NBases)
     B[idxup, (end-N₊+1):end] = LinearAlgebra.kron(
         LinearAlgebra.diagm(0 => Model.C[Model.C.>=0]),
-        LinearAlgebra.diagm(0 => 1.0 ./ Matrices.Local.V.w) * 2.0 ./ Mesh.Δ[end] *
-        Matrices.Local.Phi[end, :],
+        Matrices.Local.Dw.DwInv * 2.0 ./ Mesh.Δ[end] * Matrices.Local.Phi[end, :],
     )
 
     ## Make a Dictionary so that the blocks of B are easy to access
@@ -500,17 +471,41 @@ function MakeMyD(;
     Mesh::NamedTuple{
         (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases),
     },
-    MatricesR,
     B,
+    Basis::String = "legendre",
+    V,
 )
+
+    if Basis == "legendre"
+        MRLocal = function (x::Array{Float64}, i::Int)
+            # Numerical integration of ϕᵢ(x)|r(x)|ϕⱼ(x) over Dk with Gauss-Lobatto
+            # quadrature
+            # Inputs:
+            #   - x a vector of Gauss-Lobatto points on Dk
+            #   - i a phase
+            V.V' * LinearAlgebra.diagm(0 => V.w ./ abs.(Model.r.r(x)[:, i])) * V.V
+        end
+    elseif Basis == "lagrange"
+        MRLocal = function (x::Array{Float64}, i::Int)
+            # Numerical integration of ϕᵢ(x)|r(x)|ϕⱼ(x) over Dk with Gauss-Lobatto
+            # quadrature
+            # Inputs:
+            #   - x a vector of Gauss-Lobatto points on Dk
+            #   - i a phase
+            LinearAlgebra.diagm(V.w ./ abs.(Model.r.r(x)[:, i]))
+        end
+    end
+
     MyR = zeros(
         Float64,
         Mesh.TotalNBases * Model.NPhases + sum(Model.C .<= 0) + sum(Model.C .>= 0),
         Mesh.TotalNBases * Model.NPhases + sum(Model.C .<= 0) + sum(Model.C .>= 0),
     )
-    for i = 1:Model.NPhases
-        idx = sum(Model.C .<= 0) .+ (1:Mesh.TotalNBases) .+ (Mesh.TotalNBases .* (i - 1))
-        MyR[idx, idx] = MatricesR.Global.M[:, :, i]
+    for i = 1:Model.NPhases, k = 1:Mesh.NIntervals
+        idx =
+            sum(Model.C .<= 0) .+ (1:Mesh.NBases) .+ (Mesh.NBases .* (k - 1)) .+
+            (Mesh.TotalNBases .* (i - 1))
+        MyR[idx, idx] = MRLocal(Mesh.CellNodes[:, k], i)
     end
     MyR[1:sum(Model.C .<= 0), 1:sum(Model.C .<= 0)] =
         LinearAlgebra.diagm(1.0 ./ abs.(Model.r.r(Mesh.Nodes[1])[Model.C.<=0]))
