@@ -158,7 +158,7 @@ using Plots, LinearAlgebra, KernelDensity, StatsBase
 
 ## Define the model
 T = [-2.0 1.0 1.0; 1.0 -2.0 1.0; 1.0 1.0 -2.0]
-C = [1.0; -1.0; 0]
+C = [1.0; -1.0; 0.0]
 r = (
     r = function (x)
         [ones(size(x)) ones(size(x)) ones(size(x))]
@@ -171,7 +171,7 @@ Bounds = [-1 1; -Inf Inf]
 Model = SFFM.MakeModel(T = T, C = C, r = r, Bounds = Bounds)
 
 # in out Y-level
-y = 4
+y = 1
 
 ## Simulate the model
 NSim = 20000
@@ -186,18 +186,18 @@ sims =
     SFFM.SimSFFM(Model = Model, StoppingTime = SFFM.InOutYLevel(y = y), InitCondition = IC)
 
 ## Define the mesh
-Δ = 0.2
+Δ = 0.1
 Nodes = collect(Bounds[1, 1]:Δ:Bounds[1, 2])
 Fil = Dict{String,BitArray{1}}(
     "1+" => trues(length(Nodes) - 1),
     "2+" => trues(length(Nodes) - 1),
     "3+" => trues(length(Nodes) - 1),
     "p2+" => trues(1),
-    "p3+" => trues(1),
     "q1+" => trues(1),
+    "p3+" => trues(1),
     "q3+" => trues(1),
 )
-NBases = 5
+NBases = 3
 Mesh = SFFM.MakeMesh(Model = Model, Nodes = Nodes, NBases = NBases, Fil = Fil)
 
 ## Construct all DG operators

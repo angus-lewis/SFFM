@@ -257,7 +257,8 @@ function MakeMatrices(;
             LinearAlgebra.diagm(0 => V.w)
         GLocal =
             LinearAlgebra.diagm(0 => 1.0 ./ V.w) *
-            MLocal *
+            V.inv' *
+            V.inv *
             (V.D * V.inv) *
             LinearAlgebra.diagm(0 => V.w)
         MInvLocal =
@@ -427,7 +428,7 @@ function MakeB(;
         FlBases =
             [Mesh.Fil["p"*ℓ]; repeat(Mesh.Fil[ℓ]', Mesh.NBases, 1)[:]; Mesh.Fil["q"*ℓ]]
         FmBases =
-            [Mesh.Fil["p"*m]; repeat(Mesh.Fil[m]', Mesh.NBases, 1)[:]; Mesh.Fil["p"*m]]
+            [Mesh.Fil["p"*m]; repeat(Mesh.Fil[m]', Mesh.NBases, 1)[:]; Mesh.Fil["q"*m]]
         BDict[ℓ*m] = B[FlBases, FmBases]
     end
 
