@@ -495,7 +495,6 @@ function MakeMyD(;
             LinearAlgebra.diagm(V.w ./ abs.(Model.r.r(x)[:, i]))
         end
     end
-
     MyR = zeros(
         Float64,
         Mesh.TotalNBases * Model.NPhases + sum(Model.C .<= 0) + sum(Model.C .>= 0),
