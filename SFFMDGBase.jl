@@ -3,6 +3,7 @@ function MakeMesh(;
     Nodes::Array{Float64,1},
     NBases::Int,
     Fil::Dict{String,BitArray{1}},
+    Basis::String = "legendre",
 )
     # MakeMesh constructs the Mass and Stiffness matrices
     # Model - a MakeModel object
@@ -86,6 +87,7 @@ function MakeMesh(;
         MeshArray = MeshArray,
         Nodes = Nodes,
         TotalNBases = TotalNBases,
+        Basis = Basis,
     )
 end
 
@@ -127,7 +129,7 @@ end
 
 function MakeBlockDiagonalMatrix(;
     Mesh::NamedTuple{
-        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases),
+        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases, :Basis),
     },
     Blocks::Array{Float64,2},
     Factors::Array,
@@ -152,7 +154,7 @@ end
 
 function MakeFluxMatrix(;
     Mesh::NamedTuple{
-        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases),
+        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases, :Basis),
     },
     Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     Phi,
@@ -185,10 +187,18 @@ function MakeFluxMatrix(;
             if k > 1
                 idxup = (1:Mesh.NBases) .+ (k - 2) * Mesh.NBases
                 if Model.C[i] > 0
-                    η = Mesh.Δ[k] / Mesh.Δ[k-1]
+                    if Mesh.Basis=="legendre"
+                        η = 1
+                    elseif Mesh.Basis=="lagrange"
+                        η = Mesh.Δ[k] / Mesh.Δ[k-1]
+                    end
                     F[idxup, idx, i] = UpDiagBlock * η
                 elseif Model.C[i] < 0
-                    η = Mesh.Δ[k-1] / Mesh.Δ[k]
+                    if Mesh.Basis=="legendre"
+                        η = 1
+                    elseif Mesh.Basis=="lagrange"
+                        η = Mesh.Δ[k-1] / Mesh.Δ[k]
+                    end
                     F[idx, idxup, i] = LowDiagBlock * η
                 end # end if C[i]
             end # end if k>1
@@ -201,9 +211,8 @@ end
 function MakeMatrices(;
     Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     Mesh::NamedTuple{
-        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases),
+        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases, :Basis),
     },
-    Basis::String = "legendre",
 )
     # Creates the Local and global mass, stiffness and flux
     # matrices.
@@ -228,7 +237,7 @@ function MakeMatrices(;
 
     ## Construct blocks
     V = vandermonde(NBases = Mesh.NBases)
-    if Basis == "legendre"
+    if Mesh.Basis == "legendre"
         Dw = (
             DwInv = LinearAlgebra.diagm(0 => ones(Float64, Mesh.NBases)),
             Dw = LinearAlgebra.diagm(0 => ones(Float64, Mesh.NBases)),
@@ -237,7 +246,7 @@ function MakeMatrices(;
         GLocal = V.inv * V.D
         MInvLocal = Matrix{Float64}(LinearAlgebra.I(Mesh.NBases))
         Phi = V.V[[1; end], :]
-    elseif Basis == "lagrange"
+    elseif Mesh.Basis == "lagrange"
         Dw = (
             DwInv = LinearAlgebra.diagm(0 => 1.0 ./ V.w),
             Dw = LinearAlgebra.diagm(0 => V.w),
@@ -279,7 +288,7 @@ end
 function MakeB(;
     Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     Mesh::NamedTuple{
-        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases),
+        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases, :Basis),
     },
     Matrices,
 )
@@ -318,6 +327,11 @@ function MakeB(;
     B[(N₋+1):(end-N₊), (N₋+1):(end-N₊)] =
         B[(N₋+1):(end-N₊), (N₋+1):(end-N₊)] + LinearAlgebra.kron(Model.T, Id)
     # Boundary behaviour
+    if Mesh.Basis=="legendre"
+        η = Mesh.Δ[[1;end]]./2
+    elseif Mesh.Basis=="lagrange"
+        η = [1;1]
+    end
     # Lower boundary
     # At boundary
     B[1:N₋, 1:N₋] = Model.T[Model.C.<=0, Model.C.<=0]
@@ -325,13 +339,13 @@ function MakeB(;
     idxup = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .> 0) .- 1)')[:] .+ N₋
     B[1:N₋, idxup] = kron(
         Model.T[Model.C.<=0, Model.C.>0],
-        Matrices.Local.Phi[1, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv,
+        Matrices.Local.Phi[1, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv ./ η[1],
     )
     # Into boundary
     idxdown = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .<= 0) .- 1)')[:] .+ N₋
     B[idxdown, 1:N₋] = LinearAlgebra.kron(
         LinearAlgebra.diagm(0 => Model.C[Model.C.<=0]),
-        -Matrices.Local.Dw.DwInv * 2.0 ./ Mesh.Δ[1] * Matrices.Local.Phi[1, :],
+        -Matrices.Local.Dw.DwInv * 2.0 ./ Mesh.Δ[1] * Matrices.Local.Phi[1, :] * η[1],
     )
 
     # Upper boundary
@@ -343,7 +357,7 @@ function MakeB(;
         (N₋ + Mesh.TotalNBases - Mesh.NBases)
     B[(end-N₊+1):end, idxdown] = kron(
         Model.T[Model.C.>=0, Model.C.<0],
-        Matrices.Local.Phi[end, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv,
+        Matrices.Local.Phi[end, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv ./ η[1]
     )
     # Into boundary
     idxup =
@@ -351,7 +365,7 @@ function MakeB(;
         (N₋ + Mesh.TotalNBases - Mesh.NBases)
     B[idxup, (end-N₊+1):end] = LinearAlgebra.kron(
         LinearAlgebra.diagm(0 => Model.C[Model.C.>=0]),
-        Matrices.Local.Dw.DwInv * 2.0 ./ Mesh.Δ[end] * Matrices.Local.Phi[end, :],
+        Matrices.Local.Dw.DwInv * 2.0 ./ Mesh.Δ[end] * Matrices.Local.Phi[end, :] * η[end],
     )
 
     ## Make a Dictionary so that the blocks of B are easy to access
@@ -418,7 +432,7 @@ end
 function MakeR(;
     Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     Mesh::NamedTuple{
-        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases),
+        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases, :Basis),
     },
 )
     # interpolant approximation to r(x)
@@ -469,14 +483,13 @@ end
 function MakeMyD(;
     Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     Mesh::NamedTuple{
-        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases),
+        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases, :Basis),
     },
     B,
-    Basis::String = "legendre",
     V,
 )
 
-    if Basis == "legendre"
+    if Mesh.Basis == "legendre"
         MRLocal = function (x::Array{Float64}, i::Int)
             # Numerical integration of ϕᵢ(x)|r(x)|ϕⱼ(x) over Dk with Gauss-Lobatto
             # quadrature
@@ -485,7 +498,7 @@ function MakeMyD(;
             #   - i a phase
             V.V' * LinearAlgebra.diagm(0 => V.w ./ abs.(Model.r.r(x)[:, i])) * V.V
         end
-    elseif Basis == "lagrange"
+    elseif Mesh.Basis == "lagrange"
         MRLocal = function (x::Array{Float64}, i::Int)
             # Numerical integration of ϕᵢ(x)|r(x)|ϕⱼ(x) over Dk with Gauss-Lobatto
             # quadrature
@@ -547,7 +560,7 @@ function MakeD(;
     B,
     Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     Mesh::NamedTuple{
-        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases),
+        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases, :Basis),
     },
 )
     RDict = R.RDict

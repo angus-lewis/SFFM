@@ -1,7 +1,7 @@
 function MakeBlockDiagonalMatrixR(;
     Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     Mesh::NamedTuple{
-        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases),
+        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases, :Basis),
     },
     Blocks,
     Factors::Array,
@@ -27,7 +27,7 @@ end
 
 function MakeFluxMatrixR(;
     Mesh::NamedTuple{
-        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases),
+        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases, :Basis),
     },
     Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     Phi,
@@ -96,9 +96,8 @@ end
 function MakeMatricesR(;
     Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     Mesh::NamedTuple{
-        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases),
+        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases, :Basis),
     },
-    Basis::String = "legendre",
 )
     # Creates the Local and global mass, stiffness and flux
     # matrices.
@@ -123,7 +122,7 @@ function MakeMatricesR(;
 
     ## Construct blocks
     V = vandermonde(NBases = Mesh.NBases)
-    if Basis == "legendre"
+    if Mesh.Basis == "legendre"
         MLocal = function (x::Array{Float64}, i::Int)
             # Numerical integration of ϕᵢ(x)|r(x)|ϕⱼ(x) over Dk with Gauss-Lobatto
             # quadrature
@@ -145,7 +144,7 @@ function MakeMatricesR(;
         end
         Phi = V.V[[1; end], :]
 
-    elseif Basis == "lagrange"
+    elseif Mesh.Basis == "lagrange"
         MLocal = function (x::Array{Float64}, i::Int)
             # Numerical integration of ϕᵢ(x)|r(x)|ϕⱼ(x) over Dk with Gauss-Lobatto
             # quadrature
@@ -209,7 +208,7 @@ function MakeDR(;
     MatricesR,
     Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     Mesh::NamedTuple{
-        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases),
+        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases, :Basis),
     },
     B,
 )

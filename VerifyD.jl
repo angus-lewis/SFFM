@@ -28,10 +28,10 @@ Bounds = [-10 10; -Inf Inf]
 Model = SFFM.MakeModel(T = T, C = C, r = r, Bounds = Bounds)
 
 # in out Y-level
-y = 10
+y = 20
 
 ## Simulate the model
-NSim = 30000
+NSim = 100000
 IC = (φ = ones(Int, NSim), X = zeros(NSim), Y = zeros(NSim))
 # IC = (φ = 2 .*ones(Int, NSim), X = -10*ones(NSim), Y = zeros(NSim))
 # IC = (
@@ -43,7 +43,7 @@ sims =
     SFFM.SimSFFM(Model = Model, StoppingTime = SFFM.InOutYLevel(y = y), InitCondition = IC)
 
 ## Define the mesh
-Δ = 10
+Δ = 5
 Nodes = collect(Bounds[1, 1]:Δ:Bounds[1, 2])
 Fil = Dict{String,BitArray{1}}(
     "1+" => trues(length(Nodes) - 1),
@@ -55,11 +55,11 @@ Fil = Dict{String,BitArray{1}}(
     "q3+" => trues(1),
 )
 NBases = 3
-Mesh = SFFM.MakeMesh(Model = Model, Nodes = Nodes, NBases = NBases, Fil = Fil)
 Basis = "legendre"
+Mesh = SFFM.MakeMesh(Model = Model, Nodes = Nodes, NBases = NBases, Fil = Fil, Basis=Basis)
 
 ## Construct all DG operators
-All = SFFM.MakeAll(Model = Model, Mesh = Mesh, Basis = Basis)
+All = SFFM.MakeAll(Model = Model, Mesh = Mesh)
 Matrices = All.Matrices
 MatricesR = All.MatricesR
 B = All.B
@@ -70,7 +70,7 @@ MyD = SFFM.MakeMyD(Model = Model, Mesh = Mesh, B = B, V = Matrices.Local.V)
 
 ## initial condition
 if Basis == "legendre"
-    x0 = Matrix(
+    x0 = Matrix( # = a(t) for the legendre basis
         [
             zeros(sum(Model.C.<=0)) # LHS point mass
             zeros(Mesh.NBases * Mesh.NIntervals * 1 ÷ 2) # phase 1
@@ -82,11 +82,11 @@ if Basis == "legendre"
         ]',
     )
 elseif Basis == "lagrange"
-    x0 = Matrix(
+    x0 = Matrix( # = α(t) for the legendre basis
         [
             zeros(sum(Model.C.<=0)) # LHS point mass
             zeros(Mesh.NBases * Mesh.NIntervals * 1 ÷ 2) # phase 1
-            Mesh.Δ[1]./2*1.0./Mesh.Δ[1]*diagm(Matrices.Local.V.w)*ones(NBases)# phase 2
+            1.0./Mesh.Δ[1]*diagm(Matrices.Local.V.w)*Mesh.Δ[1]/2*ones(NBases) # phase 2
             zeros(Mesh.NBases * Mesh.NIntervals * 1 ÷ 2 - NBases)
             zeros(Mesh.TotalNBases * 2)
             zeros(sum(Model.C.>=0)) # RHS point mass
@@ -104,7 +104,6 @@ end
 
 ## DG approximations to exp(Dy)
 h = 0.001
-y = 0.1
 if Basis == "legendre"
     idx = [
         1:sum(Model.C .<= 0)
@@ -113,14 +112,14 @@ if Basis == "legendre"
     ]
     # yvalsR = SFFM.EulerDG(D = DR.DDict["++"](s = 0), y = y, x0 = x0, h = h)[idx]
     yvals = SFFM.EulerDG(D = D["++"](s = 0), y = y, x0 = x0, h = h)
-    yvals = [yvals[1:sum(Model.C.<=0)]; (Matrices.Local.V.V*reshape(yvals[3:end-2],NBases,length(yvals[3:end-2])÷NBases))[:]; yvals[end-sum(Model.C.>=0)+1:end]]
+    yvals = [yvals[1:sum(Model.C.<=0)]; (Matrices.Local.V.V*reshape(yvals[sum(Model.C.<=0)+1:end-sum(Model.C.>=0)],NBases,length(yvals[sum(Model.C.<=0)+1:end-sum(Model.C.>=0)])÷NBases))[:]; yvals[end-sum(Model.C.>=0)+1:end]]
     # MyDyvals = SFFM.EulerDG(D = MyD.D(s = 0), y = y, x0 = x0, h = h)
     # MyDyvals = [MyDyvals[1:sum(Model.C.<=0)]; (diagm(Matrices.Local.V.w)*Matrices.Local.V.V*reshape(MyDyvals[3:end-2],NBases,length(MyDyvals[3:end-2])÷NBases))[:]; MyDyvals[end-sum(Model.C.>=0)+1:end]]
 elseif Basis == "lagrange"
     # yvalsR = SFFM.EulerDG(D = DR.DDict["++"](s = 0), y = y, x0 = x0, h = h)
     # yvalsR = [yvalsR[1:sum(Model.C.<=0)]; sum(reshape(yvalsR[3:end-2],NBases,length(yvalsR[3:end-2])÷NBases),dims=1)'; yvalsR[end-sum(Model.C.>=0)+1:end]]
     yvals = SFFM.EulerDG(D = D["++"](s = 0), y = y, x0 = x0, h = h)
-    yvals = [yvals[1:2]; yvals[3:end-2].*repeat(1.0./Matrices.Local.V.w,Mesh.NIntervals*Model.NPhases).*(repeat(2.0./Mesh.Δ,1,Mesh.NBases*Model.NPhases)'[:]); yvals[end-1:end]]
+    yvals = [yvals[1:sum(Model.C.<=0)]; yvals[sum(Model.C.<=0)+1:end-sum(Model.C.>=0)].*repeat(1.0./Matrices.Local.V.w,Mesh.NIntervals*Model.NPhases).*(repeat(2.0./Mesh.Δ,1,Mesh.NBases*Model.NPhases)'[:]); yvals[end-sum(Model.C.>=0)+1:end]]
     # MyDyvals = SFFM.EulerDG(D = MyD.D(s = 0), y = y, x0 = x0, h = h)
 end
 # yvalsleg = diagm(Matrices.Local.V.w)*Matrices.Local.V.V*reshape(yvals[3:end-2],NBases,length(yvals[3:end-2])÷NBases)/sqrt(2)
@@ -128,7 +127,7 @@ end
 ## analysis and plots
 
 # plot solutions
-# p = plot(legend = false, layout = (3, 1))
+#p = plot(legend = false, layout = (3, 1))
 Y = zeros(Mesh.TotalNBases, Model.NPhases)
 YR = zeros(Mesh.TotalNBases, Model.NPhases)
 MyY = zeros(Mesh.TotalNBases, Model.NPhases)
@@ -167,9 +166,9 @@ end
 p = plot!(subplot = 1, legend = :topright)
 pmdata = [
     [Nodes[1] * ones(sum(Model.C .<= 0)); Nodes[end] * ones(sum(Model.C .>= 0))]'
-    yvals[[.!Mesh.Fil["p0"]; falses(Model.NPhases * Mesh.NIntervals); .!Mesh.Fil["q0"]]]'
-    yvalsR[[.!Mesh.Fil["p0"]; falses(Model.NPhases * Mesh.NIntervals); .!Mesh.Fil["q0"]]]'
-    MyDyvals[[.!Mesh.Fil["p0"]; falses(Model.NPhases * Mesh.NIntervals); .!Mesh.Fil["q0"]]]'
+    yvals[[1:2;end-1:end]]'
+    # yvalsR[[1:2;end-1:end]]'
+    # MyDyvals[[1:2;end-1:end]]'
     [(sum(repeat(sims.X,1,Model.NPhases).*(sims.φ.==[1 2 3]).==Nodes[1],dims=1)./NSim)[Model.C.<=0];
     (sum(repeat(sims.X,1,Model.NPhases).*(sims.φ.==[1 2 3]).==Nodes[end],dims=1)./NSim)[Model.C.<=0]]'
 ]

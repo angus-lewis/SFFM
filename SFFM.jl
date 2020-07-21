@@ -42,13 +42,12 @@ end
 function MakeAll(;
     Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     Mesh::NamedTuple{
-        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases),
+        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases, :Basis),
     },
-    Basis = "legendre",
 )
 
-    Matrices = MakeMatrices(Model = Model, Mesh = Mesh, Basis = Basis)
-    MatricesR = MakeMatricesR(Model = Model, Mesh = Mesh, Basis = Basis)
+    Matrices = MakeMatrices(Model = Model, Mesh = Mesh)
+    MatricesR = MakeMatricesR(Model = Model, Mesh = Mesh)
     B = MakeB(Model = Model, Mesh = Mesh, Matrices = Matrices)
     R = MakeR(Model = Model, Mesh = Mesh)
     D = MakeD(Model = Model, Mesh = Mesh, R = R, B = B)
