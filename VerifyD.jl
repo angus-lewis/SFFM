@@ -43,7 +43,7 @@ sims =
     SFFM.SimSFFM(Model = Model, StoppingTime = SFFM.InOutYLevel(y = y), InitCondition = IC)
 
 ## Define the mesh
-Δ = 1
+Δ = 10
 Nodes = collect(Bounds[1, 1]:Δ:Bounds[1, 2])
 Fil = Dict{String,BitArray{1}}(
     "1+" => trues(length(Nodes) - 1),
@@ -54,11 +54,12 @@ Fil = Dict{String,BitArray{1}}(
     "q1+" => trues(1),
     "q3+" => trues(1),
 )
-NBases = 8
+NBases = 3
 Mesh = SFFM.MakeMesh(Model = Model, Nodes = Nodes, NBases = NBases, Fil = Fil)
+Basis = "legendre"
 
 ## Construct all DG operators
-All = SFFM.MakeAll(Model = Model, Mesh = Mesh, Basis = "legendre")
+All = SFFM.MakeAll(Model = Model, Mesh = Mesh, Basis = Basis)
 Matrices = All.Matrices
 MatricesR = All.MatricesR
 B = All.B
@@ -68,17 +69,30 @@ DR = All.DR
 MyD = SFFM.MakeMyD(Model = Model, Mesh = Mesh, B = B, V = Matrices.Local.V)
 
 ## initial condition
-x0 = Matrix(
-    [
-        zeros(sum(Model.C.<=0)) # LHS point mass
-        zeros(Mesh.NBases * Mesh.NIntervals * 1 ÷ 2) # phase 1
-        1 # phase 2
-        zeros(NBases - 1) # phase 2
-        zeros(Mesh.NBases * Mesh.NIntervals * 1 ÷ 2 - NBases)
-        zeros(Mesh.TotalNBases * 2)
-        zeros(sum(Model.C.>=0)) # RHS point mass
-    ]',
-)
+if Basis == "legendre"
+    x0 = Matrix(
+        [
+            zeros(sum(Model.C.<=0)) # LHS point mass
+            zeros(Mesh.NBases * Mesh.NIntervals * 1 ÷ 2) # phase 1
+            1.0./Mesh.Δ[1]*sqrt(2) # phase 2
+            zeros(NBases - 1) # phase 2
+            zeros(Mesh.NBases * Mesh.NIntervals * 1 ÷ 2 - NBases)
+            zeros(Mesh.TotalNBases * 2)
+            zeros(sum(Model.C.>=0)) # RHS point mass
+        ]',
+    )
+elseif Basis == "lagrange"
+    x0 = Matrix(
+        [
+            zeros(sum(Model.C.<=0)) # LHS point mass
+            zeros(Mesh.NBases * Mesh.NIntervals * 1 ÷ 2) # phase 1
+            Mesh.Δ[1]./2*1.0./Mesh.Δ[1]*diagm(Matrices.Local.V.w)*ones(NBases)# phase 2
+            zeros(Mesh.NBases * Mesh.NIntervals * 1 ÷ 2 - NBases)
+            zeros(Mesh.TotalNBases * 2)
+            zeros(sum(Model.C.>=0)) # RHS point mass
+        ]',
+    )
+end
 # x0 = Matrix(
 #     [
 #         zeros(sum(Model.C .<= 0)) # LHS point mass
@@ -89,67 +103,65 @@ x0 = Matrix(
 # )
 
 ## DG approximations to exp(Dy)
-yvalsR =
-    SFFM.EulerDG(D = DR.DDict["++"](s = 0), y = y, x0 = x0, h = 0.0001)[[
+h = 0.001
+y = 0.1
+if Basis == "legendre"
+    idx = [
         1:sum(Model.C .<= 0)
-        sum(Model.C .<= 0).+1:NBases:end.-sum(Model.C .>= 0)
-        end.-sum(Model.C .>= 0).+1:end
-    ]]
-yvals =
-    SFFM.EulerDG(D = D["++"](s = 0), y = y, x0 = x0, h = 0.0001)[[
-        1:sum(Model.C .<= 0)
-        sum(Model.C .<= 0).+1:NBases:end.-sum(Model.C .>= 0)
-        end.-sum(Model.C .>= 0).+1:end
-    ]]
-MyDyvals =
-    SFFM.EulerDG(D = MyD.D(s = 0), y = y, x0 = x0, h = 0.0001)[[
-        1:sum(Model.C .<= 0)
-        sum(Model.C .<= 0).+1:NBases:end.-sum(Model.C .>= 0)
-        end.-sum(Model.C .>= 0).+1:end
-    ]]
+        sum(Model.C .<= 0).+1:NBases:length(x0).-sum(Model.C .>= 0)
+        length(x0).-sum(Model.C .>= 0).+1:length(x0)
+    ]
+    # yvalsR = SFFM.EulerDG(D = DR.DDict["++"](s = 0), y = y, x0 = x0, h = h)[idx]
+    yvals = SFFM.EulerDG(D = D["++"](s = 0), y = y, x0 = x0, h = h)
+    yvals = [yvals[1:sum(Model.C.<=0)]; (Matrices.Local.V.V*reshape(yvals[3:end-2],NBases,length(yvals[3:end-2])÷NBases))[:]; yvals[end-sum(Model.C.>=0)+1:end]]
+    # MyDyvals = SFFM.EulerDG(D = MyD.D(s = 0), y = y, x0 = x0, h = h)
+    # MyDyvals = [MyDyvals[1:sum(Model.C.<=0)]; (diagm(Matrices.Local.V.w)*Matrices.Local.V.V*reshape(MyDyvals[3:end-2],NBases,length(MyDyvals[3:end-2])÷NBases))[:]; MyDyvals[end-sum(Model.C.>=0)+1:end]]
+elseif Basis == "lagrange"
+    # yvalsR = SFFM.EulerDG(D = DR.DDict["++"](s = 0), y = y, x0 = x0, h = h)
+    # yvalsR = [yvalsR[1:sum(Model.C.<=0)]; sum(reshape(yvalsR[3:end-2],NBases,length(yvalsR[3:end-2])÷NBases),dims=1)'; yvalsR[end-sum(Model.C.>=0)+1:end]]
+    yvals = SFFM.EulerDG(D = D["++"](s = 0), y = y, x0 = x0, h = h)
+    yvals = [yvals[1:2]; yvals[3:end-2].*repeat(1.0./Matrices.Local.V.w,Mesh.NIntervals*Model.NPhases).*(repeat(2.0./Mesh.Δ,1,Mesh.NBases*Model.NPhases)'[:]); yvals[end-1:end]]
+    # MyDyvals = SFFM.EulerDG(D = MyD.D(s = 0), y = y, x0 = x0, h = h)
+end
+# yvalsleg = diagm(Matrices.Local.V.w)*Matrices.Local.V.V*reshape(yvals[3:end-2],NBases,length(yvals[3:end-2])÷NBases)/sqrt(2)
+
 ## analysis and plots
 
 # plot solutions
-p = plot(legend = false, layout = (3, 1))
-Y = zeros(length(Nodes) - 1, Model.NPhases)
-YR = zeros(length(Nodes) - 1, Model.NPhases)
-MyY = zeros(length(Nodes) - 1, Model.NPhases)
+# p = plot(legend = false, layout = (3, 1))
+Y = zeros(Mesh.TotalNBases, Model.NPhases)
+YR = zeros(Mesh.TotalNBases, Model.NPhases)
+MyY = zeros(Mesh.TotalNBases, Model.NPhases)
 let cum = 0
     for i = 1:Model.NPhases
         idx =
-            findall(.!Fil[string(i)*"0"]) .- cum .+ (i - 1) * Mesh.NIntervals .+
+            findall(repeat(.!Fil[string(i)*"0"],1,NBases)'[:]) .- cum .+ (i - 1) * Mesh.TotalNBases .+
             sum(Model.C .<= 0)
-        cum = cum + sum(Fil[string(i)*"0"])
+        cum = cum + sum(Fil[string(i)*"0"])*NBases
         p = plot!(
-            (
-                Mesh.CellNodes[1, .!Fil[string(i)*"0"]][:] +
-                Mesh.CellNodes[end, .!Fil[string(i)*"0"]][:]
-            ) / 2,
+            Mesh.CellNodes[:, .!Fil[string(i)*"0"]][:],
             yvals[idx],
-            label = "φ=" * string(i) * " - D",
+            label = "D",
             subplot = i,
         )
         Y[:, i] = yvals[idx]
-        p = plot!(
-            (
-                Mesh.CellNodes[1, .!Fil[string(i)*"0"]][:] +
-                Mesh.CellNodes[end, .!Fil[string(i)*"0"]][:]
-            ) / 2,
-            yvalsR[idx],
-            label = "φ=" * string(i) * " - DR",
-            subplot = i,
-        )
-        YR[:, i] = yvalsR[idx]
-        p = plot!(
-            (
-                Mesh.CellNodes[1, .!Fil[string(i)*"0"]][:] +
-                Mesh.CellNodes[end, .!Fil[string(i)*"0"]][:]
-            ) / 2,
-            MyDyvals[idx],
-            label = "φ=" * string(i) * " - MyD",
-            subplot = i,
-        )
-        MyY[:, i] = MyDyvals[idx]
+        # p = plot!(
+        #     (
+        #         Mesh.CellNodes[1, .!Fil[string(i)*"0"]][:] +
+        #         Mesh.CellNodes[end, .!Fil[string(i)*"0"]][:]
+        #     ) / 2,
+        #     yvalsR[idx],
+        #     label = "DR",
+        #     subplot = i,
+        # )
+        # YR[:, i] = yvalsR[idx]
+        # p = plot!(
+        #     Mesh.CellNodes[:, .!Fil[string(i)*"0"]][:],
+        #     MyDyvals[idx],
+        #     label = "MyD",
+        #     subplot = i,
+        # )
+        # MyY[:, i] = MyDyvals[idx]
     end
 end
 p = plot!(subplot = 1, legend = :topright)
