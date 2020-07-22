@@ -1,5 +1,6 @@
 module SFFM
 import Jacobi, LinearAlgebra
+import Plots, StatsBase, KernelDensity
 
 include("SFFMPlots.jl")
 include("SimulateSFFM.jl")
@@ -19,7 +20,7 @@ function MakeModel(;
     T::Array{Float64},
     C::Array{Float64,1},
     r::NamedTuple{(:r, :R)},
-    Bounds::Array{<:Number,2} = [-Inf Inf; -Inf Inf],
+    Bounds::Array{<:Real,2} = [-Inf Inf; -Inf Inf],
 )
     # Make a 'Model' object which carries all the info we need to
     # know about the SFFM.

@@ -43,7 +43,7 @@ sims =
     SFFM.SimSFFM(Model = Model, StoppingTime = SFFM.InOutYLevel(y = y), InitCondition = IC)
 
 ## Define the mesh
-Δ = 0.5
+Δ = 1
 Nodes = collect(Bounds[1, 1]:Δ:Bounds[1, 2])
 Fil = Dict{String,BitArray{1}}(
     "1+" => trues(length(Nodes) - 1),
@@ -54,7 +54,7 @@ Fil = Dict{String,BitArray{1}}(
     "q1+" => trues(1),
     "q3+" => trues(1),
 )
-NBases = 3
+NBases = 5
 Basis = "lagrange"
 Mesh = SFFM.MakeMesh(Model = Model, Nodes = Nodes, NBases = NBases, Fil = Fil, Basis=Basis)
 
@@ -112,122 +112,45 @@ if Basis == "legendre"
     ]
     #  yvalsR = SFFM.EulerDG(D = DR.DDict["++"](s = 0), y = y, x0 = x0, h = h)[idx]
     yvals = SFFM.EulerDG(D = D["++"](s = 0), y = y, x0 = x0, h = h)
-    yvals = [yvals[1:sum(Model.C.<=0)]; (Matrices.Local.V.V*reshape(yvals[sum(Model.C.<=0)+1:end-sum(Model.C.>=0)],NBases,length(yvals[sum(Model.C.<=0)+1:end-sum(Model.C.>=0)])÷NBases))[:]; yvals[end-sum(Model.C.>=0)+1:end]]
     MyDyvals = SFFM.EulerDG(D = MyD.D(s = 0), y = y, x0 = x0, h = h)
-    MyDyvals = [MyDyvals[1:sum(Model.C.<=0)]; (Matrices.Local.V.V*reshape(MyDyvals[sum(Model.C.<=0)+1:end-sum(Model.C.>=0)],NBases,length(MyDyvals[sum(Model.C.<=0)+1:end-sum(Model.C.>=0)])÷NBases))[:]; MyDyvals[end-sum(Model.C.>=0)+1:end]]
 elseif Basis == "lagrange"
     # yvalsR = SFFM.EulerDG(D = DR.DDict["++"](s = 0), y = y, x0 = x0, h = h)
-    # yvalsR = [yvalsR[1:sum(Model.C.<=0)]; sum(reshape(yvalsR[3:end-2],NBases,length(yvalsR[3:end-2])÷NBases),dims=1)'; yvalsR[end-sum(Model.C.>=0)+1:end]]
     yvals = SFFM.EulerDG(D = D["++"](s = 0), y = y, x0 = x0, h = h)
-    yvals = [yvals[1:sum(Model.C.<=0)]; yvals[sum(Model.C.<=0)+1:end-sum(Model.C.>=0)].*repeat(1.0./Matrices.Local.V.w,Mesh.NIntervals*Model.NPhases).*(repeat(2.0./Mesh.Δ,1,Mesh.NBases*Model.NPhases)'[:]); yvals[end-sum(Model.C.>=0)+1:end]]
     MyDyvals = SFFM.EulerDG(D = MyD.D(s = 0), y = y, x0 = x0, h = h)
-    MyDyvals = [MyDyvals[1:sum(Model.C.<=0)]; MyDyvals[sum(Model.C.<=0)+1:end-sum(Model.C.>=0)].*repeat(1.0./Matrices.Local.V.w,Mesh.NIntervals*Model.NPhases).*(repeat(2.0./Mesh.Δ,1,Mesh.NBases*Model.NPhases)'[:]); MyDyvals[end-sum(Model.C.>=0)+1:end]]
 end
-# yvalsleg = diagm(Matrices.Local.V.w)*Matrices.Local.V.V*reshape(yvals[3:end-2],NBases,length(yvals[3:end-2])÷NBases)/sqrt(2)
 
 ## analysis and plots
 
 # plot solutions
-# p = plot(legend = false, layout = (3, 1))
-Y = zeros(Mesh.TotalNBases, Model.NPhases)
-YR = zeros(Mesh.TotalNBases, Model.NPhases)
-MyY = zeros(Mesh.TotalNBases, Model.NPhases)
-let cum = 0
-    for i = 1:Model.NPhases
-        idx =
-            findall(repeat(.!Fil[string(i)*"0"],1,NBases)'[:]) .- cum .+ (i - 1) * Mesh.TotalNBases .+
-            sum(Model.C .<= 0)
-        cum = cum + sum(Fil[string(i)*"0"])*NBases
-        p = plot!(
-            Mesh.CellNodes[:, .!Fil[string(i)*"0"]][:],
-            yvals[idx],
-            label = "D",
-            subplot = i,
-        )
-        Y[:, i] = yvals[idx]
-        # p = plot!(
-        #     (
-        #         Mesh.CellNodes[1, .!Fil[string(i)*"0"]][:] +
-        #         Mesh.CellNodes[end, .!Fil[string(i)*"0"]][:]
-        #     ) / 2,
-        #     yvalsR[idx],
-        #     label = "DR",
-        #     subplot = i,
-        # )
-        # YR[:, i] = yvalsR[idx]
-        p = plot!(
-            Mesh.CellNodes[:, .!Fil[string(i)*"0"]][:],
-            MyDyvals[idx],
-            label = "MyD",
-            subplot = i,
-        )
-        MyY[:, i] = MyDyvals[idx]
-    end
-end
-p = plot!(subplot = 1, legend = :topright)
+# densities
+p = SFFM.PlotSFM(Model=Model,Mesh=Mesh,Coeffs=yvals)
+p = SFFM.PlotSFM!(p,Model=Model,Mesh=Mesh,Coeffs=MyDyvals,color=2)
+# plot sims
+p = SFFM.PlotSFMSim!(p,Model=Model,Mesh=Mesh,sims=sims,type="density")
+
+# probabilities
+p = SFFM.PlotSFM(Model=Model,Mesh=Mesh,Coeffs=yvals,type="probability")
+p = SFFM.PlotSFM!(p,Model=Model,Mesh=Mesh,Coeffs=MyDyvals,color=2,type="probability")
+# plot sims
+p = SFFM.PlotSFMSim!(p,Model=Model,Mesh=Mesh,sims=sims,type="probability")
+
+## other analysis
+(simpm, H) = SFFM.Sims2Probs(Model=Model,Mesh=Mesh,sims=sims)
+(pm, distn, xvals) = SFFM.Coeffs2Distn(Model=Model,Mesh=Mesh,Coeffs=yvals,type="probability")
+(MyDpm, MyDdistn, MyDxvals) = SFFM.Coeffs2Distn(Model=Model,Mesh=Mesh,Coeffs=MyDyvals,type="probability")
+
 pmdata = [
     [Nodes[1] * ones(sum(Model.C .<= 0)); Nodes[end] * ones(sum(Model.C .>= 0))]'
-    yvals[[1:2;end-1:end]]'
-    # yvalsR[[1:2;end-1:end]]'
-    MyDyvals[[1:2;end-1:end]]'
-    [(sum(repeat(sims.X,1,Model.NPhases).*(sims.φ.==[1 2 3]).==Nodes[1],dims=1)./NSim)[Model.C.<=0];
-    (sum(repeat(sims.X,1,Model.NPhases).*(sims.φ.==[1 2 3]).==Nodes[end],dims=1)./NSim)[Model.C.<=0]]'
+    simpm'
+    pm'
+    MyDpm'
 ]
-SFFM.MyPrint([".";"pm";"pmR";"pmMyD";"sim"])
-SFFM.MyPrint(pmdata)
-display(p)
 
-# plot sims
-H = zeros(length(Nodes) - 1, Model.NPhases)
-for whichφ = 1:Model.NPhases
-    #pltvals = kde(sims.X[sims.φ.==whichφ])
-    #p = histogram!(sims.X[sims.φ.==whichφ],bins=Nodes,normalize=:probability,alpha=0.2)
-    # plot!(
-    #     range(
-    #         minimum(sims.X[sims.φ.==whichφ]),
-    #         maximum(sims.X[sims.φ.==whichφ]),length=100
-    #     ),
-    #     z->pdf(pltvals,z)*sum(sims.φ.==whichφ)/length(sims.φ),
-    #     label = "φ="*string(i)*" - sim"
-    # )
-    h = fit(
-        Histogram,
-        sims.X[(sims.φ.==whichφ) .& (sims.X.!=Nodes[1]) .& (sims.X.!=Nodes[end])],
-        Nodes,
-    )
-    h = h.weights ./ sum(h.weights) * sum(sims.φ .== whichφ) / length(sims.φ)
-    H[:, whichφ] = h
-    #p = plot!(
-    #    Nodes[1:end-1] + diff(Nodes) / 2,
-    #    h,
-    #    label = "hist" * string(whichφ),
-    #)
-    p = bar!(
-        (Nodes[1:end-1] + Nodes[2:end]) / 2,
-        h,
-        alpha = 0.2,
-        bar_width = Mesh.Δ,
-        label = "sims",
-        subplot = whichφ,
-    )
-end
-display(p)
+SFFM.MyPrint([".";"sim";"pm";"pmR";"pmMyD"])
+SFFM.MyPrint(pmdata)
 
 # display errors
-err = H - Y
-errR = H - YR
-MyDerr = H - MyY
-plot(
-    Nodes[1:end-1] + diff(Nodes) / 2,
-    err,
-    label = "err",
-    legend = :topleft,
-    layout = (3, 1),
-)
-plot!(Nodes[1:end-1] + diff(Nodes) / 2, errR, label = "errR")
-plot!(Nodes[1:end-1] + diff(Nodes) / 2, MyDerr, label = "MyDerr")
-display(sum(abs.(err) ))
-display(sum(abs.(errR)))
-display(sum(abs.(MyDerr)))
-display(abs.(err))
-display(abs.(errR))
+err = SFFM.Distn2Coeffs(Model=Model,Distn = (pm = MyDpm, yvals = H - distn, xvals=xvals))
+MyDerr = SFFM.Distn2Coeffs(Model=Model,Distn = (pm = MyDpm, yvals = H - MyDdistn, xvals=xvals))
+
+p = SFFM.PlotSFM(Model=Model,Mesh=Mesh,Coeffs=yvals,type="probability")

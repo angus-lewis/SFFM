@@ -1,57 +1,233 @@
-import Plots
-using Plots: Animation, frame, gif
+function PlotSFM!(p;
+    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+    Mesh::NamedTuple{
+        (
+            :NBases,
+            :CellNodes,
+            :Fil,
+            :Δ,
+            :NIntervals,
+            :MeshArray,
+            :Nodes,
+            :TotalNBases,
+            :Basis,
+        ),
+    },
+    Coeffs::Array{<:Real},
+    type::String = "density",
+    color = 1,
+)
+    (pm, yvals, xvals) =
+        Coeffs2Distn(Model = Model, Mesh = Mesh, Coeffs = Coeffs, type = type)
 
-function PlotVt(; Nodes, Vt, C, YMAX = 1, PointMass = true, labels = [])
-    if isempty(labels)
-        labels = string.(C)
+    cp = 0
+    cq = 0
+    yLimValues = (0.0, 0.0)
+    for i = 1:Model.NPhases
+        if type == "density"
+            p = Plots.plot!(
+                xvals,
+                yvals[:, :, i],
+                linecolor = color,
+                subplot = i,
+                title = "φ=" * string(i),
+                ylabel = type,
+            )
+        elseif type === "probability"
+            p = Plots.bar!(
+                xvals,
+                yvals[:, :, i][:],
+                alpha = 0.25,
+                fillcolor = color,
+                bar_width = Mesh.Δ,
+                subplot = i,
+                title = "φ=" * string(i),
+                ylabel = type,
+            )
+        end
+        if Model.C[i] <= 0
+            cp = cp + 1
+            x = [Mesh.CellNodes[1]]
+            y = [pm[cp]]
+            p = Plots.scatter!(
+                x,
+                y,
+                markertype = :circle,
+                markercolor = color,
+                alpha = 0.25,
+                subplot = i,
+            )
+        end
+        if Model.C[i] >= 0
+            cq = cq + 1
+            x = [Mesh.CellNodes[end]]
+            y = [pm[cq]]
+            p = Plots.scatter!(
+                x,
+                y,
+                markertype = :circle,
+                markercolor = color,
+                alpha = 0.25,
+                subplot = i,
+            )
+        end
+        currYLims = Plots.ylims(p[i])
+        yLimValues = (min(yLimValues[1], currYLims[1]), max(yLimValues[2], currYLims[2]))
+        p = Plots.plot!(ylims = yLimValues, subplot = i)
     end
-    Interval = [Nodes[1]; Nodes[end]]
-    NNodes = length(Nodes)
-    ΔEnds = [Nodes[2] - Nodes[1]; Nodes[end] - Nodes[end-1]]
-    FivePercent = (Interval[2] - Interval[1]) * 0.025 .* [-1; 1]
-    Plt = Plots.plot(xlims = Interval + FivePercent, ylims = (0, YMAX))
-    for i = 1:length(C)
-        if PointMass
-            if C[i] > 0
-                CtsIdx = [1; 1:NNodes-1]
-                xIdx = [1; 2; 2:NNodes-1]
-                PMIdx = NNodes
-                ΔIdx = 2
-            elseif C[i] < 0
-                CtsIdx = [2:NNodes; NNodes]
-                xIdx = [2:NNodes-1; NNodes - 1; NNodes]
-                PMIdx = 1
-                ΔIdx = 1
-            else
-                CtsIdx = 2:NNodes-1
-                xIdx = CtsIdx
-                PMIdx = [1; NNodes]
-                ΔIdx = [1; 2]
-            end # end if C[i]
-            Plt = Plots.plot!(
-                Nodes[xIdx],
-                Vt[CtsIdx, i],
-                label = string("Phase ", i, " rate: ", C[i], " and ", labels[i]),
-                color = i,
-            )
-            Plt = Plots.scatter!(
-                [Nodes[PMIdx]],
-                [Vt[PMIdx, i] .* ΔEnds[ΔIdx]],
-                marker = :hexagon,
-                label = string("mass"),
-                color = i,
-            )
-        else
-            Plt = Plots.plot!(
-                Nodes,
-                Vt[:, i],
-                label = string("Phase ", i, " rate: ", labels[i]),
-                color = i,
-            )
-        end # end if PointMass
-    end # end for i
-    return (Plt = Plt)
+
+    return p
 end # end PlotVt
+
+function PlotSFM(;
+    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+    Mesh::NamedTuple{
+        (
+            :NBases,
+            :CellNodes,
+            :Fil,
+            :Δ,
+            :NIntervals,
+            :MeshArray,
+            :Nodes,
+            :TotalNBases,
+            :Basis,
+        ),
+    },
+    Coeffs::Array{<:Real},
+    type::String = "density",
+    color = 1,
+)
+    p = Plots.plot(legend = false, layout = (Model.NPhases, 1))
+    p = SFFM.PlotSFM!(p,
+        Model = Model,
+        Mesh = Mesh,
+        Coeffs = Coeffs,
+        type = type,
+        color = color,
+    )
+
+    return p
+end # end PlotVt
+
+function PlotSFMSim!(p;
+    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+    Mesh::NamedTuple{
+        (
+            :NBases,
+            :CellNodes,
+            :Fil,
+            :Δ,
+            :NIntervals,
+            :MeshArray,
+            :Nodes,
+            :TotalNBases,
+            :Basis,
+        ),
+    },
+    sims::NamedTuple{(:t, :φ, :X, :Y, :n)},
+    type::String = "density",
+    color = 1,
+)
+    H = zeros(Mesh.NIntervals, Model.NPhases)
+    yLimValues = (0.0, 0.0)
+    if type == "probability"
+        (pm, H) = SFFM.Sims2Probs(Model = Model, Mesh = Mesh, sims = sims)
+    elseif type == "density"
+        (pm, U) = SFFM.Sims2PDF(Model = Model, Mesh = Mesh, sims = sims)
+    end
+    for i = 1:Model.NPhases
+        whichsims =
+            (sims.φ .== i) .&
+            (sims.X .!= Mesh.CellNodes[1]) .&
+            (sims.X .!= Mesh.CellNodes[end])
+        data = sims.X[whichsims]
+        if type == "probability"
+            h = H[:, :, i][:]
+            p = Plots.bar!(
+                Mesh.Nodes,
+                h,
+                alpha = 0.25,
+                bar_width = Mesh.Δ,
+                subplot = i,
+                ylabel = type,
+            )
+        elseif type == "density"
+            p = Plots.plot!(
+                Mesh.CellNodes,
+                U[:, :, i],
+                linecolor = color,
+                subplot = i,
+                title = "φ=" * string(i),
+                ylabel = type,
+            )
+        end
+
+        if Model.C[i] <= 0
+            x = [Mesh.CellNodes[1]]
+            whichsims = (sims.φ .== i) .& (sims.X .== Mesh.CellNodes[1])
+            y = [sum(whichsims) / length(sims.φ)]
+            p = Plots.scatter!(
+                x,
+                y,
+                markertype = :circle,
+                markercolor = color,
+                alpha = 0.25,
+                subplot = i,
+            )
+        end
+        if Model.C[i] >= 0
+            x = [Mesh.CellNodes[end]]
+            whichsims = (sims.φ .== i) .& (sims.X .== Mesh.CellNodes[end])
+            y = [sum(whichsims) / length(sims.φ)]
+            p = Plots.scatter!(
+                x,
+                y,
+                markertype = :circle,
+                markercolor = color,
+                alpha = 0.25,
+                subplot = i,
+            )
+        end
+        currYLims = Plots.ylims(p[i])
+        yLimValues = (min(yLimValues[1], currYLims[1]), max(yLimValues[2], currYLims[2]))
+        p = Plots.plot!(ylims = yLimValues, subplot = i)
+    end
+
+    return p
+end
+
+function PlotSFMSim(;
+    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+    Mesh::NamedTuple{
+        (
+            :NBases,
+            :CellNodes,
+            :Fil,
+            :Δ,
+            :NIntervals,
+            :MeshArray,
+            :Nodes,
+            :TotalNBases,
+            :Basis,
+        ),
+    },
+    sims::NamedTuple{(:t, :φ, :X, :Y, :n)},
+    type::String = "density",
+    color = 1,
+)
+    p = Plots.plot!(legend = false, layout = (Model.NPhases, 1))
+    p = SFFM.PlotSFMSim!(p,
+        Model = Model,
+        Mesh = Mesh,
+        sims = sims,
+        type = type,
+        color = color,
+    )
+
+    return p
+end
+
 
 function SFFMGIF(; a0, Nodes, B, Times, C, PointMass = true, YMAX = 1, labels = [])
     gifplt = Plots.@gif for n = 1:length(Times)

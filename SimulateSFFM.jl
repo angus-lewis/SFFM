@@ -75,7 +75,7 @@ function SimSFFM(;
         )
         if !(Model.Bounds[1, 1] <= SFFM0.X <= Model.Bounds[1, 2]) ||
            !(Model.Bounds[2, 1] <= SFFM0.Y <= Model.Bounds[2, 2]) ||
-           !in(SFFM0.φ,1:Model.NPhases)
+           !in(SFFM0.φ, 1:Model.NPhases)
             (tSims[m], φSims[m], XSims[m], YSims[m], nSims[m]) =
                 (t = NaN, φ = NaN, X = NaN, Y = NaN, n = NaN)
         else
@@ -296,4 +296,105 @@ function fzero(; f::Function, a::Real, b::Real, err::Float64 = 1e-8)
         c = a + (b - a) / 2
     end
     return c
+end
+
+function Sims2Probs(;
+    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+    Mesh::NamedTuple{
+        (
+            :NBases,
+            :CellNodes,
+            :Fil,
+            :Δ,
+            :NIntervals,
+            :MeshArray,
+            :Nodes,
+            :TotalNBases,
+            :Basis,
+        ),
+    },
+    sims::NamedTuple{(:t, :φ, :X, :Y, :n)},
+)
+    H = zeros(Float64, 1, Mesh.NIntervals, Model.NPhases)
+    pm = zeros(Float64, sum(Model.C .<= 0) + sum(Model.C .>= 0))
+    cp = 0
+    cq = 0
+    for i = 1:Model.NPhases
+        whichsims =
+            (sims.φ .== i) .&
+            (sims.X .!= Model.Bounds[1,1]) .&
+            (sims.X .!= Model.Bounds[1,end])
+        data = sims.X[whichsims]
+
+        h = StatsBase.fit(StatsBase.Histogram, data, Mesh.Nodes)
+        h = h.weights ./ sum(h.weights) * sum(sims.φ .== i) / length(sims.φ)
+        H[:, :, i] = h
+
+        if Model.C[i] <= 0
+            cp = cp + 1
+            whichsims = (sims.φ .== i) .& (sims.X .== Model.Bounds[1,1])
+            p = sum(whichsims) / length(sims.φ)
+            pm[cp] = p
+        end
+        if Model.C[i] >= 0
+            whichsims = (sims.φ .== i) .& (sims.X .== Model.Bounds[1,end])
+            p = sum(whichsims) / length(sims.φ)
+            pm[sum(Model.C .<= 0)+cq] = p
+        end
+    end
+    return (pm, H)
+end
+
+function Sims2PDF(;
+    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+    Mesh::NamedTuple{
+        (
+            :NBases,
+            :CellNodes,
+            :Fil,
+            :Δ,
+            :NIntervals,
+            :MeshArray,
+            :Nodes,
+            :TotalNBases,
+            :Basis,
+        ),
+    },
+    sims::NamedTuple{(:t, :φ, :X, :Y, :n)},
+)
+
+    pm = zeros(Float64, sum(Model.C .<= 0) + sum(Model.C .>= 0))
+    cp = 0
+    cq = 0
+    pdf = zeros(Float64, Mesh.NBases, Mesh.NIntervals, Model.NPhases)
+    for i = 1:Model.NPhases
+        whichsims =
+            (sims.φ .== i) .&
+            (sims.X .!= Model.Bounds[1,1]) .&
+            (sims.X .!= Model.Bounds[1,end])
+        data = sims.X[whichsims]
+
+        totalprob = sum(whichsims) / length(sims.φ)
+        U = KernelDensity.kde(
+            sims.X[whichsims],
+            boundary = (Model.Bounds[1,1], Model.Bounds[1,end]),
+        )
+        pdf[:, :, i] =
+            reshape(KernelDensity.pdf(U, Mesh.CellNodes[:]), Mesh.NBases, Mesh.NIntervals) *
+            totalprob
+
+        if Model.C[i] <= 0
+            cp = cp + 1
+            whichsims = (sims.φ .== i) .& (sims.X .== Model.Bounds[1,1])
+            p = sum(whichsims) / length(sims.φ)
+            pm[cp] = p
+        end
+        if Model.C[i] >= 0
+            whichsims = (sims.φ .== i) .& (sims.X .== Model.Bounds[1,end])
+            p = sum(whichsims) / length(sims.φ)
+            pm[sum(Model.C .<= 0)+cq] = p
+        end
+
+    end
+    return (pm, pdf)
 end

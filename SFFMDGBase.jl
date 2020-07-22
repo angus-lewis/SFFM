@@ -775,11 +775,70 @@ function PsiFun(; s = 0, D, MaxIters = 1000, err = 1e-8)
     return Psi
 end
 
-function EulerDG(; D, y, x0, h = 0.0001)
+function EulerDG(; D::Array{<:Real,2}, y::Real, x0::Array{<:Real}, h::Float64 = 0.0001)
     x = x0
     for t = h:h:y
         dx = h * x * D
         x = x + dx
     end
     return x
+end
+
+function Coeffs2Distn(;
+    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+    Mesh::NamedTuple{
+        (
+            :NBases,
+            :CellNodes,
+            :Fil,
+            :Δ,
+            :NIntervals,
+            :MeshArray,
+            :Nodes,
+            :TotalNBases,
+            :Basis,
+        ),
+    },
+    Coeffs,
+    type::String = "probability"
+)
+    V = SFFM.vandermonde(NBases = Mesh.NBases)
+    N₋ = sum(Model.C .<= 0)
+    N₊ = sum(Model.C .>= 0)
+    if type == "density"
+        xvals = Mesh.CellNodes
+        if Mesh.Basis == "legendre"
+            yvals =
+                V.V * reshape(Coeffs[N₋+1:end-N₊], Mesh.NBases, Mesh.NIntervals, Model.NPhases)
+            pm = [Coeffs[1:N₊]; Coeffs[end-N₊+1:end]]
+        elseif Mesh.Basis == "lagrange"
+            yvals =
+                Coeffs[N₋+1:end-N₊] .* repeat(1.0 ./ V.w, Mesh.NIntervals * Model.NPhases) .*
+                (repeat(2.0 ./ Mesh.Δ, 1, Mesh.NBases * Model.NPhases)'[:])
+            yvals = reshape(yvals, Mesh.NBases, Mesh.NIntervals, Model.NPhases)
+            pm = [Coeffs[1:N₋]; Coeffs[end-N₊+1:end]]
+        end
+    elseif type == "probability"
+        xvals = Mesh.CellNodes[1, :] + (Mesh.Δ ./ 2)
+        if Mesh.Basis == "legendre"
+            yvals = reshape(Coeffs[N₋+1:Mesh.NBases:end-N₊], 1, Mesh.NIntervals, Model.NPhases)
+            pm = [Coeffs[1:N₊]; Coeffs[end-N₊+1:end]]
+        elseif Mesh.Basis == "lagrange"
+            yvals = sum(
+                reshape(Coeffs[N₋+1:end-N₊], Mesh.NBases, Mesh.NIntervals, Model.NPhases),
+                dims = 1,
+            )
+            pm = [Coeffs[1:N₋]; Coeffs[end-N₊+1:end]]
+        end
+    end
+    return (pm, yvals, xvals)
+end
+
+function Distn2Coeffs(; Model, Distn::NamedTuple{(:pm, :yvals, :xvals)})
+    coeffs = [
+        Distn.pm[1:sum(Model.C .<= 0)]
+        V.inv*Distn.yvals[:]
+        Distn.pm[sum(Model.C .<= 0)+1:end]
+    ]
+    return coeffs
 end
