@@ -6,10 +6,10 @@ T = [-2.0 1.0 1.0; 1.0 -2.0 1.0; 1.0 1.0 -2.0]
 C = [1.0; -2.0; 0.0]
 r = (
     r = function (x)
-        [(1.1 .+ sin.(4*x)) (sqrt.(x .* (x .> 0)) .+ 1) ((x .> 0) .* x .+ 1)]
+        [(1.1 .+ sin.(π*x)) (sqrt.(x .* (x .> 0)) .+ 1) ((x .> 0) .* x .+ 1)]
     end, # r = function (x); [1.0.+0.01*x 1.0.+0.01*x 1*ones(size(x))]; end,
     R = function (x)
-        [(1.1 .* x .- cos.(4*x)./4) ((x .* (x .> 0)) .^ (3 / 2) .* 2 / 3 .+ 1 * x) (
+        [(1.1 .* x .- cos.(π*x)./4) ((x .* (x .> 0)) .^ (3 / 2) .* 2 / 3 .+ 1 * x) (
             (x .> 0) .* x .^ 2 / 2.0 .+ 1 * x
         )]
     end, # R = function (x); [1*x.+0.01.*x.^2.0./2 1*x.+0.01.*x.^2.0./2 1*x]; end
@@ -28,7 +28,7 @@ Bounds = [-10 10; -Inf Inf]
 Model = SFFM.MakeModel(T = T, C = C, r = r, Bounds = Bounds)
 
 # in out Y-level
-y = 20
+y = 10
 
 ## Simulate the model
 NSim = 100000
@@ -43,7 +43,7 @@ sims =
     SFFM.SimSFFM(Model = Model, StoppingTime = SFFM.InOutYLevel(y = y), InitCondition = IC)
 
 ## Define the mesh
-Δ = 5
+Δ = 1
 Nodes = collect(Bounds[1, 1]:Δ:Bounds[1, 2])
 Fil = Dict{String,BitArray{1}}(
     "1+" => trues(length(Nodes) - 1),
@@ -54,8 +54,8 @@ Fil = Dict{String,BitArray{1}}(
     "q1+" => trues(1),
     "q3+" => trues(1),
 )
-NBases = 3
-Basis = "legendre"
+NBases = 8
+Basis = "lagrange"
 Mesh = SFFM.MakeMesh(Model = Model, Nodes = Nodes, NBases = NBases, Fil = Fil, Basis=Basis)
 
 ## Construct all DG operators
@@ -103,7 +103,7 @@ end
 # )
 
 ## DG approximations to exp(Dy)
-h = 0.001
+h = 0.0001
 if Basis == "legendre"
     idx = [
         1:sum(Model.C .<= 0)
@@ -114,7 +114,7 @@ if Basis == "legendre"
     yvals = SFFM.EulerDG(D = D["++"](s = 0), y = y, x0 = x0, h = h)
     yvals = [yvals[1:sum(Model.C.<=0)]; (Matrices.Local.V.V*reshape(yvals[sum(Model.C.<=0)+1:end-sum(Model.C.>=0)],NBases,length(yvals[sum(Model.C.<=0)+1:end-sum(Model.C.>=0)])÷NBases))[:]; yvals[end-sum(Model.C.>=0)+1:end]]
     # MyDyvals = SFFM.EulerDG(D = MyD.D(s = 0), y = y, x0 = x0, h = h)
-    # MyDyvals = [MyDyvals[1:sum(Model.C.<=0)]; (diagm(Matrices.Local.V.w)*Matrices.Local.V.V*reshape(MyDyvals[3:end-2],NBases,length(MyDyvals[3:end-2])÷NBases))[:]; MyDyvals[end-sum(Model.C.>=0)+1:end]]
+    # MyDyvals = [MyDyvals[1:sum(Model.C.<=0)]; (Matrices.Local.V.V*reshape(MyDyvals[sum(Model.C.<=0)+1:end-sum(Model.C.>=0)],NBases,length(MyDyvals[sum(Model.C.<=0)+1:end-sum(Model.C.>=0)])÷NBases))[:]; MyDyvals[end-sum(Model.C.>=0)+1:end]]
 elseif Basis == "lagrange"
     # yvalsR = SFFM.EulerDG(D = DR.DDict["++"](s = 0), y = y, x0 = x0, h = h)
     # yvalsR = [yvalsR[1:sum(Model.C.<=0)]; sum(reshape(yvalsR[3:end-2],NBases,length(yvalsR[3:end-2])÷NBases),dims=1)'; yvalsR[end-sum(Model.C.>=0)+1:end]]
@@ -127,7 +127,7 @@ end
 ## analysis and plots
 
 # plot solutions
-#p = plot(legend = false, layout = (3, 1))
+# p = plot(legend = false, layout = (3, 1))
 Y = zeros(Mesh.TotalNBases, Model.NPhases)
 YR = zeros(Mesh.TotalNBases, Model.NPhases)
 MyY = zeros(Mesh.TotalNBases, Model.NPhases)

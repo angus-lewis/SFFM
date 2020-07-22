@@ -434,48 +434,95 @@ function MakeR(;
     Mesh::NamedTuple{
         (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases, :Basis),
     },
+    V,
 )
     # interpolant approximation to r(x)
     EvalPoints = Mesh.CellNodes
     EvalPoints[1, :] .+= sqrt(eps()) # LH edges + eps
     EvalPoints[end, :] .+= -sqrt(eps()) # RH edges - eps
-    EvalR = abs.(Model.r.r(EvalPoints[:]))
-    RDict = Dict{String,Array{Float64,1}}()
+    EvalR = 1.0./abs.(Model.r.r(EvalPoints[:]))
 
-    N₋ = sum(Model.C .<= 0)
-    N₊ = sum(Model.C .>= 0)
+    N₋ = sum(Model.C.<=0)
+    N₊ = sum(Model.C.>=0)
 
-    R = zeros(Float64, Model.NPhases * Mesh.TotalNBases + N₋ + N₊)
-    R[1:N₋] = 1.0 ./ abs.(Model.r.r(Mesh.CellNodes[1])[Model.C.<=0])
-    R[(end-N₊+1):end] = 1.0 ./ abs.(Model.r.r(Mesh.CellNodes[end])[Model.C.>=0])
-    for i = 1:Model.NPhases
-        if Model.C[i] < 0
-            p = 1.0 ./ abs.(Model.r.r(Mesh.CellNodes[1])[i])
-            q = Float64[]
-        elseif Model.C[i] > 0
-            p = Float64[]
-            q = 1.0 ./ abs.(Model.r.r(Mesh.CellNodes[end])[i])
-        elseif Model.C[i] == 0
-            p = 1.0 ./ abs.(Model.r.r(Mesh.CellNodes[1])[i])
-            q = 1.0 ./ abs.(Model.r.r(Mesh.CellNodes[end])[i])
+    R = zeros(N₋+N₊+Mesh.TotalNBases*Model.NPhases,N₋+N₊+Mesh.TotalNBases*Model.NPhases)
+    R[1:N₋,1:N₋] = LinearAlgebra.I(N₋)
+    R[(end-N₊+1):end,(end-N₊+1):end] = LinearAlgebra.I(N₊)
+
+    for n in 1:(Mesh.NIntervals*Model.NPhases)
+        if Mesh.Basis == "legendre"
+            temp = V.V'*LinearAlgebra.diagm(EvalR[Mesh.NBases*(n-1).+(1:Mesh.NBases)])*V.inv'
+        elseif Mesh.Basis == "lagrange"
+            temp = LinearAlgebra.diagm(EvalR[Mesh.NBases*(n-1).+(1:Mesh.NBases)])
         end
-        temp = 1.0 ./ EvalR[:, i]
-        RDict[string(i)] = [p; temp; q]
-        R[((i-1)*Mesh.TotalNBases+1:i*Mesh.TotalNBases).+N₋] = temp
-        for ℓ in ["+", "-"]
-            FilBases = repeat(Mesh.Fil[string(i)*ℓ]', Mesh.NBases, 1)[:]
-            RDict[string(i)*ℓ] = [
-                p .* Mesh.Fil["p"*string(i)*ℓ]
-                temp[FilBases]
-                q .* Mesh.Fil["q"*string(i)*ℓ]
-            ]
-        end
+        R[Mesh.NBases*(n-1).+(1:Mesh.NBases).+N₋,Mesh.NBases*(n-1).+(1:Mesh.NBases).+N₋]=temp
     end
+
+    RDict = Dict{String,Array{Float64,2}}()
+    pfalses = falses(N₋)
+    qfalses = falses(N₊)
+    ppositions = cumsum(Model.C .<= 0)
+    qpositions = cumsum(Model.C .>= 0)
     for ℓ in ["+", "-"]
+        for i = 1:Model.NPhases
+            FilBases = repeat(Mesh.Fil[string(i, ℓ)]', Mesh.NBases, 1)[:]
+            pitemp = pfalses
+            qitemp = qfalses
+            if Model.C[i] <= 0
+                pitemp[ppositions[i]] = Mesh.Fil["p"*string(i)*ℓ][1]
+            end
+            if Model.C[i] >= 0
+                qitemp[qpositions[i]] = Mesh.Fil["q"*string(i)*ℓ][1]
+            end
+            i_idx = [
+                pitemp
+                falses((i - 1) * Mesh.TotalNBases)
+                FilBases
+                falses(Model.NPhases * Mesh.TotalNBases - i * Mesh.TotalNBases)
+                qitemp
+            ]
+            RDict[string(i, ℓ)] = R[i_idx, i_idx]
+        end
         FlBases =
             [Mesh.Fil["p"*ℓ]; repeat(Mesh.Fil[ℓ]', Mesh.NBases, 1)[:]; Mesh.Fil["q"*ℓ]]
-        RDict[ℓ] = R[FlBases]
+        RDict[ℓ] = R[FlBases, FlBases]
     end
+
+    # N₋ = sum(Model.C .<= 0)
+    # N₊ = sum(Model.C .>= 0)
+    #
+    # R = zeros(Float64, Model.NPhases * Mesh.TotalNBases + N₋ + N₊, Model.NPhases * Mesh.TotalNBases + N₋ + N₊)
+    # R[1:N₋,1:N₋] = LinearAlgebra.diagm(1.0 ./ abs.(Model.r.r(Mesh.CellNodes[1])[Model.C.<=0]))
+    # R[(end-N₊+1):end,(end-N₊+1):end] = LinearAlgebra.diagm(1.0 ./ abs.(Model.r.r(Mesh.CellNodes[end])[Model.C.>=0]))
+    # for i = 1:Model.NPhases
+    #     if Model.C[i] < 0
+    #         p = 1.0 ./ abs.(Model.r.r(Mesh.CellNodes[1])[i])
+    #         q = Float64[]
+    #     elseif Model.C[i] > 0
+    #         p = Float64[]
+    #         q = 1.0 ./ abs.(Model.r.r(Mesh.CellNodes[end])[i])
+    #     elseif Model.C[i] == 0
+    #         p = 1.0 ./ abs.(Model.r.r(Mesh.CellNodes[1])[i])
+    #         q = 1.0 ./ abs.(Model.r.r(Mesh.CellNodes[end])[i])
+    #     end
+    #     temp = 1.0 ./ EvalR[:, i]
+    #     RDict[string(i)] = LinearAlgebra.diagm([p; temp; q])
+    #     R[((i-1)*Mesh.TotalNBases+1:i*Mesh.TotalNBases).+N₋,((i-1)*Mesh.TotalNBases+1:i*Mesh.TotalNBases).+N₋] = LinearAlgebra.diagm(temp)
+    #     for ℓ in ["+", "-"]
+    #         FilBases = repeat(Mesh.Fil[string(i)*ℓ]', Mesh.NBases, 1)[:]
+    #         RDict[string(i)*ℓ] = LinearAlgebra.diagm([
+    #             p .* Mesh.Fil["p"*string(i)*ℓ]
+    #             temp[FilBases]
+    #             q .* Mesh.Fil["q"*string(i)*ℓ]
+    #         ])
+    #     end
+    # end
+    #
+    # for ℓ in ["+", "-"]
+    #     FlBases =
+    #         [Mesh.Fil["p"*ℓ]; repeat(Mesh.Fil[ℓ]', Mesh.NBases, 1)[:]; Mesh.Fil["q"*ℓ]]
+    #     RDict[ℓ] = R[FlBases,FlBases]
+    # end
     println("R.Fields with Fields (.RDict, .R)")
     return (RDict = RDict, R = R)
 end
@@ -578,12 +625,12 @@ function MakeD(;
             )
             DDict[ℓ*m] = function (; s = 0)#::Array{Float64}
                 return if (ℓ == m)
-                    RDict[ℓ] .* (
+                    RDict[ℓ] * (
                         BDict[ℓ*m] - s * Idℓ +
                         BDict[ℓ*"0"] * inv(s * Id0 - BDict["00"]) * BDict["0"*m]
                     )
                 else
-                    RDict[ℓ] .* (
+                    RDict[ℓ] * (
                         BDict[ℓ*m] +
                         BDict[ℓ*"0"] * inv(s * Id0 - BDict["00"]) * BDict["0"*m]
                     )
@@ -592,9 +639,9 @@ function MakeD(;
         else
             DDict[ℓ*m] = function (; s = 0)#::Array{Float64}
                 return if (ℓ == m)
-                    RDict[ℓ] .* (BDict[ℓ*m] - s * Idℓ)
+                    RDict[ℓ] * (BDict[ℓ*m] - s * Idℓ)
                 else
-                    RDict[ℓ] .* BDict[ℓ*m]
+                    RDict[ℓ] * BDict[ℓ*m]
                 end
             end # end function
         end # end if ...

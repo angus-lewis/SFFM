@@ -49,7 +49,7 @@ function MakeAll(;
     Matrices = MakeMatrices(Model = Model, Mesh = Mesh)
     MatricesR = MakeMatricesR(Model = Model, Mesh = Mesh)
     B = MakeB(Model = Model, Mesh = Mesh, Matrices = Matrices)
-    R = MakeR(Model = Model, Mesh = Mesh)
+    R = MakeR(Model = Model, Mesh = Mesh, V = Matrices.Local.V)
     D = MakeD(Model = Model, Mesh = Mesh, R = R, B = B)
     DR = MakeDR(
         Matrices = Matrices,
