@@ -113,23 +113,34 @@ function vandermonde(; NBases::Int)
             V[:, j] = Jacobi.legendre.(z, j - 1) .* sqrt((2 * (j - 1) + 1) / 2)
             DV[:, j] = Jacobi.dlegendre.(z, j - 1) .* sqrt((2 * (j - 1) + 1) / 2)
         end
+        # Compute the Gauss-Lobatto weights for numerical quadrature
+        w =
+            2.0 ./ (
+                NBases *
+                (NBases - 1) *
+                Jacobi.legendre.(Jacobi.zglj(NBases, 0, 0), NBases - 1) .^ 2
+            )
     elseif NBases == 1
         V .= 1
         DV .= 0
+        w = 1
     end
-    # Compute the Gauss-Lobatto weights for numerical quadrature
-    w =
-        2.0 ./ (
-            NBases *
-            (NBases - 1) *
-            Jacobi.legendre.(Jacobi.zglj(NBases, 0, 0), NBases - 1) .^ 2
-        )
     return (V = V, inv = inv(V), D = DV, w = w)
 end
 
 function MakeBlockDiagonalMatrix(;
     Mesh::NamedTuple{
-        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases, :Basis),
+        (
+            :NBases,
+            :CellNodes,
+            :Fil,
+            :Δ,
+            :NIntervals,
+            :MeshArray,
+            :Nodes,
+            :TotalNBases,
+            :Basis,
+        ),
     },
     Blocks::Array{Float64,2},
     Factors::Array,
@@ -154,7 +165,17 @@ end
 
 function MakeFluxMatrix(;
     Mesh::NamedTuple{
-        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases, :Basis),
+        (
+            :NBases,
+            :CellNodes,
+            :Fil,
+            :Δ,
+            :NIntervals,
+            :MeshArray,
+            :Nodes,
+            :TotalNBases,
+            :Basis,
+        ),
     },
     Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     Phi,
@@ -187,16 +208,16 @@ function MakeFluxMatrix(;
             if k > 1
                 idxup = (1:Mesh.NBases) .+ (k - 2) * Mesh.NBases
                 if Model.C[i] > 0
-                    if Mesh.Basis=="legendre"
+                    if Mesh.Basis == "legendre"
                         η = 1
-                    elseif Mesh.Basis=="lagrange"
+                    elseif Mesh.Basis == "lagrange"
                         η = Mesh.Δ[k] / Mesh.Δ[k-1]
                     end
                     F[idxup, idx, i] = UpDiagBlock * η
                 elseif Model.C[i] < 0
-                    if Mesh.Basis=="legendre"
+                    if Mesh.Basis == "legendre"
                         η = 1
-                    elseif Mesh.Basis=="lagrange"
+                    elseif Mesh.Basis == "lagrange"
                         η = Mesh.Δ[k-1] / Mesh.Δ[k]
                     end
                     F[idx, idxup, i] = LowDiagBlock * η
@@ -211,7 +232,17 @@ end
 function MakeMatrices(;
     Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     Mesh::NamedTuple{
-        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases, :Basis),
+        (
+            :NBases,
+            :CellNodes,
+            :Fil,
+            :Δ,
+            :NIntervals,
+            :MeshArray,
+            :Nodes,
+            :TotalNBases,
+            :Basis,
+        ),
     },
 )
     # Creates the Local and global mass, stiffness and flux
@@ -288,7 +319,17 @@ end
 function MakeB(;
     Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     Mesh::NamedTuple{
-        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases, :Basis),
+        (
+            :NBases,
+            :CellNodes,
+            :Fil,
+            :Δ,
+            :NIntervals,
+            :MeshArray,
+            :Nodes,
+            :TotalNBases,
+            :Basis,
+        ),
     },
     Matrices,
 )
@@ -327,10 +368,10 @@ function MakeB(;
     B[(N₋+1):(end-N₊), (N₋+1):(end-N₊)] =
         B[(N₋+1):(end-N₊), (N₋+1):(end-N₊)] + LinearAlgebra.kron(Model.T, Id)
     # Boundary behaviour
-    if Mesh.Basis=="legendre"
-        η = Mesh.Δ[[1;end]]./2
-    elseif Mesh.Basis=="lagrange"
-        η = [1;1]
+    if Mesh.Basis == "legendre"
+        η = Mesh.Δ[[1; end]] ./ 2
+    elseif Mesh.Basis == "lagrange"
+        η = [1; 1]
     end
     # Lower boundary
     # At boundary
@@ -357,7 +398,7 @@ function MakeB(;
         (N₋ + Mesh.TotalNBases - Mesh.NBases)
     B[(end-N₊+1):end, idxdown] = kron(
         Model.T[Model.C.>=0, Model.C.<0],
-        Matrices.Local.Phi[end, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv ./ η[1]
+        Matrices.Local.Phi[end, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv ./ η[1],
     )
     # Into boundary
     idxup =
@@ -432,7 +473,17 @@ end
 function MakeR(;
     Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     Mesh::NamedTuple{
-        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases, :Basis),
+        (
+            :NBases,
+            :CellNodes,
+            :Fil,
+            :Δ,
+            :NIntervals,
+            :MeshArray,
+            :Nodes,
+            :TotalNBases,
+            :Basis,
+        ),
     },
     V,
 )
@@ -440,22 +491,29 @@ function MakeR(;
     EvalPoints = Mesh.CellNodes
     EvalPoints[1, :] .+= sqrt(eps()) # LH edges + eps
     EvalPoints[end, :] .+= -sqrt(eps()) # RH edges - eps
-    EvalR = 1.0./abs.(Model.r.r(EvalPoints[:]))
+    EvalR = 1.0 ./ abs.(Model.r.r(EvalPoints[:]))
 
-    N₋ = sum(Model.C.<=0)
-    N₊ = sum(Model.C.>=0)
+    N₋ = sum(Model.C .<= 0)
+    N₊ = sum(Model.C .>= 0)
 
-    R = zeros(N₋+N₊+Mesh.TotalNBases*Model.NPhases,N₋+N₊+Mesh.TotalNBases*Model.NPhases)
-    R[1:N₋,1:N₋] = LinearAlgebra.I(N₋)
-    R[(end-N₊+1):end,(end-N₊+1):end] = LinearAlgebra.I(N₊)
+    R = zeros(
+        N₋ + N₊ + Mesh.TotalNBases * Model.NPhases,
+        N₋ + N₊ + Mesh.TotalNBases * Model.NPhases,
+    )
+    R[1:N₋, 1:N₋] = LinearAlgebra.I(N₋)
+    R[(end-N₊+1):end, (end-N₊+1):end] = LinearAlgebra.I(N₊)
 
-    for n in 1:(Mesh.NIntervals*Model.NPhases)
+    for n = 1:(Mesh.NIntervals*Model.NPhases)
         if Mesh.Basis == "legendre"
-            temp = V.V'*LinearAlgebra.diagm(EvalR[Mesh.NBases*(n-1).+(1:Mesh.NBases)])*V.inv'
+            temp =
+                V.V' *
+                LinearAlgebra.diagm(EvalR[Mesh.NBases*(n-1).+(1:Mesh.NBases)]) *
+                V.inv'
         elseif Mesh.Basis == "lagrange"
             temp = LinearAlgebra.diagm(EvalR[Mesh.NBases*(n-1).+(1:Mesh.NBases)])
         end
-        R[Mesh.NBases*(n-1).+(1:Mesh.NBases).+N₋,Mesh.NBases*(n-1).+(1:Mesh.NBases).+N₋]=temp
+        R[Mesh.NBases*(n-1).+(1:Mesh.NBases).+N₋, Mesh.NBases*(n-1).+(1:Mesh.NBases).+N₋] =
+            temp
     end
 
     RDict = Dict{String,Array{Float64,2}}()
@@ -530,7 +588,17 @@ end
 function MakeMyD(;
     Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     Mesh::NamedTuple{
-        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases, :Basis),
+        (
+            :NBases,
+            :CellNodes,
+            :Fil,
+            :Δ,
+            :NIntervals,
+            :MeshArray,
+            :Nodes,
+            :TotalNBases,
+            :Basis,
+        ),
     },
     B,
     V,
@@ -543,7 +611,7 @@ function MakeMyD(;
             # Inputs:
             #   - x a vector of Gauss-Lobatto points on Dk
             #   - i a phase
-            V.V' * LinearAlgebra.diagm(0 => V.w ./ abs.(Model.r.r(x)[:, i])) * V.V
+            V.V' * LinearAlgebra.diagm(V.w ./ abs.(Model.r.r(x)[:, i])) * V.V
         end
     elseif Mesh.Basis == "lagrange"
         MRLocal = function (x::Array{Float64}, i::Int)
@@ -552,7 +620,7 @@ function MakeMyD(;
             # Inputs:
             #   - x a vector of Gauss-Lobatto points on Dk
             #   - i a phase
-            LinearAlgebra.diagm(V.w ./ abs.(Model.r.r(x)[:, i]))
+            LinearAlgebra.diagm(1.0 ./ abs.(Model.r.r(x)[:, i]))
         end
     end
     MyR = zeros(
@@ -607,7 +675,17 @@ function MakeD(;
     B,
     Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     Mesh::NamedTuple{
-        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases, :Basis),
+        (
+            :NBases,
+            :CellNodes,
+            :Fil,
+            :Δ,
+            :NIntervals,
+            :MeshArray,
+            :Nodes,
+            :TotalNBases,
+            :Basis,
+        ),
     },
 )
     RDict = R.RDict

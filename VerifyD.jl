@@ -43,7 +43,7 @@ sims =
     SFFM.SimSFFM(Model = Model, StoppingTime = SFFM.InOutYLevel(y = y), InitCondition = IC)
 
 ## Define the mesh
-Δ = 1
+Δ = 0.5
 Nodes = collect(Bounds[1, 1]:Δ:Bounds[1, 2])
 Fil = Dict{String,BitArray{1}}(
     "1+" => trues(length(Nodes) - 1),
@@ -54,7 +54,7 @@ Fil = Dict{String,BitArray{1}}(
     "q1+" => trues(1),
     "q3+" => trues(1),
 )
-NBases = 8
+NBases = 3
 Basis = "lagrange"
 Mesh = SFFM.MakeMesh(Model = Model, Nodes = Nodes, NBases = NBases, Fil = Fil, Basis=Basis)
 
@@ -103,24 +103,25 @@ end
 # )
 
 ## DG approximations to exp(Dy)
-h = 0.0001
+h = 0.001
 if Basis == "legendre"
     idx = [
         1:sum(Model.C .<= 0)
         sum(Model.C .<= 0).+1:NBases:length(x0).-sum(Model.C .>= 0)
         length(x0).-sum(Model.C .>= 0).+1:length(x0)
     ]
-    # yvalsR = SFFM.EulerDG(D = DR.DDict["++"](s = 0), y = y, x0 = x0, h = h)[idx]
+    #  yvalsR = SFFM.EulerDG(D = DR.DDict["++"](s = 0), y = y, x0 = x0, h = h)[idx]
     yvals = SFFM.EulerDG(D = D["++"](s = 0), y = y, x0 = x0, h = h)
     yvals = [yvals[1:sum(Model.C.<=0)]; (Matrices.Local.V.V*reshape(yvals[sum(Model.C.<=0)+1:end-sum(Model.C.>=0)],NBases,length(yvals[sum(Model.C.<=0)+1:end-sum(Model.C.>=0)])÷NBases))[:]; yvals[end-sum(Model.C.>=0)+1:end]]
-    # MyDyvals = SFFM.EulerDG(D = MyD.D(s = 0), y = y, x0 = x0, h = h)
-    # MyDyvals = [MyDyvals[1:sum(Model.C.<=0)]; (Matrices.Local.V.V*reshape(MyDyvals[sum(Model.C.<=0)+1:end-sum(Model.C.>=0)],NBases,length(MyDyvals[sum(Model.C.<=0)+1:end-sum(Model.C.>=0)])÷NBases))[:]; MyDyvals[end-sum(Model.C.>=0)+1:end]]
+    MyDyvals = SFFM.EulerDG(D = MyD.D(s = 0), y = y, x0 = x0, h = h)
+    MyDyvals = [MyDyvals[1:sum(Model.C.<=0)]; (Matrices.Local.V.V*reshape(MyDyvals[sum(Model.C.<=0)+1:end-sum(Model.C.>=0)],NBases,length(MyDyvals[sum(Model.C.<=0)+1:end-sum(Model.C.>=0)])÷NBases))[:]; MyDyvals[end-sum(Model.C.>=0)+1:end]]
 elseif Basis == "lagrange"
     # yvalsR = SFFM.EulerDG(D = DR.DDict["++"](s = 0), y = y, x0 = x0, h = h)
     # yvalsR = [yvalsR[1:sum(Model.C.<=0)]; sum(reshape(yvalsR[3:end-2],NBases,length(yvalsR[3:end-2])÷NBases),dims=1)'; yvalsR[end-sum(Model.C.>=0)+1:end]]
     yvals = SFFM.EulerDG(D = D["++"](s = 0), y = y, x0 = x0, h = h)
     yvals = [yvals[1:sum(Model.C.<=0)]; yvals[sum(Model.C.<=0)+1:end-sum(Model.C.>=0)].*repeat(1.0./Matrices.Local.V.w,Mesh.NIntervals*Model.NPhases).*(repeat(2.0./Mesh.Δ,1,Mesh.NBases*Model.NPhases)'[:]); yvals[end-sum(Model.C.>=0)+1:end]]
-    # MyDyvals = SFFM.EulerDG(D = MyD.D(s = 0), y = y, x0 = x0, h = h)
+    MyDyvals = SFFM.EulerDG(D = MyD.D(s = 0), y = y, x0 = x0, h = h)
+    MyDyvals = [MyDyvals[1:sum(Model.C.<=0)]; MyDyvals[sum(Model.C.<=0)+1:end-sum(Model.C.>=0)].*repeat(1.0./Matrices.Local.V.w,Mesh.NIntervals*Model.NPhases).*(repeat(2.0./Mesh.Δ,1,Mesh.NBases*Model.NPhases)'[:]); MyDyvals[end-sum(Model.C.>=0)+1:end]]
 end
 # yvalsleg = diagm(Matrices.Local.V.w)*Matrices.Local.V.V*reshape(yvals[3:end-2],NBases,length(yvals[3:end-2])÷NBases)/sqrt(2)
 
@@ -154,13 +155,13 @@ let cum = 0
         #     subplot = i,
         # )
         # YR[:, i] = yvalsR[idx]
-        # p = plot!(
-        #     Mesh.CellNodes[:, .!Fil[string(i)*"0"]][:],
-        #     MyDyvals[idx],
-        #     label = "MyD",
-        #     subplot = i,
-        # )
-        # MyY[:, i] = MyDyvals[idx]
+        p = plot!(
+            Mesh.CellNodes[:, .!Fil[string(i)*"0"]][:],
+            MyDyvals[idx],
+            label = "MyD",
+            subplot = i,
+        )
+        MyY[:, i] = MyDyvals[idx]
     end
 end
 p = plot!(subplot = 1, legend = :topright)
@@ -168,13 +169,12 @@ pmdata = [
     [Nodes[1] * ones(sum(Model.C .<= 0)); Nodes[end] * ones(sum(Model.C .>= 0))]'
     yvals[[1:2;end-1:end]]'
     # yvalsR[[1:2;end-1:end]]'
-    # MyDyvals[[1:2;end-1:end]]'
+    MyDyvals[[1:2;end-1:end]]'
     [(sum(repeat(sims.X,1,Model.NPhases).*(sims.φ.==[1 2 3]).==Nodes[1],dims=1)./NSim)[Model.C.<=0];
     (sum(repeat(sims.X,1,Model.NPhases).*(sims.φ.==[1 2 3]).==Nodes[end],dims=1)./NSim)[Model.C.<=0]]'
 ]
 SFFM.MyPrint([".";"pm";"pmR";"pmMyD";"sim"])
 SFFM.MyPrint(pmdata)
-
 display(p)
 
 # plot sims
