@@ -323,8 +323,7 @@ function Sims2Dist(;
 )
 
     if type == "density"
-        distribution =
-            zeros(Float64, Mesh.NBases, Mesh.NIntervals, Model.NPhases)
+        distribution = zeros(Float64, Mesh.NBases, Mesh.NIntervals, Model.NPhases)
     elseif type == "probability"
         distribution = zeros(Float64, 1, Mesh.NIntervals, Model.NPhases)
     end
@@ -338,20 +337,20 @@ function Sims2Dist(;
             (sims.X .!= Model.Bounds[1, 1]) .&
             (sims.X .!= Model.Bounds[1, end])
         data = sims.X[whichsims]
+        totalprob = sum(whichsims) / length(sims.φ)
         if type == "probability"
             h = StatsBase.fit(StatsBase.Histogram, data, Mesh.Nodes)
-            h = h.weights ./ sum(h.weights) * sum(sims.φ .== i) / length(sims.φ)
+            h = h.weights ./ sum(h.weights) * totalprob
             distribution[:, :, i] = h
             xvals = Mesh.CellNodes[1, :] + Mesh.Δ / 2
         elseif type == "density"
-            totalprob = sum(whichsims) / length(sims.φ)
             U = KernelDensity.kde(
-                sims.X[whichsims],
+                data,
                 boundary = (Model.Bounds[1, 1], Model.Bounds[1, end]),
             )
             distribution[:, :, i] =
                 reshape(
-                    KernelDensity.pdf(U, Mesh.CellNodes[:]),
+                    KernelDensity.pdf(U, Mesh.CellNodes[:])',
                     Mesh.NBases,
                     Mesh.NIntervals,
                 ) * totalprob
@@ -364,6 +363,7 @@ function Sims2Dist(;
             pm[pc] = p
         end
         if Model.C[i] >= 0
+            qc = qc + 1
             whichsims = (sims.φ .== i) .& (sims.X .== Model.Bounds[1, end])
             p = sum(whichsims) / length(sims.φ)
             pm[sum(Model.C .<= 0)+qc] = p

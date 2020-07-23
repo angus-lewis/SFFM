@@ -61,7 +61,7 @@ function PlotSFM!(p;
         if Model.C[i] >= 0
             qc = qc + 1
             x = [Mesh.CellNodes[end]]
-            y = [pm[qc]]
+            y = [pm[sum(Model.C .>= 0) + qc]]
             p = Plots.scatter!(
                 x,
                 y,

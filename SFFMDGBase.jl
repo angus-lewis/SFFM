@@ -823,7 +823,7 @@ function Coeffs2Dist(;
     elseif type == "probability"
         xvals = Mesh.CellNodes[1, :] + (Mesh.Δ ./ 2)
         if Mesh.Basis == "legendre"
-            yvals = (reshape(Coeffs[N₋+1:Mesh.NBases:end-N₊], 1, Mesh.NIntervals, Model.NPhases).*Mesh.Δ').*sqrt(2)/2
+            yvals = (reshape(Coeffs[N₋+1:Mesh.NBases:end-N₊], 1, Mesh.NIntervals, Model.NPhases).*Mesh.Δ')./sqrt(2)
             pm = [Coeffs[1:N₊]; Coeffs[end-N₊+1:end]]
         elseif Mesh.Basis == "lagrange"
             yvals = sum(
@@ -859,13 +859,13 @@ function Dist2Coeffs(;
     if Mesh.Basis == "legendre"
         if Distn.type == "probability"
             display(Distn.type)
-            theDistribution[1, :, :] = Distn.distribution
+            theDistribution[1, :, :] = Distn.distribution./Mesh.Δ'.*sqrt(2)
         elseif Distn.type == "density"
             display(Distn.type)
             theDistribution = Distn.distribution
-        end
-        for i = 1:Model.NPhases
-            theDistribution[:, :, i] = V.inv * theDistribution[:, :, i]
+            for i = 1:Model.NPhases
+                theDistribution[:, :, i] = V.inv * theDistribution[:, :, i]
+            end
         end
         coeffs = [
             Distn.pm[1:sum(Model.C .<= 0)]
@@ -874,9 +874,14 @@ function Dist2Coeffs(;
         ]
     elseif Mesh.Basis == "lagrange"
         theDistribution .= Distn.distribution
+        if Distn.type == "probability"
+            theDistribution = (V.w .* theDistribution / 2)[:]
+        elseif Distn.type == "density"
+            theDistribution = ((V.w .* theDistribution).*(Mesh.Δ / 2)')[:]
+        end
         coeffs = [
             Distn.pm[1:sum(Model.C .<= 0)]
-            ((V.w.*Distn.distribution).*(Mesh.Δ / 2)')[:]
+            theDistribution
             Distn.pm[sum(Model.C .<= 0)+1:end]
         ]
     end
