@@ -106,7 +106,10 @@ function UpdateXt(;
 )
     # given the last position of a SFM, SFM0, a time step of size s, find the
     # position of X at time t
-    X = min(max(SFM0.X + Model.C[SFM0.φ] * S, Model.Bounds[1, 1]), Model.Bounds[1, 2])
+    X = min(
+        max(SFM0.X + Model.C[SFM0.φ] * S, Model.Bounds[1, 1]),
+        Model.Bounds[1, 2],
+    )
     return X
 end
 
@@ -127,12 +130,14 @@ function UpdateYt(;
             t0 = (Model.Bounds[1, ind][1] - SFFM0.X) / Model.C[SFFM0.φ]
             Y =
                 SFFM0.Y +
-                (Model.r.R(X)[SFFM0.φ] - Model.r.R(SFFM0.X)[SFFM0.φ]) / Model.C[SFFM0.φ] +
+                (Model.r.R(X)[SFFM0.φ] - Model.r.R(SFFM0.X)[SFFM0.φ]) /
+                Model.C[SFFM0.φ] +
                 Model.r.r(Model.Bounds[1, ind][1])[SFFM0.φ] * (S - t0)
         else
             Y =
                 SFFM0.Y +
-                (Model.r.R(X)[SFFM0.φ] - Model.r.R(SFFM0.X)[SFFM0.φ]) / Model.C[SFFM0.φ]
+                (Model.r.R(X)[SFFM0.φ] - Model.r.R(SFFM0.X)[SFFM0.φ]) /
+                Model.C[SFFM0.φ]
         end
     end
     return Y
@@ -298,7 +303,7 @@ function fzero(; f::Function, a::Real, b::Real, err::Float64 = 1e-8)
     return c
 end
 
-function Sims2Probs(;
+function Sims2Dist(;
     Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     Mesh::NamedTuple{
         (
@@ -314,87 +319,112 @@ function Sims2Probs(;
         ),
     },
     sims::NamedTuple{(:t, :φ, :X, :Y, :n)},
+    type::String = "density",
 )
-    H = zeros(Float64, 1, Mesh.NIntervals, Model.NPhases)
+
+    if type == "density"
+        distribution =
+            zeros(Float64, Mesh.NBases, Mesh.NIntervals, Model.NPhases)
+    elseif type == "probability"
+        distribution = zeros(Float64, 1, Mesh.NIntervals, Model.NPhases)
+    end
     pm = zeros(Float64, sum(Model.C .<= 0) + sum(Model.C .>= 0))
-    cp = 0
-    cq = 0
+    pc = 0
+    qc = 0
+    xvals = Mesh.CellNodes
     for i = 1:Model.NPhases
         whichsims =
             (sims.φ .== i) .&
-            (sims.X .!= Model.Bounds[1,1]) .&
-            (sims.X .!= Model.Bounds[1,end])
+            (sims.X .!= Model.Bounds[1, 1]) .&
+            (sims.X .!= Model.Bounds[1, end])
         data = sims.X[whichsims]
-
-        h = StatsBase.fit(StatsBase.Histogram, data, Mesh.Nodes)
-        h = h.weights ./ sum(h.weights) * sum(sims.φ .== i) / length(sims.φ)
-        H[:, :, i] = h
+        if type == "probability"
+            h = StatsBase.fit(StatsBase.Histogram, data, Mesh.Nodes)
+            h = h.weights ./ sum(h.weights) * sum(sims.φ .== i) / length(sims.φ)
+            distribution[:, :, i] = h
+            xvals = Mesh.CellNodes[1, :] + Mesh.Δ / 2
+        elseif type == "density"
+            totalprob = sum(whichsims) / length(sims.φ)
+            U = KernelDensity.kde(
+                sims.X[whichsims],
+                boundary = (Model.Bounds[1, 1], Model.Bounds[1, end]),
+            )
+            distribution[:, :, i] =
+                reshape(
+                    KernelDensity.pdf(U, Mesh.CellNodes[:]),
+                    Mesh.NBases,
+                    Mesh.NIntervals,
+                ) * totalprob
+        end
 
         if Model.C[i] <= 0
-            cp = cp + 1
-            whichsims = (sims.φ .== i) .& (sims.X .== Model.Bounds[1,1])
+            pc = pc + 1
+            whichsims = (sims.φ .== i) .& (sims.X .== Model.Bounds[1, 1])
             p = sum(whichsims) / length(sims.φ)
-            pm[cp] = p
+            pm[pc] = p
         end
         if Model.C[i] >= 0
-            whichsims = (sims.φ .== i) .& (sims.X .== Model.Bounds[1,end])
+            whichsims = (sims.φ .== i) .& (sims.X .== Model.Bounds[1, end])
             p = sum(whichsims) / length(sims.φ)
-            pm[sum(Model.C .<= 0)+cq] = p
+            pm[sum(Model.C .<= 0)+qc] = p
         end
     end
-    return (pm, H)
+    return (pm = pm, distribution = distribution, x = xvals, type = type)
 end
 
-function Sims2PDF(;
-    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
-    Mesh::NamedTuple{
-        (
-            :NBases,
-            :CellNodes,
-            :Fil,
-            :Δ,
-            :NIntervals,
-            :MeshArray,
-            :Nodes,
-            :TotalNBases,
-            :Basis,
-        ),
-    },
-    sims::NamedTuple{(:t, :φ, :X, :Y, :n)},
-)
-
-    pm = zeros(Float64, sum(Model.C .<= 0) + sum(Model.C .>= 0))
-    cp = 0
-    cq = 0
-    pdf = zeros(Float64, Mesh.NBases, Mesh.NIntervals, Model.NPhases)
-    for i = 1:Model.NPhases
-        whichsims =
-            (sims.φ .== i) .&
-            (sims.X .!= Model.Bounds[1,1]) .&
-            (sims.X .!= Model.Bounds[1,end])
-        data = sims.X[whichsims]
-
-        totalprob = sum(whichsims) / length(sims.φ)
-        U = KernelDensity.kde(
-            sims.X[whichsims],
-            boundary = (Model.Bounds[1,1], Model.Bounds[1,end]),
-        )
-        pdf[:, :, i] =
-            reshape(KernelDensity.pdf(U, Mesh.CellNodes[:]), Mesh.NBases, Mesh.NIntervals) *
-            totalprob
-
-        if Model.C[i] <= 0
-            cp = cp + 1
-            whichsims = (sims.φ .== i) .& (sims.X .== Model.Bounds[1,1])
-            p = sum(whichsims) / length(sims.φ)
-            pm[cp] = p
-        end
-        if Model.C[i] >= 0
-            whichsims = (sims.φ .== i) .& (sims.X .== Model.Bounds[1,end])
-            p = sum(whichsims) / length(sims.φ)
-            pm[sum(Model.C .<= 0)+cq] = p
-        end
-
-    end
-    return (pm, pdf)
-end
+# function Sims2PDF(;
+#     Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+#     Mesh::NamedTuple{
+#         (
+#             :NBases,
+#             :CellNodes,
+#             :Fil,
+#             :Δ,
+#             :NIntervals,
+#             :MeshArray,
+#             :Nodes,
+#             :TotalNBases,
+#             :Basis,
+#         ),
+#     },
+#     sims::NamedTuple{(:t, :φ, :X, :Y, :n)},
+# )
+#
+#     pm = zeros(Float64, sum(Model.C .<= 0) + sum(Model.C .>= 0))
+#     pc = 0
+#     qc = 0
+#     pdf = zeros(Float64, Mesh.NBases, Mesh.NIntervals, Model.NPhases)
+#     for i = 1:Model.NPhases
+#         whichsims =
+#             (sims.φ .== i) .&
+#             (sims.X .!= Model.Bounds[1, 1]) .&
+#             (sims.X .!= Model.Bounds[1, end])
+#         data = sims.X[whichsims]
+#
+#         totalprob = sum(whichsims) / length(sims.φ)
+#         U = KernelDensity.kde(
+#             sims.X[whichsims],
+#             boundary = (Model.Bounds[1, 1], Model.Bounds[1, end]),
+#         )
+#         pdf[:, :, i] =
+#             reshape(
+#                 KernelDensity.pdf(U, Mesh.CellNodes[:]),
+#                 Mesh.NBases,
+#                 Mesh.NIntervals,
+#             ) * totalprob
+#
+#         if Model.C[i] <= 0
+#             pc = pc + 1
+#             whichsims = (sims.φ .== i) .& (sims.X .== Model.Bounds[1, 1])
+#             p = sum(whichsims) / length(sims.φ)
+#             pm[pc] = p
+#         end
+#         if Model.C[i] >= 0
+#             whichsims = (sims.φ .== i) .& (sims.X .== Model.Bounds[1, end])
+#             p = sum(whichsims) / length(sims.φ)
+#             pm[sum(Model.C .<= 0)+qc] = p
+#         end
+#
+#     end
+#     return (pm = pm, density = pdf)
+# end

@@ -784,7 +784,7 @@ function EulerDG(; D::Array{<:Real,2}, y::Real, x0::Array{<:Real}, h::Float64 = 
     return x
 end
 
-function Coeffs2Distn(;
+function Coeffs2Dist(;
     Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     Mesh::NamedTuple{
         (
@@ -808,8 +808,10 @@ function Coeffs2Distn(;
     if type == "density"
         xvals = Mesh.CellNodes
         if Mesh.Basis == "legendre"
-            yvals =
-                V.V * reshape(Coeffs[N₋+1:end-N₊], Mesh.NBases, Mesh.NIntervals, Model.NPhases)
+            yvals = reshape(Coeffs[N₋+1:end-N₊], Mesh.NBases, Mesh.NIntervals, Model.NPhases)
+            for i in 1:Model.NPhases
+                yvals[:,:,i] = V.V * yvals[:,:,i]
+            end
             pm = [Coeffs[1:N₊]; Coeffs[end-N₊+1:end]]
         elseif Mesh.Basis == "lagrange"
             yvals =
@@ -821,7 +823,7 @@ function Coeffs2Distn(;
     elseif type == "probability"
         xvals = Mesh.CellNodes[1, :] + (Mesh.Δ ./ 2)
         if Mesh.Basis == "legendre"
-            yvals = reshape(Coeffs[N₋+1:Mesh.NBases:end-N₊], 1, Mesh.NIntervals, Model.NPhases)
+            yvals = (reshape(Coeffs[N₋+1:Mesh.NBases:end-N₊], 1, Mesh.NIntervals, Model.NPhases).*Mesh.Δ').*sqrt(2)/2
             pm = [Coeffs[1:N₊]; Coeffs[end-N₊+1:end]]
         elseif Mesh.Basis == "lagrange"
             yvals = sum(
@@ -831,14 +833,53 @@ function Coeffs2Distn(;
             pm = [Coeffs[1:N₋]; Coeffs[end-N₊+1:end]]
         end
     end
-    return (pm, yvals, xvals)
+    return (pm=pm, distribution=yvals, x=xvals, type=type)
 end
 
-function Distn2Coeffs(; Model, Distn::NamedTuple{(:pm, :yvals, :xvals)})
-    coeffs = [
-        Distn.pm[1:sum(Model.C .<= 0)]
-        V.inv*Distn.yvals[:]
-        Distn.pm[sum(Model.C .<= 0)+1:end]
-    ]
+function Dist2Coeffs(;
+    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+    Mesh::NamedTuple{
+        (
+            :NBases,
+            :CellNodes,
+            :Fil,
+            :Δ,
+            :NIntervals,
+            :MeshArray,
+            :Nodes,
+            :TotalNBases,
+            :Basis,
+        ),
+    },
+    Distn::NamedTuple{(:pm, :distribution, :x, :type)},
+)
+    V = SFFM.vandermonde(NBases = Mesh.NBases)
+    theDistribution =
+        zeros(Float64, Mesh.NBases, Mesh.NIntervals, Model.NPhases)
+    if Mesh.Basis == "legendre"
+        if Distn.type == "probability"
+            display(Distn.type)
+            theDistribution[1, :, :] = Distn.distribution
+        elseif Distn.type == "density"
+            display(Distn.type)
+            theDistribution = Distn.distribution
+        end
+        for i = 1:Model.NPhases
+            theDistribution[:, :, i] = V.inv * theDistribution[:, :, i]
+        end
+        coeffs = [
+            Distn.pm[1:sum(Model.C .<= 0)]
+            theDistribution[:]
+            Distn.pm[sum(Model.C .<= 0)+1:end]
+        ]
+    elseif Mesh.Basis == "lagrange"
+        theDistribution .= Distn.distribution
+        coeffs = [
+            Distn.pm[1:sum(Model.C .<= 0)]
+            ((V.w.*Distn.distribution).*(Mesh.Δ / 2)')[:]
+            Distn.pm[sum(Model.C .<= 0)+1:end]
+        ]
+    end
+    coeffs = Matrix(coeffs[:]')
     return coeffs
 end

@@ -18,10 +18,10 @@ function PlotSFM!(p;
     color = 1,
 )
     (pm, yvals, xvals) =
-        Coeffs2Distn(Model = Model, Mesh = Mesh, Coeffs = Coeffs, type = type)
+        Coeffs2Dist(Model = Model, Mesh = Mesh, Coeffs = Coeffs, type = type)
 
-    cp = 0
-    cq = 0
+    pc = 0
+    qc = 0
     yLimValues = (0.0, 0.0)
     for i = 1:Model.NPhases
         if type == "density"
@@ -46,9 +46,9 @@ function PlotSFM!(p;
             )
         end
         if Model.C[i] <= 0
-            cp = cp + 1
+            pc = pc + 1
             x = [Mesh.CellNodes[1]]
-            y = [pm[cp]]
+            y = [pm[pc]]
             p = Plots.scatter!(
                 x,
                 y,
@@ -59,9 +59,9 @@ function PlotSFM!(p;
             )
         end
         if Model.C[i] >= 0
-            cq = cq + 1
+            qc = qc + 1
             x = [Mesh.CellNodes[end]]
-            y = [pm[cq]]
+            y = [pm[qc]]
             p = Plots.scatter!(
                 x,
                 y,
@@ -129,33 +129,27 @@ function PlotSFMSim!(p;
     type::String = "density",
     color = 1,
 )
-    H = zeros(Mesh.NIntervals, Model.NPhases)
+
     yLimValues = (0.0, 0.0)
-    if type == "probability"
-        (pm, H) = SFFM.Sims2Probs(Model = Model, Mesh = Mesh, sims = sims)
-    elseif type == "density"
-        (pm, U) = SFFM.Sims2PDF(Model = Model, Mesh = Mesh, sims = sims)
-    end
+    vals = SFFM.Sims2Dist(Model = Model, Mesh = Mesh, sims = sims,type=type)
+    pc = 0
+    qc = 0
     for i = 1:Model.NPhases
-        whichsims =
-            (sims.φ .== i) .&
-            (sims.X .!= Mesh.CellNodes[1]) .&
-            (sims.X .!= Mesh.CellNodes[end])
-        data = sims.X[whichsims]
         if type == "probability"
-            h = H[:, :, i][:]
+            h = vals.distribution[:, :, i][:]
             p = Plots.bar!(
-                Mesh.Nodes,
+                vals.x,
                 h,
                 alpha = 0.25,
                 bar_width = Mesh.Δ,
                 subplot = i,
                 ylabel = type,
+                color = color,
             )
         elseif type == "density"
             p = Plots.plot!(
-                Mesh.CellNodes,
-                U[:, :, i],
+                vals.x,
+                vals.distribution[:,:,i],
                 linecolor = color,
                 subplot = i,
                 title = "φ=" * string(i),
@@ -164,9 +158,9 @@ function PlotSFMSim!(p;
         end
 
         if Model.C[i] <= 0
-            x = [Mesh.CellNodes[1]]
-            whichsims = (sims.φ .== i) .& (sims.X .== Mesh.CellNodes[1])
-            y = [sum(whichsims) / length(sims.φ)]
+            pc = pc + 1
+            x = [Model.Bounds[1,1]]
+            y = [vals.pm[pc]]
             p = Plots.scatter!(
                 x,
                 y,
@@ -177,9 +171,9 @@ function PlotSFMSim!(p;
             )
         end
         if Model.C[i] >= 0
-            x = [Mesh.CellNodes[end]]
-            whichsims = (sims.φ .== i) .& (sims.X .== Mesh.CellNodes[end])
-            y = [sum(whichsims) / length(sims.φ)]
+            qc = qc + 1
+            x = [Model.Bounds[1,end]]
+            y = [vals.pm[sum(Model.C.<=0)+qc]]
             p = Plots.scatter!(
                 x,
                 y,
@@ -216,7 +210,7 @@ function PlotSFMSim(;
     type::String = "density",
     color = 1,
 )
-    p = Plots.plot!(legend = false, layout = (Model.NPhases, 1))
+    p = Plots.plot(legend = false, layout = (Model.NPhases, 1))
     p = SFFM.PlotSFMSim!(p,
         Model = Model,
         Mesh = Mesh,
