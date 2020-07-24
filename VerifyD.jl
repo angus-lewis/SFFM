@@ -31,7 +31,7 @@ Model = SFFM.MakeModel(T = T, C = C, r = r, Bounds = Bounds)
 y = 10
 
 ## Simulate the model
-NSim = 100000
+NSim = 50000
 IC = (φ = ones(Int, NSim), X = zeros(NSim), Y = zeros(NSim))
 # IC = (φ = 2 .*ones(Int, NSim), X = -10*ones(NSim), Y = zeros(NSim))
 # IC = (
@@ -79,8 +79,8 @@ x0 = SFFM.Dist2Coeffs(Model = Model, Mesh = Mesh, Distn = initdist)
 p = SFFM.PlotSFM(Model=Model,Mesh=Mesh,Dist=initdist)
 
 ## approximations to exp(Dy)
-h = 0.001
-yvals = SFFM.EulerDG(D = sparse(D["++"](s = 0)), y = y, x0 = x0, h = h)
+h = 0.0001
+@time yvals = SFFM.EulerDG(D = D["++"](s = 0), y = y, x0 = x0, h = h)
 
 # convert to densities
 # densities

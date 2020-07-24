@@ -1,7 +1,7 @@
 function MakeBlockDiagonalMatrixR(;
     Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     Mesh::NamedTuple{
-        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases, :Basis),
+        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
     },
     Blocks,
     Factors::Array,
@@ -17,17 +17,20 @@ function MakeBlockDiagonalMatrixR(;
     # BlockMatrix - Mesh.TotalNBases×Mesh.TotalNBases Array{Float64,2}, the
     #             block matrix
 
-    BlockMatrix = zeros(Float64, Mesh.TotalNBases, Mesh.TotalNBases, Model.NPhases)
+    BlockMatrix = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,Model.NPhases)
+    for i in 1:Model.NPhases
+        BlockMatrix[i] = SparseArrays.spzeros(Float64, Mesh.TotalNBases, Mesh.TotalNBases)
+    end
     for i = 1:Mesh.NIntervals, j = 1:Model.NPhases
         idx = (1:Mesh.NBases) .+ (i - 1) * Mesh.NBases
-        BlockMatrix[idx, idx, j] = Blocks(Mesh.CellNodes[:, i], j) * Factors[i]
+        BlockMatrix[j][idx, idx] = Blocks(Mesh.CellNodes[:, i], j) * Factors[i]
     end
     return (BlockMatrix = BlockMatrix)
 end
 
 function MakeFluxMatrixR(;
     Mesh::NamedTuple{
-        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases, :Basis),
+        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
     },
     Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     Phi,
@@ -47,18 +50,19 @@ function MakeFluxMatrixR(;
     LowDiagBlock = -Phi[1, :] * Phi[end, :]'
 
     ## Construct global block diagonal matrix
-    F = zeros(Float64, Mesh.TotalNBases, Mesh.TotalNBases, Model.NPhases)
+    F = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,Model.NPhases)
     for i = 1:Model.NPhases
+        F[i] = SparseArrays.spzeros(Float64, Mesh.TotalNBases, Mesh.TotalNBases)
         for k = 1:Mesh.NIntervals
             idx = (1:Mesh.NBases) .+ (k - 1) * Mesh.NBases
             if Model.C[i] > 0
                 xright = Mesh.CellNodes[end, k]
                 R = 1.0 ./ abs(Model.r.r(xright)[i])
-                F[idx, idx, i] = PosDiagBlock * R
+                F[i][idx, idx] = PosDiagBlock * R
             elseif Model.C[i] < 0
                 xleft = Mesh.CellNodes[1, k]
                 R = 1.0 ./ abs(Model.r.r(xleft)[i])
-                F[idx, idx, i] = NegDiagBlock * R
+                F[i][idx, idx] = NegDiagBlock * R
             end # end if C[i]
             if k > 1
                 idxup = (1:Mesh.NBases) .+ (k - 2) * Mesh.NBases
@@ -66,12 +70,12 @@ function MakeFluxMatrixR(;
                     xright = Mesh.CellNodes[end, k-1]
                     R = 1.0 ./ abs(Model.r.r(xright)[i])
                     η = (Mesh.Δ[k] / Mesh.NBases) / (Mesh.Δ[k-1] / Mesh.NBases)
-                    F[idxup, idx, i] = UpDiagBlock * η * R
+                    F[i][idxup, idx] = UpDiagBlock * η * R
                 elseif Model.C[i] < 0
                     xleft = Mesh.CellNodes[1, k]
                     R = 1.0 ./ abs(Model.r.r(xleft)[i])
                     η = (Mesh.Δ[k-1] / Mesh.NBases) / (Mesh.Δ[k] / Mesh.NBases)
-                    F[idx, idxup, i] = LowDiagBlock * η * R
+                    F[i][idx, idxup] = LowDiagBlock * η * R
                 end # end if C[i]
             end # end if k>1
         end # for k in ...
@@ -96,7 +100,7 @@ end
 function MakeMatricesR(;
     Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     Mesh::NamedTuple{
-        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases, :Basis),
+        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
     },
 )
     # Creates the Local and global mass, stiffness and flux
@@ -190,9 +194,9 @@ function MakeMatricesR(;
     F = SFFM.MakeFluxMatrixR(Mesh = Mesh, Model = Model, Phi = Phi)
 
     ## Assemble the DG drift operator
-    Q = zeros(Float64, Mesh.TotalNBases, Mesh.TotalNBases, length(Model.C))
+    Q = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,Model.NPhases)
     for i = 1:Model.NPhases
-        Q[:, :, i] = Model.C[i] * (G[:, :, i] + F[:, :, i]) * MInv[:, :, i]
+        Q[i] = Model.C[i] * (G[i] + F[i]) * MInv[i]
     end
 
     Local = (G = GLocal, M = MLocal, MInv = MInvLocal, V = V, Phi = Phi)
@@ -208,7 +212,7 @@ function MakeDR(;
     MatricesR,
     Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     Mesh::NamedTuple{
-        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :MeshArray, :Nodes, :TotalNBases, :Basis),
+        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
     },
     B,
 )
@@ -216,23 +220,23 @@ function MakeDR(;
     N₋ = sum(Model.C .<= 0)
 
     BigN = Model.NPhases * Mesh.TotalNBases + N₊ + N₋
-    MR = zeros(Float64, Model.NPhases * Mesh.TotalNBases, Model.NPhases * Mesh.TotalNBases)
+    MR = SparseArrays.spzeros(Float64, Model.NPhases * Mesh.TotalNBases, Model.NPhases * Mesh.TotalNBases)
     Minv =
-        zeros(Float64, Model.NPhases * Mesh.TotalNBases, Model.NPhases * Mesh.TotalNBases)
-    FGR = zeros(Float64, Model.NPhases * Mesh.TotalNBases, Model.NPhases * Mesh.TotalNBases)
+        SparseArrays.spzeros(Float64, Model.NPhases * Mesh.TotalNBases, Model.NPhases * Mesh.TotalNBases)
+    FGR = SparseArrays.spzeros(Float64, Model.NPhases * Mesh.TotalNBases, Model.NPhases * Mesh.TotalNBases)
     for i = 1:Model.NPhases
         idx = ((i-1)*Mesh.TotalNBases+1:i*Mesh.TotalNBases)
-        MR[idx, idx] = MatricesR.Global.M[:, :, i]
-        Minv[idx, idx] = Matrices.Global.M^-1
+        MR[idx, idx] = MatricesR.Global.M[i]
+        Minv[idx, idx] = Matrices.Global.MInv
         FGR[idx, idx] =
-            (MatricesR.Global.F[:, :, i] + MatricesR.Global.G[:, :, i]) *
+            (MatricesR.Global.F[i] + MatricesR.Global.G[i]) *
             Model.C[i] *
             Minv[idx, idx]
     end
 
     # Interior behaviour
-    T = kron(Model.T, LinearAlgebra.I(Mesh.TotalNBases))
-    BR = zeros(Float64, BigN, BigN)
+    T = SparseArrays.kron(Model.T, SparseArrays.sparse(LinearAlgebra.I,Mesh.TotalNBases,Mesh.TotalNBases))
+    BR = SparseArrays.spzeros(Float64, BigN, BigN)
     BR[(N₋+1):(end-N₊), (N₋+1):(end-N₊)] = MR * T * Minv + FGR
 
     # Boundary behaviour
@@ -284,23 +288,23 @@ function MakeDR(;
         (Mesh.Fil["q+"] .| Mesh.Fil["q-"])
     ]
     MR = [
-        LinearAlgebra.I(N₋) zeros(Float64, N₋, BigN - N₋)
-        zeros(Float64, BigN - N₊ - N₋, N₋) MR zeros(Float64, BigN - N₊ - N₋, N₊)
-        zeros(Float64, N₊, BigN - N₊) LinearAlgebra.I(N₊)
+        LinearAlgebra.I(N₋) SparseArrays.spzeros(Float64, N₋, BigN - N₋)
+        SparseArrays.spzeros(Float64, BigN - N₊ - N₋, N₋) MR SparseArrays.spzeros(Float64, BigN - N₊ - N₋, N₊)
+        SparseArrays.spzeros(Float64, N₊, BigN - N₊) LinearAlgebra.I(N₊)
     ]
     Minv = [
-        LinearAlgebra.I(N₋) zeros(Float64, N₋, BigN - N₋)
-        zeros(Float64, BigN - N₊ - N₋, N₋) Minv zeros(Float64, BigN - N₊ - N₋, N₊)
-        zeros(Float64, N₊, BigN - N₊) LinearAlgebra.I(N₊)
+        LinearAlgebra.I(N₋) SparseArrays.spzeros(Float64, N₋, BigN - N₋)
+        SparseArrays.spzeros(Float64, BigN - N₊ - N₋, N₋) Minv SparseArrays.spzeros(Float64, BigN - N₊ - N₋, N₊)
+        SparseArrays.spzeros(Float64, N₊, BigN - N₊) LinearAlgebra.I(N₊)
     ]
 
     BR[idx0, :] = B.B[idx0, :]
 
     DR = function (;s=0)
         BR[bullet, bullet] -
-        MR[bullet, bullet] * s * LinearAlgebra.I(sum(bullet)) * Minv[bullet, bullet] +
+        MR[bullet, bullet] * s * SparseArrays.sparse(LinearAlgebra.I,sum(bullet),sum(bullet)) * Minv[bullet, bullet] +
         BR[bullet, idx0] *
-        (BR[idx0, idx0] - s * LinearAlgebra.I(sum(idx0)))^-1 *
+        (BR[idx0, idx0] - s * SparseArrays.sparse(LinearAlgebra.I,sum(idx0),sum(idx0)))^-1 *
         BR[idx0, bullet]
     end
     # D = function (s)

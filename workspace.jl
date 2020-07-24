@@ -51,7 +51,7 @@ display(DR.D(0))
 display(sum(abs.(D["++"](s=0)-DR.D(0))))
 display(D["++"](s=0)-DR.D(0))
 
-Ψlegendre = SFFM.PsiFun(D=D,MaxIters=MaxIters,s=1)
+Ψlegendre = SFFM.PsiFun(D=D,s=1)
 display(Ψlegendre)
 SFFM.MyPrint(Ψlegendre*repeat([1;zeros(NBases-1)],sum(Fil["-"])))
 
