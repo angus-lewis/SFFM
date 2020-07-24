@@ -485,8 +485,9 @@ function MakeR(;
             :Basis,
         ),
     },
-    V,
+    approxType::String = "interpolation",
 )
+    V = SFFM.vandermonde(NBases=Mesh.NBases)
     # interpolant approximation to r(x)
     EvalPoints = Mesh.CellNodes
     EvalPoints[1, :] .+= sqrt(eps()) # LH edges + eps
@@ -497,18 +498,23 @@ function MakeR(;
     N₊ = sum(Model.C .>= 0)
 
     R = zeros(
+        Float64,
         N₋ + N₊ + Mesh.TotalNBases * Model.NPhases,
         N₋ + N₊ + Mesh.TotalNBases * Model.NPhases,
     )
-    R[1:N₋, 1:N₋] = LinearAlgebra.I(N₋)
-    R[(end-N₊+1):end, (end-N₊+1):end] = LinearAlgebra.I(N₊)
+    R[1:N₋, 1:N₋] = (1.0 ./ Model.r.r(Model.Bounds[1,1])[Model.C .<= 0]).*LinearAlgebra.I(N₋)
+    R[(end-N₊+1):end, (end-N₊+1):end] =  (1.0 ./ Model.r.r(Model.Bounds[1,end])[Model.C .>= 0]).* LinearAlgebra.I(N₊)
 
+    if approxType == "interpolation"
+        leftM = V.V'
+        rightM = V.inv'
+    elseif approxType == "projection"
+        leftM = V.V' * LinearAlgebra.diagm(V.w)
+        rightM = V.V
+    end
     for n = 1:(Mesh.NIntervals*Model.NPhases)
         if Mesh.Basis == "legendre"
-            temp =
-                V.V' *
-                LinearAlgebra.diagm(EvalR[Mesh.NBases*(n-1).+(1:Mesh.NBases)]) *
-                V.inv'
+            temp = leftM*LinearAlgebra.diagm(EvalR[Mesh.NBases*(n-1).+(1:Mesh.NBases)])*rightM
         elseif Mesh.Basis == "lagrange"
             temp = LinearAlgebra.diagm(EvalR[Mesh.NBases*(n-1).+(1:Mesh.NBases)])
         end
@@ -516,6 +522,19 @@ function MakeR(;
             temp
     end
 
+    # RFun = function (ind::String=":")
+    #     if ind == ":"
+    #         return R[:,:]
+    #     else
+    #         FlBases = Mesh.Fil[ind]
+    #         FlBases = [
+    #             Mesh.Fil["p"*ind]
+    #             repeat(FlBases', Mesh.NBases, 1)[:]
+    #             Mesh.Fil["q"*ind]
+    #         ]
+    #         return R[FlBases,FlBases]
+    #     end
+    # end
     RDict = Dict{String,Array{Float64,2}}()
     pfalses = falses(N₋)
     qfalses = falses(N₊)
@@ -581,94 +600,94 @@ function MakeR(;
     #         [Mesh.Fil["p"*ℓ]; repeat(Mesh.Fil[ℓ]', Mesh.NBases, 1)[:]; Mesh.Fil["q"*ℓ]]
     #     RDict[ℓ] = R[FlBases,FlBases]
     # end
-    println("R.Fields with Fields (.RDict, .R)")
-    return (RDict = RDict, R = R)
+    # println("R, function with arguments (string) +, -, 0, : (default = :)")
+    return (R=R, RDict=RDict)
 end
 
-function MakeMyD(;
-    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
-    Mesh::NamedTuple{
-        (
-            :NBases,
-            :CellNodes,
-            :Fil,
-            :Δ,
-            :NIntervals,
-            :MeshArray,
-            :Nodes,
-            :TotalNBases,
-            :Basis,
-        ),
-    },
-    B,
-    V,
-)
-
-    if Mesh.Basis == "legendre"
-        MRLocal = function (x::Array{Float64}, i::Int)
-            # Numerical integration of ϕᵢ(x)|r(x)|ϕⱼ(x) over Dk with Gauss-Lobatto
-            # quadrature
-            # Inputs:
-            #   - x a vector of Gauss-Lobatto points on Dk
-            #   - i a phase
-            V.V' * LinearAlgebra.diagm(V.w ./ abs.(Model.r.r(x)[:, i])) * V.V
-        end
-    elseif Mesh.Basis == "lagrange"
-        MRLocal = function (x::Array{Float64}, i::Int)
-            # Numerical integration of ϕᵢ(x)|r(x)|ϕⱼ(x) over Dk with Gauss-Lobatto
-            # quadrature
-            # Inputs:
-            #   - x a vector of Gauss-Lobatto points on Dk
-            #   - i a phase
-            LinearAlgebra.diagm(1.0 ./ abs.(Model.r.r(x)[:, i]))
-        end
-    end
-    MyR = zeros(
-        Float64,
-        Mesh.TotalNBases * Model.NPhases + sum(Model.C .<= 0) + sum(Model.C .>= 0),
-        Mesh.TotalNBases * Model.NPhases + sum(Model.C .<= 0) + sum(Model.C .>= 0),
-    )
-    for i = 1:Model.NPhases, k = 1:Mesh.NIntervals
-        idx =
-            sum(Model.C .<= 0) .+ (1:Mesh.NBases) .+ (Mesh.NBases .* (k - 1)) .+
-            (Mesh.TotalNBases .* (i - 1))
-        MyR[idx, idx] = MRLocal(Mesh.CellNodes[:, k], i)
-    end
-    MyR[1:sum(Model.C .<= 0), 1:sum(Model.C .<= 0)] =
-        LinearAlgebra.diagm(1.0 ./ abs.(Model.r.r(Mesh.Nodes[1])[Model.C.<=0]))
-    MyR[end-sum(Model.C .>= 0).+1:end, end-sum(Model.C .>= 0).+1:end] =
-        LinearAlgebra.diagm(1.0 ./ abs.(Model.r.r(Mesh.Nodes[end])[Model.C.>=0]))
-    idx0 = [Mesh.Fil["p0"]; repeat(Mesh.Fil["0"]', Mesh.NBases, 1)[:]; Mesh.Fil["q0"]]
-    MyD = function (; s = 0)
-        MyR[.!idx0, .!idx0] * (
-            B.B[.!idx0, .!idx0] - LinearAlgebra.I(sum(.!idx0)) * s +
-            B.B[.!idx0, idx0] *
-            (LinearAlgebra.I(sum(idx0)) * s - B.B[idx0, idx0])^-1 *
-            B.B[idx0, .!idx0]
-        )
-    end
-
-    DDict = Dict{String,Any}()
-    for ℓ in ["+", "-"], m in ["+", "-"]
-        FlBases = Mesh.Fil[ℓ][.!Mesh.Fil["0"]]
-        FmBases = Mesh.Fil[m][.!Mesh.Fil["0"]]
-        FlBases = [
-            Mesh.Fil["p"*ℓ][.!Mesh.Fil["p0"]]
-            repeat(FlBases', Mesh.NBases, 1)[:]
-            Mesh.Fil["q"*ℓ][.!Mesh.Fil["q0"]]
-        ]
-        FmBases = [
-            Mesh.Fil["p"*m][.!Mesh.Fil["p0"]]
-            repeat(FmBases', Mesh.NBases, 1)[:]
-            Mesh.Fil["q"*m][.!Mesh.Fil["q0"]]
-        ]
-        DDict[ℓ*m] = function (; s = 0)#::Array{Float64}
-            MyD(s = s)[FlBases, FmBases]
-        end # end function
-    end # end for ℓ, m ...
-
-    return (D = MyD, DDict = DDict)
-end
+# function MakeMyD(;
+#     Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+#     Mesh::NamedTuple{
+#         (
+#             :NBases,
+#             :CellNodes,
+#             :Fil,
+#             :Δ,
+#             :NIntervals,
+#             :MeshArray,
+#             :Nodes,
+#             :TotalNBases,
+#             :Basis,
+#         ),
+#     },
+#     B,
+#     V,
+# )
+#
+#     if Mesh.Basis == "legendre"
+#         MRLocal = function (x::Array{Float64}, i::Int)
+#             # Numerical integration of ϕᵢ(x)|r(x)|ϕⱼ(x) over Dk with Gauss-Lobatto
+#             # quadrature
+#             # Inputs:
+#             #   - x a vector of Gauss-Lobatto points on Dk
+#             #   - i a phase
+#             V.V' * LinearAlgebra.diagm(V.w ./ abs.(Model.r.r(x)[:, i])) * V.V
+#         end
+#     elseif Mesh.Basis == "lagrange"
+#         MRLocal = function (x::Array{Float64}, i::Int)
+#             # Numerical integration of ϕᵢ(x)|r(x)|ϕⱼ(x) over Dk with Gauss-Lobatto
+#             # quadrature
+#             # Inputs:
+#             #   - x a vector of Gauss-Lobatto points on Dk
+#             #   - i a phase
+#             LinearAlgebra.diagm(1.0 ./ abs.(Model.r.r(x)[:, i]))
+#         end
+#     end
+#     MyR = zeros(
+#         Float64,
+#         Mesh.TotalNBases * Model.NPhases + sum(Model.C .<= 0) + sum(Model.C .>= 0),
+#         Mesh.TotalNBases * Model.NPhases + sum(Model.C .<= 0) + sum(Model.C .>= 0),
+#     )
+#     for i = 1:Model.NPhases, k = 1:Mesh.NIntervals
+#         idx =
+#             sum(Model.C .<= 0) .+ (1:Mesh.NBases) .+ (Mesh.NBases .* (k - 1)) .+
+#             (Mesh.TotalNBases .* (i - 1))
+#         MyR[idx, idx] = MRLocal(Mesh.CellNodes[:, k], i)
+#     end
+#     MyR[1:sum(Model.C .<= 0), 1:sum(Model.C .<= 0)] =
+#         LinearAlgebra.diagm(1.0 ./ abs.(Model.r.r(Mesh.Nodes[1])[Model.C.<=0]))
+#     MyR[end-sum(Model.C .>= 0).+1:end, end-sum(Model.C .>= 0).+1:end] =
+#         LinearAlgebra.diagm(1.0 ./ abs.(Model.r.r(Mesh.Nodes[end])[Model.C.>=0]))
+#     idx0 = [Mesh.Fil["p0"]; repeat(Mesh.Fil["0"]', Mesh.NBases, 1)[:]; Mesh.Fil["q0"]]
+#     MyD = function (; s = 0)
+#         MyR[.!idx0, .!idx0] * (
+#             B.B[.!idx0, .!idx0] - LinearAlgebra.I(sum(.!idx0)) * s +
+#             B.B[.!idx0, idx0] *
+#             (LinearAlgebra.I(sum(idx0)) * s - B.B[idx0, idx0])^-1 *
+#             B.B[idx0, .!idx0]
+#         )
+#     end
+#
+#     DDict = Dict{String,Any}()
+#     for ℓ in ["+", "-"], m in ["+", "-"]
+#         FlBases = Mesh.Fil[ℓ][.!Mesh.Fil["0"]]
+#         FmBases = Mesh.Fil[m][.!Mesh.Fil["0"]]
+#         FlBases = [
+#             Mesh.Fil["p"*ℓ][.!Mesh.Fil["p0"]]
+#             repeat(FlBases', Mesh.NBases, 1)[:]
+#             Mesh.Fil["q"*ℓ][.!Mesh.Fil["q0"]]
+#         ]
+#         FmBases = [
+#             Mesh.Fil["p"*m][.!Mesh.Fil["p0"]]
+#             repeat(FmBases', Mesh.NBases, 1)[:]
+#             Mesh.Fil["q"*m][.!Mesh.Fil["q0"]]
+#         ]
+#         DDict[ℓ*m] = function (; s = 0)#::Array{Float64}
+#             MyD(s = s)[FlBases, FmBases]
+#         end # end function
+#     end # end for ℓ, m ...
+#
+#     return (D = MyD, DDict = DDict)
+# end
 
 function MakeD(;
     R,
@@ -688,8 +707,6 @@ function MakeD(;
         ),
     },
 )
-    RDict = R.RDict
-    BDict = B.BDict
     DDict = Dict{String,Any}()
     for ℓ in ["+", "-"], m in ["+", "-"]
         Idℓ = LinearAlgebra.I(
@@ -703,23 +720,23 @@ function MakeD(;
             )
             DDict[ℓ*m] = function (; s = 0)#::Array{Float64}
                 return if (ℓ == m)
-                    RDict[ℓ] * (
-                        BDict[ℓ*m] - s * Idℓ +
-                        BDict[ℓ*"0"] * inv(s * Id0 - BDict["00"]) * BDict["0"*m]
+                    R.RDict[ℓ] * (
+                        B.BDict[ℓ*m] - s * Idℓ +
+                        B.BDict[ℓ*"0"] * inv(s * Id0 - B.BDict["00"]) * B.BDict["0"*m]
                     )
                 else
-                    RDict[ℓ] * (
-                        BDict[ℓ*m] +
-                        BDict[ℓ*"0"] * inv(s * Id0 - BDict["00"]) * BDict["0"*m]
+                    R.RDict[ℓ] * (
+                        B.BDict[ℓ*m] +
+                        B.BDict[ℓ*"0"] * inv(s * Id0 - B.BDict["00"]) * B.BDict["0"*m]
                     )
                 end
             end # end function
         else
             DDict[ℓ*m] = function (; s = 0)#::Array{Float64}
                 return if (ℓ == m)
-                    RDict[ℓ] * (BDict[ℓ*m] - s * Idℓ)
+                    R.RDict[ℓ] * (B.BDict[ℓ*m] - s * Idℓ)
                 else
-                    RDict[ℓ] * BDict[ℓ*m]
+                    R.RDict[ℓ] * B.BDict[ℓ*m]
                 end
             end # end function
         end # end if ...
@@ -820,6 +837,10 @@ function Coeffs2Dist(;
             yvals = reshape(yvals, Mesh.NBases, Mesh.NIntervals, Model.NPhases)
             pm = [Coeffs[1:N₋]; Coeffs[end-N₊+1:end]]
         end
+        if Mesh.NBases == 1
+            yvals = [1;1].*yvals
+            xvals = [Mesh.CellNodes-Mesh.Δ'/2;Mesh.CellNodes+Mesh.Δ'/2]
+        end
     elseif type == "probability"
         xvals = Mesh.CellNodes[1, :] + (Mesh.Δ ./ 2)
         if Mesh.Basis == "legendre"
@@ -858,10 +879,8 @@ function Dist2Coeffs(;
         zeros(Float64, Mesh.NBases, Mesh.NIntervals, Model.NPhases)
     if Mesh.Basis == "legendre"
         if Distn.type == "probability"
-            display(Distn.type)
             theDistribution[1, :, :] = Distn.distribution./Mesh.Δ'.*sqrt(2)
         elseif Distn.type == "density"
-            display(Distn.type)
             theDistribution = Distn.distribution
             for i = 1:Model.NPhases
                 theDistribution[:, :, i] = V.inv * theDistribution[:, :, i]
