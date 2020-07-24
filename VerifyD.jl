@@ -43,20 +43,20 @@ sims =
     SFFM.SimSFFM(Model = Model, StoppingTime = SFFM.InOutYLevel(y = y), InitCondition = IC)
 
 ## Define the mesh
-Δ = 1
+Δ = 0.25
 Nodes = collect(Bounds[1, 1]:Δ:Bounds[1, 2])
-Fil = Dict{String,BitArray{1}}(
-    "1+" => trues(length(Nodes) - 1),
-    "2+" => trues(length(Nodes) - 1),
-    "3+" => trues(length(Nodes) - 1),
-    "p2+" => trues(1),
-    "p3+" => trues(1),
-    "q1+" => trues(1),
-    "q3+" => trues(1),
-)
-NBases = 5
+# Fil = Dict{String,BitArray{1}}(
+#     "1+" => trues(length(Nodes) - 1),
+#     "2+" => trues(length(Nodes) - 1),
+#     "3+" => trues(length(Nodes) - 1),
+#     "p2+" => trues(1),
+#     "p3+" => trues(1),
+#     "q1+" => trues(1),
+#     "q3+" => trues(1),
+# )
+NBases = 10
 Basis = "legendre"
-Mesh = SFFM.MakeMesh(Model = Model, Nodes = Nodes, NBases = NBases, Fil = Fil, Basis=Basis)
+Mesh = SFFM.MakeMesh(Model = Model, Nodes = Nodes, NBases = NBases, Basis=Basis)
 
 ## Construct all DG operators
 All = SFFM.MakeAll(Model = Model, Mesh = Mesh)
@@ -80,8 +80,7 @@ p = SFFM.PlotSFM(Model=Model,Mesh=Mesh,Dist=initdist)
 
 ## approximations to exp(Dy)
 h = 0.001
-#  yvalsR = SFFM.EulerDG(D = DR.DDict["++"](s = 0), y = y, x0 = x0, h = h)[idx]
-yvals = SFFM.EulerDG(D = D["++"](s = 0), y = y, x0 = x0, h = h)
+yvals = SFFM.EulerDG(D = sparse(D["++"](s = 0)), y = y, x0 = x0, h = h)
 
 # convert to densities
 # densities

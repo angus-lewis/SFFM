@@ -2,7 +2,7 @@ function MakeMesh(;
     Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
     Nodes::Array{Float64,1},
     NBases::Int,
-    Fil::Dict{String,BitArray{1}},
+    Fil::Dict{String,BitArray{1}}=Dict{String,BitArray{1}}(),
     Basis::String = "legendre",
 )
     # MakeMesh constructs the Mass and Stiffness matrices
@@ -46,6 +46,26 @@ function MakeMesh(;
     TotalNBases = NBases * NIntervals # the total number of bases in the stencil
 
     ## Construct the sets Fᵐ = ⋃ᵢ Fᵢᵐ, global index for sets of type m
+    if isempty(Fil)
+        idxPlus = Model.r.r(Nodes[1:end-1].*Δ[:]/2).>0
+        idxZero = Model.r.r(Nodes[1:end-1].*Δ[:]/2).==0
+        idxMinus = Model.r.r(Nodes[1:end-1].*Δ[:]/2).<0
+        for i in 1:Model.NPhases
+            Fil[string(i)*"+"] = idxPlus[:,i]
+            Fil[string(i)*"0"] = idxZero[:,i]
+            Fil[string(i)*"-"] = idxMinus[:,i]
+            if Model.C[i] .<= 0
+                Fil["p"*string(i)*"+"] = [Model.r.r(Model.Bounds[1,1])[i]].>0
+                Fil["p"*string(i)*"0"] = [Model.r.r(Model.Bounds[1,1])[i]].==0
+                Fil["p"*string(i)*"-"] = [Model.r.r(Model.Bounds[1,1])[i]].<0
+            end
+            if Model.C[i] .>= 0
+                Fil["q"*string(i)*"+"] = [Model.r.r(Model.Bounds[1,end])[i]].>0
+                Fil["q"*string(i)*"0"] = [Model.r.r(Model.Bounds[1,end])[i]].==0
+                Fil["q"*string(i)*"-"] = [Model.r.r(Model.Bounds[1,end])[i]].<0
+            end
+        end
+    end
     CurrKeys = keys(Fil)
     for ℓ in ["+", "-", "0"], i = 1:Model.NPhases
         if !in(string(i) * ℓ, CurrKeys)
@@ -792,7 +812,12 @@ function PsiFun(; s = 0, D, MaxIters = 1000, err = 1e-8)
     return Psi
 end
 
-function EulerDG(; D::Array{<:Real,2}, y::Real, x0::Array{<:Real}, h::Float64 = 0.0001)
+function EulerDG(;
+    D::Union{Array{<:Real,2},SparseArrays.SparseMatrixCSC{Float64,Int64}},
+    y::Real,
+    x0::Array{<:Real},
+    h::Float64 = 0.0001,
+)
     x = x0
     for t = h:h:y
         dx = h * x * D
