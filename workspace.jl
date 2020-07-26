@@ -1,6 +1,8 @@
 ## Workspace
-push!(LOAD_PATH,"/Users/a1627293/Documents/SFFM")
-using LinearAlgebra, SFFM
+# push!(LOAD_PATH,"/Users/a1627293/Documents/SFFM")
+cd("/Users/angus2/Documents/SFFM")
+include("./SFFM.jl")
+using LinearAlgebra
 
 T = [-1.0 1.0; 1.0 -1.0]
 C = [1.0;-2.0]
@@ -40,7 +42,7 @@ NBases = 2
 
 Mesh = SFFM.MakeMesh(Model=Model,Nodes=Nodes,NBases=NBases,Fil=Fil)
 Matrices = SFFM.MakeMatrices(Model=Model,Mesh=Mesh,Basis="legendre")
-MatricesR = SFFM.MakeMatricesR(Model=Model,Mesh=Mesh)
+MatricesR = SFFM.MakeMatricesR(Model=Model,Mesh=Mesh) 
 B = SFFM.MakeB(Model=Model,Mesh=Mesh,Matrices=Matrices)
 R = SFFM.MakeR(Model=Model,Mesh=Mesh)
 D = SFFM.MakeD(Model=Model,Mesh=Mesh,R=R,B=B)
