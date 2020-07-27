@@ -1,5 +1,5 @@
 function SimSFM(;
-    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
     StoppingTime::Function,
     InitCondition::NamedTuple{(:φ, :X)},
 )
@@ -49,7 +49,7 @@ function SimSFM(;
 end
 
 function SimSFFM(;
-    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
     StoppingTime::Function,
     InitCondition::NamedTuple{(:φ, :X, :Y)},
 )
@@ -100,7 +100,7 @@ function SimSFFM(;
 end
 
 function UpdateXt(;
-    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
     SFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     S::Real,
 )
@@ -114,7 +114,7 @@ function UpdateXt(;
 end
 
 function UpdateYt(;
-    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
     SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     S::Real,
 )
@@ -147,7 +147,7 @@ function FixedTime(; T::Real)
     # Defines a simple stopping time, 1(t>T).
     # SFM method
     function FixedTimeFun(
-        Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
         SFM::NamedTuple{(:t, :φ, :X, :n)},
         SFM0::NamedTuple{(:t, :φ, :X, :n)},
     )
@@ -161,7 +161,7 @@ function FixedTime(; T::Real)
     end
     # SFFM METHOD
     function FixedTimeFun(
-        Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
         SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )
@@ -181,7 +181,7 @@ function NJumps(; N::Int)
     # Defines a simple stopping time, 1(n>N), where n is the number of jumps of φ.
     # SFM method
     function NJumpsFun(
-        Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
         SFM::NamedTuple{(:t, :φ, :X, :n)},
         SFM0::NamedTuple{(:t, :φ, :X, :n)},
     )
@@ -190,7 +190,7 @@ function NJumps(; N::Int)
     end
     # SFFM method
     function NJumpsFun(
-        Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
         SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )
@@ -213,7 +213,7 @@ function FirstExitX(; u::Real, v::Real)
 
     # SFM Method
     function FirstExitXFun(
-        Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
         SFM::NamedTuple{(:t, :φ, :X, :n)},
         SFM0::NamedTuple{(:t, :φ, :X, :n)},
     )
@@ -232,7 +232,7 @@ function FirstExitX(; u::Real, v::Real)
     end
     # SFFM Method
     function FirstExitXFun(
-        Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
         SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )
@@ -253,10 +253,10 @@ function FirstExitX(; u::Real, v::Real)
     return FirstExitXFun
 end
 
-function InOutYLevel(; y::Real)
+function FirstExitY(; u::Real, v::Real) #InOutYLevel(; y::Real)
     # Defines a first exit stopping time rule for the Y-in-out fluid hitting y
     # Inputs:
-    #   y - scalars
+    #   y - scalar
     # Outputs:
     #   FirstExitFun(Model,t::Float64,φ,X,n::Int), a function with inputs;
     #   t is the current time, φ the current phase, X, the current level, n
@@ -265,24 +265,26 @@ function InOutYLevel(; y::Real)
     #   occured or not, and SFM is a tuple (τ,φ(τ),X(τ),n).
 
     # SFFM Method
-    function InOutYLevelFun(
-        Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+    function FirstExitYFun(
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
         SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )
-        Ind = SFFM.Y >= y && SFFM0.Y < y
+        Ind = SFFM0.Y < u || SFFM.Y > v
         if Ind
-            YFun(t) = UpdateYt(Model = Model, SFFM0 = SFFM0, S = t) - y
+            idx = [SFFM0.Y < u; SFFM.Y > v]
+            boundaryHit = [u;v][idx][1]
+            YFun(t) = UpdateYt(Model = Model, SFFM0 = SFFM0, S = t) - boundaryHit
             S = SFFM.t - SFFM0.t
             tstar = fzero(f = YFun, a = 0, b = S)
             X = UpdateXt(Model = Model, SFM0 = SFFM0, S = tstar)
             t = SFFM0.t + tstar
-            Y = y
+            Y = boundaryHit
             SFFM = (t, SFFM0.φ, X, Y, SFFM0.n)
         end
         return (Ind = Ind, SFFM = SFFM)
     end
-    return InOutYLevelFun
+    return FirstExitYFun
 end
 
 function fzero(; f::Function, a::Real, b::Real, err::Float64 = 1e-8)
@@ -304,7 +306,7 @@ function fzero(; f::Function, a::Real, b::Real, err::Float64 = 1e-8)
 end
 
 function Sims2Dist(;
-    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
     Mesh::NamedTuple{
         (
             :NBases,
@@ -368,61 +370,9 @@ function Sims2Dist(;
             pm[sum(Model.C .<= 0)+qc] = p
         end
     end
+    if type == "density" && Mesh.NBases == 1
+        distribution = [1; 1] .* distribution
+        xvals = [Mesh.CellNodes-Mesh.Δ'/2;Mesh.CellNodes+Mesh.Δ'/2]
+    end
     return (pm = pm, distribution = distribution, x = xvals, type = type)
 end
-
-# function Sims2PDF(;
-#     Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
-#     Mesh::NamedTuple{
-#         (
-#             :NBases,
-#             :CellNodes,
-#             :Fil,
-#             :Δ,
-#             :NIntervals,
-#             :Nodes,
-#             :TotalNBases,
-#             :Basis,
-#         ),
-#     },
-#     sims::NamedTuple{(:t, :φ, :X, :Y, :n)},
-# )
-#
-#     pm = zeros(Float64, sum(Model.C .<= 0) + sum(Model.C .>= 0))
-#     pc = 0
-#     qc = 0
-#     pdf = zeros(Float64, Mesh.NBases, Mesh.NIntervals, Model.NPhases)
-#     for i = 1:Model.NPhases
-#         whichsims =
-#             (sims.φ .== i) .&
-#             (sims.X .!= Model.Bounds[1, 1]) .&
-#             (sims.X .!= Model.Bounds[1, end])
-#         data = sims.X[whichsims]
-#
-#         totalprob = sum(whichsims) / length(sims.φ)
-#         U = KernelDensity.kde(
-#             sims.X[whichsims],
-#             boundary = (Model.Bounds[1, 1], Model.Bounds[1, end]),
-#         )
-#         pdf[:, :, i] =
-#             reshape(
-#                 KernelDensity.pdf(U, Mesh.CellNodes[:]),
-#                 Mesh.NBases,
-#                 Mesh.NIntervals,
-#             ) * totalprob
-#
-#         if Model.C[i] <= 0
-#             pc = pc + 1
-#             whichsims = (sims.φ .== i) .& (sims.X .== Model.Bounds[1, 1])
-#             p = sum(whichsims) / length(sims.φ)
-#             pm[pc] = p
-#         end
-#         if Model.C[i] >= 0
-#             whichsims = (sims.φ .== i) .& (sims.X .== Model.Bounds[1, end])
-#             p = sum(whichsims) / length(sims.φ)
-#             pm[sum(Model.C .<= 0)+qc] = p
-#         end
-#
-#     end
-#     return (pm = pm, density = pdf)
-# end

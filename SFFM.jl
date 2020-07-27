@@ -27,30 +27,30 @@ function MakeModel(;
     # T - n×n Array{Float64}, a generator matrix of φ(t)
     # C - n×1 Array{Float64}, rates of the first fluid
     # Signs - n×1 Array{String}, the m∈{"+","-","0"} where Fᵢᵐ≂̸∅
-    # IsBounded - Bool, whether the first fluid is bounded or not
     # r - array of rates for the second fluid,
     #     functions r(x) = [r₁(x) r₂(x) ... r_n(x)], where x is a column vector
     #
     # output is a NamedTuple with fields
-    #                         .T, .C, .r, .IsBounded, .NPhases
-
+    #                         .T, .C, .r, .Bounds, .NPhases
+    a(x) = abs.(r.r(x))
+    r = (r = r.r, R = r.R, a = a)
     NPhases = length(C)
-    println("Model.Field with Fields (.T, .C, .r, .IsBounded, .NPhases)")
-    IsBounded = true
-    return (T = T, C = C, r = r, IsBounded = IsBounded, Bounds = Bounds, NPhases = NPhases)
+    println("Model.Field with Fields (.T, .C, .r, .Bounds, .NPhases)")
+    return (T = T, C = C, r = r, Bounds = Bounds, NPhases = NPhases)
 end
 
 function MakeAll(;
-    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
     Mesh::NamedTuple{
         (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
     },
+    approxType::String = "projection"
 )
 
     Matrices = MakeMatrices(Model = Model, Mesh = Mesh)
     MatricesR = MakeMatricesR(Model = Model, Mesh = Mesh)
     B = MakeB(Model = Model, Mesh = Mesh, Matrices = Matrices)
-    R = MakeR(Model = Model, Mesh = Mesh, approxType = "projection")
+    R = MakeR(Model = Model, Mesh = Mesh, approxType = approxType)
     D = MakeD(Model = Model, Mesh = Mesh, R = R, B = B)
     DR = MakeDR(
         Matrices = Matrices,

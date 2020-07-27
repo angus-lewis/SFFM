@@ -1,5 +1,5 @@
 function PlotSFM!(p;
-    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
     Mesh::NamedTuple{
         (
             :NBases,
@@ -75,7 +75,7 @@ function PlotSFM!(p;
 end # end PlotSFM!
 
 function PlotSFM(;
-    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
     Mesh::NamedTuple{
         (
             :NBases,

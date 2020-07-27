@@ -1,5 +1,5 @@
 function MakeMesh(;
-    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
     Nodes::Array{Float64,1},
     NBases::Int,
     Fil::Dict{String,BitArray{1}}=Dict{String,BitArray{1}}(),
@@ -189,7 +189,7 @@ function MakeFluxMatrix(;
             :Basis,
         ),
     },
-    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
     Phi,
     Dw,
 )
@@ -243,7 +243,7 @@ function MakeFluxMatrix(;
 end
 
 function MakeMatrices(;
-    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
     Mesh::NamedTuple{
         (
             :NBases,
@@ -329,7 +329,7 @@ function MakeMatrices(;
 end
 
 function MakeB(;
-    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
     Mesh::NamedTuple{
         (
             :NBases,
@@ -482,7 +482,7 @@ function MakeB(;
 end
 
 function MakeR(;
-    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
     Mesh::NamedTuple{
         (
             :NBases,
@@ -502,7 +502,7 @@ function MakeR(;
     EvalPoints = Mesh.CellNodes
     EvalPoints[1, :] .+= sqrt(eps()) # LH edges + eps
     EvalPoints[end, :] .+= -sqrt(eps()) # RH edges - eps
-    EvalR = 1.0 ./ abs.(Model.r.r(EvalPoints[:]))
+    EvalR = 1.0 ./ Model.r.a(EvalPoints[:])
 
     N₋ = sum(Model.C .<= 0)
     N₊ = sum(Model.C .>= 0)
@@ -512,8 +512,8 @@ function MakeR(;
         N₋ + N₊ + Mesh.TotalNBases * Model.NPhases,
         N₋ + N₊ + Mesh.TotalNBases * Model.NPhases,
     )
-    R[1:N₋, 1:N₋] = (1.0 ./ abs.(Model.r.r(Model.Bounds[1,1]))[Model.C .<= 0]).*LinearAlgebra.I(N₋)
-    R[(end-N₊+1):end, (end-N₊+1):end] =  (1.0 ./ abs.(Model.r.r(Model.Bounds[1,end]))[Model.C .>= 0]).* LinearAlgebra.I(N₊)
+    R[1:N₋, 1:N₋] = (1.0 ./ Model.r.a(Model.Bounds[1,1])[Model.C .<= 0]).*LinearAlgebra.I(N₋)
+    R[(end-N₊+1):end, (end-N₊+1):end] =  (1.0 ./ Model.r.a(Model.Bounds[1,end])[Model.C .>= 0]).* LinearAlgebra.I(N₊)
 
     if approxType == "interpolation"
         leftM = V.V'
@@ -575,133 +575,15 @@ function MakeR(;
         RDict[ℓ] = R[FlBases, FlBases]
     end
 
-    # N₋ = sum(Model.C .<= 0)
-    # N₊ = sum(Model.C .>= 0)
-    #
-    # R = SparseArrays.spzeros(Float64, Model.NPhases * Mesh.TotalNBases + N₋ + N₊, Model.NPhases * Mesh.TotalNBases + N₋ + N₊)
-    # R[1:N₋,1:N₋] = LinearAlgebra.diagm(1.0 ./ abs.(Model.r.r(Mesh.CellNodes[1])[Model.C.<=0]))
-    # R[(end-N₊+1):end,(end-N₊+1):end] = LinearAlgebra.diagm(1.0 ./ abs.(Model.r.r(Mesh.CellNodes[end])[Model.C.>=0]))
-    # for i = 1:Model.NPhases
-    #     if Model.C[i] < 0
-    #         p = 1.0 ./ abs.(Model.r.r(Mesh.CellNodes[1])[i])
-    #         q = Float64[]
-    #     elseif Model.C[i] > 0
-    #         p = Float64[]
-    #         q = 1.0 ./ abs.(Model.r.r(Mesh.CellNodes[end])[i])
-    #     elseif Model.C[i] == 0
-    #         p = 1.0 ./ abs.(Model.r.r(Mesh.CellNodes[1])[i])
-    #         q = 1.0 ./ abs.(Model.r.r(Mesh.CellNodes[end])[i])
-    #     end
-    #     temp = 1.0 ./ EvalR[:, i]
-    #     RDict[string(i)] = LinearAlgebra.diagm([p; temp; q])
-    #     R[((i-1)*Mesh.TotalNBases+1:i*Mesh.TotalNBases).+N₋,((i-1)*Mesh.TotalNBases+1:i*Mesh.TotalNBases).+N₋] = LinearAlgebra.diagm(temp)
-    #     for ℓ in ["+", "-"]
-    #         FilBases = repeat(Mesh.Fil[string(i)*ℓ]', Mesh.NBases, 1)[:]
-    #         RDict[string(i)*ℓ] = LinearAlgebra.diagm([
-    #             p .* Mesh.Fil["p"*string(i)*ℓ]
-    #             temp[FilBases]
-    #             q .* Mesh.Fil["q"*string(i)*ℓ]
-    #         ])
-    #     end
-    # end
-    #
-    # for ℓ in ["+", "-"]
-    #     FlBases =
-    #         [Mesh.Fil["p"*ℓ]; repeat(Mesh.Fil[ℓ]', Mesh.NBases, 1)[:]; Mesh.Fil["q"*ℓ]]
-    #     RDict[ℓ] = R[FlBases,FlBases]
-    # end
     # println("R, function with arguments (string) +, -, 0, : (default = :)")
     return (R=R, RDict=RDict)
 end
 
-# function MakeMyD(;
-#     Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
-#     Mesh::NamedTuple{
-#         (
-#             :NBases,
-#             :CellNodes,
-#             :Fil,
-#             :Δ,
-#             :NIntervals,
-#             :Nodes,
-#             :TotalNBases,
-#             :Basis,
-#         ),
-#     },
-#     B,
-#     V,
-# )
-#
-#     if Mesh.Basis == "legendre"
-#         MRLocal = function (x::Array{Float64}, i::Int)
-#             # Numerical integration of ϕᵢ(x)|r(x)|ϕⱼ(x) over Dk with Gauss-Lobatto
-#             # quadrature
-#             # Inputs:
-#             #   - x a vector of Gauss-Lobatto points on Dk
-#             #   - i a phase
-#             V.V' * LinearAlgebra.diagm(V.w ./ abs.(Model.r.r(x)[:, i])) * V.V
-#         end
-#     elseif Mesh.Basis == "lagrange"
-#         MRLocal = function (x::Array{Float64}, i::Int)
-#             # Numerical integration of ϕᵢ(x)|r(x)|ϕⱼ(x) over Dk with Gauss-Lobatto
-#             # quadrature
-#             # Inputs:
-#             #   - x a vector of Gauss-Lobatto points on Dk
-#             #   - i a phase
-#             LinearAlgebra.diagm(1.0 ./ abs.(Model.r.r(x)[:, i]))
-#         end
-#     end
-#     MyR = SparseArrays.spzeros(
-#         Float64,
-#         Mesh.TotalNBases * Model.NPhases + sum(Model.C .<= 0) + sum(Model.C .>= 0),
-#         Mesh.TotalNBases * Model.NPhases + sum(Model.C .<= 0) + sum(Model.C .>= 0),
-#     )
-#     for i = 1:Model.NPhases, k = 1:Mesh.NIntervals
-#         idx =
-#             sum(Model.C .<= 0) .+ (1:Mesh.NBases) .+ (Mesh.NBases .* (k - 1)) .+
-#             (Mesh.TotalNBases .* (i - 1))
-#         MyR[idx, idx] = MRLocal(Mesh.CellNodes[:, k], i)
-#     end
-#     MyR[1:sum(Model.C .<= 0), 1:sum(Model.C .<= 0)] =
-#         LinearAlgebra.diagm(1.0 ./ abs.(Model.r.r(Mesh.Nodes[1])[Model.C.<=0]))
-#     MyR[end-sum(Model.C .>= 0).+1:end, end-sum(Model.C .>= 0).+1:end] =
-#         LinearAlgebra.diagm(1.0 ./ abs.(Model.r.r(Mesh.Nodes[end])[Model.C.>=0]))
-#     idx0 = [Mesh.Fil["p0"]; repeat(Mesh.Fil["0"]', Mesh.NBases, 1)[:]; Mesh.Fil["q0"]]
-#     MyD = function (; s = 0)
-#         MyR[.!idx0, .!idx0] * (
-#             B.B[.!idx0, .!idx0] - LinearAlgebra.I(sum(.!idx0)) * s +
-#             B.B[.!idx0, idx0] *
-#             (LinearAlgebra.I(sum(idx0)) * s - B.B[idx0, idx0])^-1 *
-#             B.B[idx0, .!idx0]
-#         )
-#     end
-#
-#     DDict = Dict{String,Any}()
-#     for ℓ in ["+", "-"], m in ["+", "-"]
-#         FlBases = Mesh.Fil[ℓ][.!Mesh.Fil["0"]]
-#         FmBases = Mesh.Fil[m][.!Mesh.Fil["0"]]
-#         FlBases = [
-#             Mesh.Fil["p"*ℓ][.!Mesh.Fil["p0"]]
-#             repeat(FlBases', Mesh.NBases, 1)[:]
-#             Mesh.Fil["q"*ℓ][.!Mesh.Fil["q0"]]
-#         ]
-#         FmBases = [
-#             Mesh.Fil["p"*m][.!Mesh.Fil["p0"]]
-#             repeat(FmBases', Mesh.NBases, 1)[:]
-#             Mesh.Fil["q"*m][.!Mesh.Fil["q0"]]
-#         ]
-#         DDict[ℓ*m] = function (; s = 0)#::Array{Float64}
-#             MyD(s = s)[FlBases, FmBases]
-#         end # end function
-#     end # end for ℓ, m ...
-#
-#     return (D = MyD, DDict = DDict)
-# end
 
 function MakeD(;
     R,
     B,
-    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
     Mesh::NamedTuple{
         (
             :NBases,
@@ -813,7 +695,7 @@ function EulerDG(;
 end
 
 function Coeffs2Dist(;
-    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
     Mesh::NamedTuple{
         (
             :NBases,
@@ -868,7 +750,7 @@ function Coeffs2Dist(;
 end
 
 function Dist2Coeffs(;
-    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
     Mesh::NamedTuple{
         (
             :NBases,

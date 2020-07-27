@@ -40,10 +40,10 @@ IC = (φ = ones(Int, NSim), X = zeros(NSim), Y = zeros(NSim))
 #     Y = zeros(NSim),
 # )
 sims =
-    SFFM.SimSFFM(Model = Model, StoppingTime = SFFM.InOutYLevel(y = y), InitCondition = IC)
+    SFFM.SimSFFM(Model = Model, StoppingTime = SFFM.FirstExitY(u = -Inf, v = y), InitCondition = IC)
 
 ## Define the mesh
-Δ = 10
+Δ = 1
 Nodes = collect(Bounds[1, 1]:Δ:Bounds[1, 2])
 # Fil = Dict{String,BitArray{1}}(
 #     "1+" => trues(length(Nodes) - 1),
@@ -54,7 +54,7 @@ Nodes = collect(Bounds[1, 1]:Δ:Bounds[1, 2])
 #     "q1+" => trues(1),
 #     "q3+" => trues(1),
 # )
-NBases = 1
+NBases = 5
 Basis = "legendre"
 Mesh = SFFM.MakeMesh(Model = Model, Nodes = Nodes, NBases = NBases, Basis=Basis)
 
@@ -67,13 +67,6 @@ R = All.R
 D = All.D
 DR = All.DR
 
-Ψ = SFFM.PsiFun(D=D,s=1)
-RA, QA = schur(A)
-RB, QB = schur(B)
-
-D = -(adjoint(QA) * (C*QB))
-
-LAPACK.trsyl!('N','N', RA, RB, D)
 ## initial condition
 initpm = [
     zeros(sum(Model.C.<=0)) # LHS point mass
@@ -92,7 +85,7 @@ h = 0.0001
 # convert to densities
 # densities
 simdensity = SFFM.Sims2Dist(Model=Model,Mesh=Mesh,sims=sims,type="density")
-density = SFFM.Coeffs2Dist(Model=Model,Mesh=Mesh,Coeffs=yvals,type="density")
+DGdensity = SFFM.Coeffs2Dist(Model=Model,Mesh=Mesh,Coeffs=yvals,type="density")
 
 # convert to probabilities
 # get estimates of probabilities
@@ -102,7 +95,7 @@ probs = SFFM.Coeffs2Dist(Model=Model,Mesh=Mesh,Coeffs=yvals,type="probability")
 ## plots
 # plot solutions
 # densities
-p = SFFM.PlotSFM(Model=Model,Mesh=Mesh,Dist=density)
+p = SFFM.PlotSFM(Model=Model,Mesh=Mesh,Dist=DGdensity)
 # plot sims
 p = SFFM.PlotSFM!(p;Model=Model,Mesh=Mesh,Dist=simdensity,color=4)
 
@@ -113,16 +106,16 @@ p = SFFM.PlotSFM!(p;Model=Model,Mesh=Mesh,Dist=simprobs,color=2)
 
 ## other analysis
 # compute errors
-derrpm = density.pm-simdensity.pm
-derrdensity = density.distribution - simdensity.distribution
-derrdist = (pm=derrpm,distribution=derrdensity,x=density.x,type="density")
+derrpm = DGdensity.pm-simdensity.pm
+derrdensity = DGdensity.distribution - simdensity.distribution
+derrdist = (pm=derrpm,distribution=derrdensity,x=DGdensity.x,type="density")
 
 # plot
 p = SFFM.PlotSFM(Model=Model,Mesh=Mesh,Dist=derrdist)
 
 # display point mass data
 pmdata = [
-    ["." (Nodes[1] * ones(sum(Model.C .<= 0)))' (Nodes[end] * ones(sum(Model.C .>= 0)))']
+    "." (Nodes[1] * ones(sum(Model.C .<= 0)))' (Nodes[end] * ones(sum(Model.C .>= 0)))'
     "sim" simprobs.pm'
     "pm" probs.pm'
 ]

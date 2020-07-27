@@ -1,5 +1,5 @@
 function MakeBlockDiagonalMatrixR(;
-    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
     Mesh::NamedTuple{
         (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
     },
@@ -32,7 +32,7 @@ function MakeFluxMatrixR(;
     Mesh::NamedTuple{
         (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
     },
-    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
     Phi,
 )
     # MakeFluxMatrix creates the global block tridiagonal flux matrix for the
@@ -57,23 +57,23 @@ function MakeFluxMatrixR(;
             idx = (1:Mesh.NBases) .+ (k - 1) * Mesh.NBases
             if Model.C[i] > 0
                 xright = Mesh.CellNodes[end, k]
-                R = 1.0 ./ abs(Model.r.r(xright)[i])
+                R = 1.0 ./ Model.r.a(xright)[i]
                 F[i][idx, idx] = PosDiagBlock * R
             elseif Model.C[i] < 0
                 xleft = Mesh.CellNodes[1, k]
-                R = 1.0 ./ abs(Model.r.r(xleft)[i])
+                R = 1.0 ./ Model.r.a(xleft)[i]
                 F[i][idx, idx] = NegDiagBlock * R
             end # end if C[i]
             if k > 1
                 idxup = (1:Mesh.NBases) .+ (k - 2) * Mesh.NBases
                 if Model.C[i] > 0
                     xright = Mesh.CellNodes[end, k-1]
-                    R = 1.0 ./ abs(Model.r.r(xright)[i])
+                    R = 1.0 ./ Model.r.a(xright)[i]
                     η = (Mesh.Δ[k] / Mesh.NBases) / (Mesh.Δ[k-1] / Mesh.NBases)
                     F[i][idxup, idx] = UpDiagBlock * η * R
                 elseif Model.C[i] < 0
                     xleft = Mesh.CellNodes[1, k]
-                    R = 1.0 ./ abs(Model.r.r(xleft)[i])
+                    R = 1.0 ./ Model.r.a(xleft)[i]
                     η = (Mesh.Δ[k-1] / Mesh.NBases) / (Mesh.Δ[k] / Mesh.NBases)
                     F[i][idx, idxup] = LowDiagBlock * η * R
                 end # end if C[i]
@@ -81,24 +81,11 @@ function MakeFluxMatrixR(;
         end # for k in ...
     end # end for i in NPhases
 
-    # ## Check if bounded and make sure no mass can leave
-    # if Model.IsBounded
-    #     for i = 1:Model.NPhases
-    #         if Model.C[i] < 0
-    #             idx = 1:Mesh.NBases
-    #             F[idx, idx, i] .= 0
-    #         elseif Model.C[i] > 0
-    #             idx = (1:Mesh.NBases) .+ (Mesh.NIntervals - 1) * Mesh.NBases
-    #             F[idx, idx, i] .= 0
-    #         end # end if C[i]
-    #     end # end for i ...
-    # end # end if IsBounded
-
     return (F = F)
 end
 
 function MakeMatricesR(;
-    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
     Mesh::NamedTuple{
         (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
     },
@@ -133,7 +120,7 @@ function MakeMatricesR(;
             # Inputs:
             #   - x a vector of Gauss-Lobatto points on Dk
             #   - i a phase
-            V.V' * LinearAlgebra.diagm(0 => V.w ./ abs.(Model.r.r(x)[:, i])) * V.V
+            V.V' * LinearAlgebra.diagm(0 => V.w ./ Model.r.a(x)[:, i]) * V.V
         end
         GLocal = function (x::Array{Float64}, i::Int)
             # Numerical integration of ϕᵢ(x)|r(x)|ϕⱼ'(x) over Dk with Gauss-Lobatto
@@ -141,7 +128,7 @@ function MakeMatricesR(;
             # Inputs:
             #   - x a vector of Gauss-Lobatto points on Dk
             #   - i a phase
-            V.V' * LinearAlgebra.diagm(0 => V.w ./ abs.(Model.r.r(x)[:, i])) * V.D
+            V.V' * LinearAlgebra.diagm(0 => V.w ./ Model.r.a(x)[:, i]) * V.D
         end
         MInvLocal = function (x::Array{Float64}, i::Int)
             MLocal(x, i)^-1
@@ -155,7 +142,7 @@ function MakeMatricesR(;
             # Inputs:
             #   - x a vector of Gauss-Lobatto points on Dk
             #   - i a phase
-            LinearAlgebra.diagm(V.w ./ abs.(Model.r.r(x)[:, i]))
+            LinearAlgebra.diagm(V.w ./ Model.r.a(x)[:, i])
         end
         GLocal = function (x::Array{Float64}, i::Int)
             # Numerical integration of ϕᵢ(x)|r(x)|ϕⱼ'(x) over Dk with Gauss-Lobatto
@@ -210,7 +197,7 @@ end
 function MakeDR(;
     Matrices,
     MatricesR,
-    Model::NamedTuple{(:T, :C, :r, :IsBounded, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
     Mesh::NamedTuple{
         (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
     },
@@ -242,18 +229,18 @@ function MakeDR(;
     # Boundary behaviour
     # Lower boundary
     # At boundary
-    BR[1:N₋, 1:N₋] = (1.0./abs.(Model.r.r(Mesh.CellNodes[1]))'.*Model.T)[Model.C.<=0, Model.C.<=0]
+    BR[1:N₋, 1:N₋] = (1.0./ Model.r.a(Mesh.CellNodes[1])'.*Model.T)[Model.C.<=0, Model.C.<=0]
     # Out of boundary
     idxup = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .> 0) .- 1)')[:] .+ N₋
     BR[1:N₋, idxup] = kron(
-        (1.0./abs.(Model.r.r(Mesh.CellNodes[1]))'.*Model.T)[Model.C.<=0, Model.C.>0],
+        (1.0./Model.r.a(Mesh.CellNodes[1])'.*Model.T)[Model.C.<=0, Model.C.>0],
         Matrices.Local.Phi[1, :]' * Matrices.Local.MInv,
     )
     # Into boundary
     idxdown = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .<= 0) .- 1)')[:] .+ N₋
     BR[idxdown, 1:N₋] = LinearAlgebra.kron(
         LinearAlgebra.diagm(
-            0 => Model.C[Model.C.<=0] ./ abs.(Model.r.r(Mesh.CellNodes[1]))[Model.C.<=0],
+            0 => Model.C[Model.C.<=0] ./ Model.r.a(Mesh.CellNodes[1])[Model.C.<=0],
         ),
         -Matrices.Local.Phi[1, :] * 2 / Mesh.Δ[1],
     )
@@ -261,13 +248,13 @@ function MakeDR(;
     # Upper boundary
     # At boundary
     BR[(end-N₊+1):end, (end-N₊+1):end] =
-        (1.0./abs.(Model.r.r(Mesh.CellNodes[end]))'.*Model.T)[Model.C.>=0, Model.C.>=0]
+        (1.0./Model.r.a(Mesh.CellNodes[end])'.*Model.T)[Model.C.>=0, Model.C.>=0]
     # Out of boundary
     idxdown =
         ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .< 0) .- 1)')[:] .+
         (N₋ + Mesh.TotalNBases - Mesh.NBases)
     BR[(end-N₊+1):end, idxdown] = kron(
-        (1.0./abs.(Model.r.r(Mesh.CellNodes[end]))'.*Model.T)[Model.C.>=0, Model.C.<0],
+        (1.0./Model.r.a(Mesh.CellNodes[end])'.*Model.T)[Model.C.>=0, Model.C.<0],
         Matrices.Local.Phi[end, :]' * Matrices.Local.MInv,
     )
     # Into boundary
@@ -276,7 +263,7 @@ function MakeDR(;
         (N₋ + Mesh.TotalNBases - Mesh.NBases)
     BR[idxup, (end-N₊+1):end] = LinearAlgebra.kron(
         LinearAlgebra.diagm(
-            0 => Model.C[Model.C.>=0] ./ abs.(Model.r.r(Mesh.CellNodes[end]))[Model.C.<=0],
+            0 => Model.C[Model.C.>=0] ./ Model.r.a(Mesh.CellNodes[end])[Model.C.<=0],
         ),
         Matrices.Local.Phi[end, :] * 2 / Mesh.Δ[end],
     )
