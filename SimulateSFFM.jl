@@ -23,10 +23,10 @@ function SimSFM(;
     Λ = LinearAlgebra.diag(Model.T)
 
     M = length(InitCondition.φ)
-    tSims = Array{Float64,1}(undef, M)
-    φSims = Array{Float64,1}(undef, M)
-    XSims = Array{Float64,1}(undef, M)
-    nSims = Array{Float64,1}(undef, M)
+    tSims = zeros(Float64, M)
+    φSims = zeros(Float64, M)
+    XSims = zeros(Float64, M)
+    nSims = zeros(Float64, M)
 
     for m = 1:M
         SFM0 = (t = 0.0, φ = InitCondition.φ[m], X = InitCondition.X[m], n = 0)
@@ -312,7 +312,6 @@ function Sims2Dist(;
             :Fil,
             :Δ,
             :NIntervals,
-            :MeshArray,
             :Nodes,
             :TotalNBases,
             :Basis,
@@ -381,7 +380,6 @@ end
 #             :Fil,
 #             :Δ,
 #             :NIntervals,
-#             :MeshArray,
 #             :Nodes,
 #             :TotalNBases,
 #             :Basis,

@@ -31,7 +31,7 @@ Model = SFFM.MakeModel(T = T, C = C, r = r, Bounds = Bounds)
 y = 10
 
 ## Simulate the model
-NSim = 100000
+NSim = 50000
 IC = (φ = ones(Int, NSim), X = zeros(NSim), Y = zeros(NSim))
 # IC = (φ = 2 .*ones(Int, NSim), X = -10*ones(NSim), Y = zeros(NSim))
 # IC = (
@@ -43,7 +43,7 @@ sims =
     SFFM.SimSFFM(Model = Model, StoppingTime = SFFM.InOutYLevel(y = y), InitCondition = IC)
 
 ## Define the mesh
-Δ = 0.25
+Δ = 10
 Nodes = collect(Bounds[1, 1]:Δ:Bounds[1, 2])
 # Fil = Dict{String,BitArray{1}}(
 #     "1+" => trues(length(Nodes) - 1),
@@ -54,7 +54,7 @@ Nodes = collect(Bounds[1, 1]:Δ:Bounds[1, 2])
 #     "q1+" => trues(1),
 #     "q3+" => trues(1),
 # )
-NBases = 10
+NBases = 1
 Basis = "legendre"
 Mesh = SFFM.MakeMesh(Model = Model, Nodes = Nodes, NBases = NBases, Basis=Basis)
 
@@ -67,6 +67,13 @@ R = All.R
 D = All.D
 DR = All.DR
 
+Ψ = SFFM.PsiFun(D=D,s=1)
+RA, QA = schur(A)
+RB, QB = schur(B)
+
+D = -(adjoint(QA) * (C*QB))
+
+LAPACK.trsyl!('N','N', RA, RB, D)
 ## initial condition
 initpm = [
     zeros(sum(Model.C.<=0)) # LHS point mass
@@ -79,8 +86,8 @@ x0 = SFFM.Dist2Coeffs(Model = Model, Mesh = Mesh, Distn = initdist)
 p = SFFM.PlotSFM(Model=Model,Mesh=Mesh,Dist=initdist)
 
 ## approximations to exp(Dy)
-h = 0.001
-yvals = SFFM.EulerDG(D = sparse(D["++"](s = 0)), y = y, x0 = x0, h = h)
+h = 0.0001
+@time yvals = SFFM.EulerDG(D = D["++"](s = 0), y = y, x0 = x0, h = h)
 
 # convert to densities
 # densities

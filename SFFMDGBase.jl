@@ -16,14 +16,12 @@ function MakeMesh(;
     #        correspond to Fᵢᵐ
     #
     # output is a MakeMesh tupe with fields: .NBases, CellNodes, .Fil,
-    #        .Δ, .NIntervals, .MeshArray, .Nodes, .TotalNBases
+    #        .Δ, .NIntervals, .Nodes, .TotalNBases
     # .NBases - Int the number of bases in each cell
     # .CellNodes - NBases×NIntervals Array{Float64}
     # .Fil - same as input
     # .Δ - NIntervals×1 Array{Float64}, the width of the cells
     # .NIntervals - Int, the number of intervals
-    # .MeshArray - 2×NIntervals Array{Float64}, end points of each cell, 1st row
-    #               LHS edges, 2nd row RHS edges
     # .Nodes - as input
     # .TotalNBases - Int, the total number of bases in the mesh
 
@@ -40,9 +38,6 @@ function MakeMesh(;
         # Map the LGL nodes on [-1,1] to each cell
         CellNodes[:, i] .= (Nodes[i+1] + Nodes[i]) / 2 .+ (Nodes[i+1] - Nodes[i]) / 2 * z
     end
-    MeshArray = zeros(NIntervals, 2)
-    MeshArray[:, 1] = Nodes[1:end-1] # Left-hand end points of each interval
-    MeshArray[:, 2] = Nodes[2:end] # Right-hand edges
     TotalNBases = NBases * NIntervals # the total number of bases in the stencil
 
     ## Construct the sets Fᵐ = ⋃ᵢ Fᵢᵐ, global index for sets of type m
@@ -97,14 +92,13 @@ function MakeMesh(;
     end
 
     println("Mesh.Field with Fields (.NBases, .CellNodes, .Fil, .Δ,
-              .NIntervals, .MeshArray, .Nodes, .TotalNBases)")
+              .NIntervals, .Nodes, .TotalNBases)")
     return (
         NBases = NBases,
         CellNodes = CellNodes,
         Fil = Fil,
         Δ = Δ,
         NIntervals = NIntervals,
-        MeshArray = MeshArray,
         Nodes = Nodes,
         TotalNBases = TotalNBases,
         Basis = Basis,
@@ -141,9 +135,9 @@ function vandermonde(; NBases::Int)
                 Jacobi.legendre.(Jacobi.zglj(NBases, 0, 0), NBases - 1) .^ 2
             )
     elseif NBases == 1
-        V .= 1
-        DV .= 0
-        w = 1
+        V .= [1]
+        DV .= [0]
+        w = [1]
     end
     return (V = V, inv = inv(V), D = DV, w = w)
 end
@@ -156,7 +150,6 @@ function MakeBlockDiagonalMatrix(;
             :Fil,
             :Δ,
             :NIntervals,
-            :MeshArray,
             :Nodes,
             :TotalNBases,
             :Basis,
@@ -175,7 +168,7 @@ function MakeBlockDiagonalMatrix(;
     # BlockMatrix - Mesh.TotalNBases×Mesh.TotalNBases Array{Float64,2}, the
     #             block matrix
 
-    BlockMatrix = zeros(Float64, Mesh.TotalNBases, Mesh.TotalNBases)
+    BlockMatrix = SparseArrays.spzeros(Float64, Mesh.TotalNBases, Mesh.TotalNBases)
     for i = 1:Mesh.NIntervals
         idx = (1:Mesh.NBases) .+ (i - 1) * Mesh.NBases
         BlockMatrix[idx, idx] = Blocks * Factors[i]
@@ -191,7 +184,6 @@ function MakeFluxMatrix(;
             :Fil,
             :Δ,
             :NIntervals,
-            :MeshArray,
             :Nodes,
             :TotalNBases,
             :Basis,
@@ -216,14 +208,15 @@ function MakeFluxMatrix(;
     LowDiagBlock = -Dw.DwInv * Phi[1, :] * Phi[end, :]' * Dw.Dw
 
     ## Construct global block diagonal matrix
-    F = zeros(Float64, Mesh.TotalNBases, Mesh.TotalNBases, Model.NPhases)
+    F = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,Model.NPhases)
     for i = 1:Model.NPhases
+        F[i] = SparseArrays.spzeros(Float64, Mesh.TotalNBases, Mesh.TotalNBases)
         for k = 1:Mesh.NIntervals
             idx = (1:Mesh.NBases) .+ (k - 1) * Mesh.NBases
             if Model.C[i] > 0
-                F[idx, idx, i] = PosDiagBlock
+                F[i][idx, idx] = PosDiagBlock
             elseif Model.C[i] < 0
-                F[idx, idx, i] = NegDiagBlock
+                F[i][idx, idx] = NegDiagBlock
             end # end if C[i]
             if k > 1
                 idxup = (1:Mesh.NBases) .+ (k - 2) * Mesh.NBases
@@ -233,14 +226,14 @@ function MakeFluxMatrix(;
                     elseif Mesh.Basis == "lagrange"
                         η = Mesh.Δ[k] / Mesh.Δ[k-1]
                     end
-                    F[idxup, idx, i] = UpDiagBlock * η
+                    F[i][idxup, idx] = UpDiagBlock * η
                 elseif Model.C[i] < 0
                     if Mesh.Basis == "legendre"
                         η = 1
                     elseif Mesh.Basis == "lagrange"
                         η = Mesh.Δ[k-1] / Mesh.Δ[k]
                     end
-                    F[idx, idxup, i] = LowDiagBlock * η
+                    F[i][idx, idxup] = LowDiagBlock * η
                 end # end if C[i]
             end # end if k>1
         end # for k in ...
@@ -258,7 +251,6 @@ function MakeMatrices(;
             :Fil,
             :Δ,
             :NIntervals,
-            :MeshArray,
             :Nodes,
             :TotalNBases,
             :Basis,
@@ -323,9 +315,9 @@ function MakeMatrices(;
     F = SFFM.MakeFluxMatrix(Mesh = Mesh, Model = Model, Phi = Phi, Dw = Dw)
 
     ## Assemble the DG drift operator
-    Q = zeros(Float64, Mesh.TotalNBases, Mesh.TotalNBases, length(Model.C))
+    Q = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,Model.NPhases)
     for i = 1:Model.NPhases
-        Q[:, :, i] = Model.C[i] * (G + F[:, :, i]) * MInv
+        Q[i] = Model.C[i] * (G + F[i]) * MInv
     end
 
     Local = (G = GLocal, M = MLocal, MInv = MInvLocal, V = V, Phi = Phi, Dw = Dw)
@@ -345,7 +337,6 @@ function MakeB(;
             :Fil,
             :Δ,
             :NIntervals,
-            :MeshArray,
             :Nodes,
             :TotalNBases,
             :Basis,
@@ -373,15 +364,15 @@ function MakeB(;
     ## MakeB
     N₊ = sum(Model.C .>= 0)
     N₋ = sum(Model.C .<= 0)
-    B = zeros(
+    B = SparseArrays.spzeros(
         Float64,
         Model.NPhases * Mesh.TotalNBases + N₋ + N₊,
         Model.NPhases * Mesh.TotalNBases + N₋ + N₊,
     )
-    Id = Matrix(LinearAlgebra.I, Mesh.TotalNBases, Mesh.TotalNBases)
+    Id = SparseArrays.sparse(LinearAlgebra.I, Mesh.TotalNBases, Mesh.TotalNBases)
     for i = 1:Model.NPhases
         idx = ((i-1)*Mesh.TotalNBases+1:i*Mesh.TotalNBases) .+ N₋
-        B[idx, idx] = Matrices.Global.Q[:, :, i]
+        B[idx, idx] = Matrices.Global.Q[i]
     end
 
     # interior behaviour
@@ -430,7 +421,7 @@ function MakeB(;
     )
 
     ## Make a Dictionary so that the blocks of B are easy to access
-    BDict = Dict{String,Array{Float64,2}}()
+    BDict = Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}}()
     pfalses = falses(N₋)
     qfalses = falses(N₊)
     ppositions = cumsum(Model.C .<= 0)
@@ -499,7 +490,6 @@ function MakeR(;
             :Fil,
             :Δ,
             :NIntervals,
-            :MeshArray,
             :Nodes,
             :TotalNBases,
             :Basis,
@@ -517,13 +507,13 @@ function MakeR(;
     N₋ = sum(Model.C .<= 0)
     N₊ = sum(Model.C .>= 0)
 
-    R = zeros(
+    R = SparseArrays.spzeros(
         Float64,
         N₋ + N₊ + Mesh.TotalNBases * Model.NPhases,
         N₋ + N₊ + Mesh.TotalNBases * Model.NPhases,
     )
-    R[1:N₋, 1:N₋] = (1.0 ./ Model.r.r(Model.Bounds[1,1])[Model.C .<= 0]).*LinearAlgebra.I(N₋)
-    R[(end-N₊+1):end, (end-N₊+1):end] =  (1.0 ./ Model.r.r(Model.Bounds[1,end])[Model.C .>= 0]).* LinearAlgebra.I(N₊)
+    R[1:N₋, 1:N₋] = (1.0 ./ abs.(Model.r.r(Model.Bounds[1,1]))[Model.C .<= 0]).*LinearAlgebra.I(N₋)
+    R[(end-N₊+1):end, (end-N₊+1):end] =  (1.0 ./ abs.(Model.r.r(Model.Bounds[1,end]))[Model.C .>= 0]).* LinearAlgebra.I(N₊)
 
     if approxType == "interpolation"
         leftM = V.V'
@@ -555,7 +545,7 @@ function MakeR(;
     #         return R[FlBases,FlBases]
     #     end
     # end
-    RDict = Dict{String,Array{Float64,2}}()
+    RDict = Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}}()
     pfalses = falses(N₋)
     qfalses = falses(N₊)
     ppositions = cumsum(Model.C .<= 0)
@@ -588,7 +578,7 @@ function MakeR(;
     # N₋ = sum(Model.C .<= 0)
     # N₊ = sum(Model.C .>= 0)
     #
-    # R = zeros(Float64, Model.NPhases * Mesh.TotalNBases + N₋ + N₊, Model.NPhases * Mesh.TotalNBases + N₋ + N₊)
+    # R = SparseArrays.spzeros(Float64, Model.NPhases * Mesh.TotalNBases + N₋ + N₊, Model.NPhases * Mesh.TotalNBases + N₋ + N₊)
     # R[1:N₋,1:N₋] = LinearAlgebra.diagm(1.0 ./ abs.(Model.r.r(Mesh.CellNodes[1])[Model.C.<=0]))
     # R[(end-N₊+1):end,(end-N₊+1):end] = LinearAlgebra.diagm(1.0 ./ abs.(Model.r.r(Mesh.CellNodes[end])[Model.C.>=0]))
     # for i = 1:Model.NPhases
@@ -633,7 +623,6 @@ end
 #             :Fil,
 #             :Δ,
 #             :NIntervals,
-#             :MeshArray,
 #             :Nodes,
 #             :TotalNBases,
 #             :Basis,
@@ -662,7 +651,7 @@ end
 #             LinearAlgebra.diagm(1.0 ./ abs.(Model.r.r(x)[:, i]))
 #         end
 #     end
-#     MyR = zeros(
+#     MyR = SparseArrays.spzeros(
 #         Float64,
 #         Mesh.TotalNBases * Model.NPhases + sum(Model.C .<= 0) + sum(Model.C .>= 0),
 #         Mesh.TotalNBases * Model.NPhases + sum(Model.C .<= 0) + sum(Model.C .>= 0),
@@ -720,7 +709,6 @@ function MakeD(;
             :Fil,
             :Δ,
             :NIntervals,
-            :MeshArray,
             :Nodes,
             :TotalNBases,
             :Basis,
@@ -729,15 +717,13 @@ function MakeD(;
 )
     DDict = Dict{String,Any}()
     for ℓ in ["+", "-"], m in ["+", "-"]
-        Idℓ = LinearAlgebra.I(
-            sum(Mesh.Fil["p"*ℓ]) + sum(Mesh.Fil[ℓ]) * Mesh.NBases + sum(Mesh.Fil["q"*ℓ]),
-        )
+        nℓ = sum(Mesh.Fil["p"*ℓ]) + sum(Mesh.Fil[ℓ]) * Mesh.NBases + sum(Mesh.Fil["q"*ℓ])
+        Idℓ = SparseArrays.sparse(LinearAlgebra.I,nℓ,nℓ)
         if any(Mesh.Fil["p0"]) || any(Mesh.Fil["0"]) || any(Mesh.Fil["q0"]) # in("0", Model.Signs)
-            Id0 = LinearAlgebra.I(
-                sum(Mesh.Fil["p0"]) +
+            n0 = sum(Mesh.Fil["p0"]) +
                 sum(Mesh.Fil["0"]) * Mesh.NBases +
-                sum(Mesh.Fil["q0"]),
-            )
+                sum(Mesh.Fil["q0"])
+            Id0 = SparseArrays.sparse(LinearAlgebra.I,n0,n0)
             DDict[ℓ*m] = function (; s = 0)#::Array{Float64}
                 return if (ℓ == m)
                     R.RDict[ℓ] * (
@@ -768,7 +754,7 @@ function PsiFun(; s = 0, D, MaxIters = 1000, err = 1e-8)
     #
     exitflag = ""
 
-    EvalD = Dict{String,Array{Float64}}("+-" => D["+-"](s = s))
+    EvalD = Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}}("+-" => D["+-"](s = s))
     Dimensions = size(EvalD["+-"])
     for ℓ in ["++", "--", "-+"]
         EvalD[ℓ] = D[ℓ](s = s)
@@ -780,7 +766,7 @@ function PsiFun(; s = 0, D, MaxIters = 1000, err = 1e-8)
     OldPsi = Psi
     flag = 1
     for n = 1:MaxIters
-        Psi = LinearAlgebra.sylvester(A, B, C)
+        Psi = LinearAlgebra.sylvester(Matrix(A), Matrix(B), Matrix(C))
         if maximum(abs.(OldPsi - Psi)) < err
             flag = 0
             exitflag = string(
@@ -835,7 +821,6 @@ function Coeffs2Dist(;
             :Fil,
             :Δ,
             :NIntervals,
-            :MeshArray,
             :Nodes,
             :TotalNBases,
             :Basis,
@@ -891,7 +876,6 @@ function Dist2Coeffs(;
             :Fil,
             :Δ,
             :NIntervals,
-            :MeshArray,
             :Nodes,
             :TotalNBases,
             :Basis,

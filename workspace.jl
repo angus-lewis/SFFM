@@ -1,8 +1,7 @@
 ## Workspace
 # push!(LOAD_PATH,"/Users/a1627293/Documents/SFFM")
-cd("/Users/angus2/Documents/SFFM")
 include("./SFFM.jl")
-using LinearAlgebra
+using LinearAlgebra, SFFM
 
 T = [-1.0 1.0; 1.0 -1.0]
 C = [1.0;-2.0]
@@ -42,7 +41,7 @@ NBases = 2
 
 Mesh = SFFM.MakeMesh(Model=Model,Nodes=Nodes,NBases=NBases,Fil=Fil)
 Matrices = SFFM.MakeMatrices(Model=Model,Mesh=Mesh,Basis="legendre")
-MatricesR = SFFM.MakeMatricesR(Model=Model,Mesh=Mesh) 
+MatricesR = SFFM.MakeMatricesR(Model=Model,Mesh=Mesh)
 B = SFFM.MakeB(Model=Model,Mesh=Mesh,Matrices=Matrices)
 R = SFFM.MakeR(Model=Model,Mesh=Mesh)
 D = SFFM.MakeD(Model=Model,Mesh=Mesh,R=R,B=B)
@@ -53,7 +52,7 @@ display(DR.D(0))
 display(sum(abs.(D["++"](s=0)-DR.D(0))))
 display(D["++"](s=0)-DR.D(0))
 
-Ψlegendre = SFFM.PsiFun(D=D,MaxIters=MaxIters,s=1)
+Ψlegendre = SFFM.PsiFun(D=D,s=1)
 display(Ψlegendre)
 SFFM.MyPrint(Ψlegendre*repeat([1;zeros(NBases-1)],sum(Fil["-"])))
 
