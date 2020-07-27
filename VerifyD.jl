@@ -43,7 +43,7 @@ sims =
     SFFM.SimSFFM(Model = Model, StoppingTime = SFFM.InOutYLevel(y = y), InitCondition = IC)
 
 ## Define the mesh
-Δ = 0.25
+Δ = 10
 Nodes = collect(Bounds[1, 1]:Δ:Bounds[1, 2])
 # Fil = Dict{String,BitArray{1}}(
 #     "1+" => trues(length(Nodes) - 1),
@@ -54,7 +54,7 @@ Nodes = collect(Bounds[1, 1]:Δ:Bounds[1, 2])
 #     "q1+" => trues(1),
 #     "q3+" => trues(1),
 # )
-NBases = 10
+NBases = 1
 Basis = "legendre"
 Mesh = SFFM.MakeMesh(Model = Model, Nodes = Nodes, NBases = NBases, Basis=Basis)
 
@@ -67,6 +67,13 @@ R = All.R
 D = All.D
 DR = All.DR
 
+Ψ = SFFM.PsiFun(D=D,s=1)
+RA, QA = schur(A)
+RB, QB = schur(B)
+
+D = -(adjoint(QA) * (C*QB))
+
+LAPACK.trsyl!('N','N', RA, RB, D)
 ## initial condition
 initpm = [
     zeros(sum(Model.C.<=0)) # LHS point mass

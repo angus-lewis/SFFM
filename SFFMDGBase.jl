@@ -135,9 +135,9 @@ function vandermonde(; NBases::Int)
                 Jacobi.legendre.(Jacobi.zglj(NBases, 0, 0), NBases - 1) .^ 2
             )
     elseif NBases == 1
-        V .= 1
-        DV .= 0
-        w = 1
+        V .= [1]
+        DV .= [0]
+        w = [1]
     end
     return (V = V, inv = inv(V), D = DV, w = w)
 end
@@ -512,8 +512,8 @@ function MakeR(;
         N₋ + N₊ + Mesh.TotalNBases * Model.NPhases,
         N₋ + N₊ + Mesh.TotalNBases * Model.NPhases,
     )
-    R[1:N₋, 1:N₋] = (1.0 ./ Model.r.r(Model.Bounds[1,1])[Model.C .<= 0]).*LinearAlgebra.I(N₋)
-    R[(end-N₊+1):end, (end-N₊+1):end] =  (1.0 ./ Model.r.r(Model.Bounds[1,end])[Model.C .>= 0]).* LinearAlgebra.I(N₊)
+    R[1:N₋, 1:N₋] = (1.0 ./ abs.(Model.r.r(Model.Bounds[1,1]))[Model.C .<= 0]).*LinearAlgebra.I(N₋)
+    R[(end-N₊+1):end, (end-N₊+1):end] =  (1.0 ./ abs.(Model.r.r(Model.Bounds[1,end]))[Model.C .>= 0]).* LinearAlgebra.I(N₊)
 
     if approxType == "interpolation"
         leftM = V.V'
@@ -766,7 +766,7 @@ function PsiFun(; s = 0, D, MaxIters = 1000, err = 1e-8)
     OldPsi = Psi
     flag = 1
     for n = 1:MaxIters
-        Psi = LinearAlgebra.sylvester(A, B, C)
+        Psi = LinearAlgebra.sylvester(Matrix(A), Matrix(B), Matrix(C))
         if maximum(abs.(OldPsi - Psi)) < err
             flag = 0
             exitflag = string(

@@ -1,5 +1,6 @@
 ## Workspace
-push!(LOAD_PATH,"/Users/a1627293/Documents/SFFM")
+# push!(LOAD_PATH,"/Users/a1627293/Documents/SFFM")
+include("./SFFM.jl")
 using LinearAlgebra, SFFM
 
 T = [-1.0 1.0; 1.0 -1.0]
