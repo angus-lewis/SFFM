@@ -1,6 +1,6 @@
 module SFFM
 import Jacobi, LinearAlgebra, SparseArrays
-import Plots, StatsBase, KernelDensity, MatrixEquations
+import Plots, StatsBase, KernelDensity
 
 include("SFFMPlots.jl")
 include("SimulateSFFM.jl")

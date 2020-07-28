@@ -515,18 +515,22 @@ function MakeR(;
     R[1:N₋, 1:N₋] = (1.0 ./ Model.r.a(Model.Bounds[1,1])[Model.C .<= 0]).*LinearAlgebra.I(N₋)
     R[(end-N₊+1):end, (end-N₊+1):end] =  (1.0 ./ Model.r.a(Model.Bounds[1,end])[Model.C .>= 0]).* LinearAlgebra.I(N₊)
 
-    if approxType == "interpolation"
-        leftM = V.V'
-        rightM = V.inv'
-    elseif approxType == "projection"
-        leftM = V.V' * LinearAlgebra.diagm(V.w)
-        rightM = V.V
-    end
     for n = 1:(Mesh.NIntervals*Model.NPhases)
         if Mesh.Basis == "legendre"
+            if approxType == "interpolation"
+                leftM = V.V'
+                rightM = V.inv'
+            elseif approxType == "projection"
+                leftM = V.V' * LinearAlgebra.diagm(V.w)
+                rightM = V.V
+            end
             temp = leftM*LinearAlgebra.diagm(EvalR[Mesh.NBases*(n-1).+(1:Mesh.NBases)])*rightM
         elseif Mesh.Basis == "lagrange"
-            temp = LinearAlgebra.diagm(EvalR[Mesh.NBases*(n-1).+(1:Mesh.NBases)])
+            if approxType == "interpolation"
+                temp = LinearAlgebra.diagm(EvalR[Mesh.NBases*(n-1).+(1:Mesh.NBases)])
+            elseif approxType == "projection"
+                temp = LinearAlgebra.diagm(EvalR[Mesh.NBases*(n-1).+(1:Mesh.NBases)])*V.V*V.V'*LinearAlgebra.diagm(V.w)
+            end
         end
         R[Mesh.NBases*(n-1).+(1:Mesh.NBases).+N₋, Mesh.NBases*(n-1).+(1:Mesh.NBases).+N₋] =
             temp

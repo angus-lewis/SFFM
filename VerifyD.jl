@@ -43,7 +43,7 @@ sims =
     SFFM.SimSFFM(Model = Model, StoppingTime = SFFM.FirstExitY(u = -Inf, v = y), InitCondition = IC)
 
 ## Define the mesh
-Δ = 1
+Δ = 5
 Nodes = collect(Bounds[1, 1]:Δ:Bounds[1, 2])
 # Fil = Dict{String,BitArray{1}}(
 #     "1+" => trues(length(Nodes) - 1),
@@ -54,12 +54,12 @@ Nodes = collect(Bounds[1, 1]:Δ:Bounds[1, 2])
 #     "q1+" => trues(1),
 #     "q3+" => trues(1),
 # )
-NBases = 5
-Basis = "legendre"
+NBases = 2
+Basis = "lagrange"
 Mesh = SFFM.MakeMesh(Model = Model, Nodes = Nodes, NBases = NBases, Basis=Basis)
 
 ## Construct all DG operators
-All = SFFM.MakeAll(Model = Model, Mesh = Mesh)
+All = SFFM.MakeAll(Model = Model, Mesh = Mesh, approxType = "projection")
 Matrices = All.Matrices
 MatricesR = All.MatricesR
 B = All.B
@@ -76,7 +76,7 @@ initprobs = zeros(Float64,1,Mesh.NIntervals,Model.NPhases)
 initprobs[1,(1+Mesh.NIntervals)÷2+1,1] = 1
 initdist = (pm = initpm, distribution = initprobs, x = Matrix(Mesh.CellNodes[1,:]'+Mesh.Δ'/2), type = "probability")
 x0 = SFFM.Dist2Coeffs(Model = Model, Mesh = Mesh, Distn = initdist)
-p = SFFM.PlotSFM(Model=Model,Mesh=Mesh,Dist=initdist)
+# p = SFFM.PlotSFM(Model=Model,Mesh=Mesh,Dist=initdist)
 
 ## approximations to exp(Dy)
 h = 0.0001
@@ -95,7 +95,7 @@ probs = SFFM.Coeffs2Dist(Model=Model,Mesh=Mesh,Coeffs=yvals,type="probability")
 ## plots
 # plot solutions
 # densities
-p = SFFM.PlotSFM(Model=Model,Mesh=Mesh,Dist=DGdensity)
+p = SFFM.PlotSFM(Model=Model,Mesh=Mesh,Dist=DGdensity,color=7)
 # plot sims
 p = SFFM.PlotSFM!(p;Model=Model,Mesh=Mesh,Dist=simdensity,color=4)
 
