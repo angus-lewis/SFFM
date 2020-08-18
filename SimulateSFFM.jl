@@ -270,9 +270,9 @@ function FirstExitY(; u::Real, v::Real) #InOutYLevel(; y::Real)
         SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )
-        Ind = SFFM0.Y < u || SFFM.Y > v
+        Ind = SFFM.Y < u || SFFM.Y > v
         if Ind
-            idx = [SFFM0.Y < u; SFFM.Y > v]
+            idx = [SFFM.Y < u; SFFM.Y > v]
             boundaryHit = [u;v][idx][1]
             YFun(t) = UpdateYt(Model = Model, SFFM0 = SFFM0, S = t) - boundaryHit
             S = SFFM.t - SFFM0.t

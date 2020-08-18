@@ -42,9 +42,9 @@ function MakeMesh(;
 
     ## Construct the sets Fᵐ = ⋃ᵢ Fᵢᵐ, global index for sets of type m
     if isempty(Fil)
-        idxPlus = Model.r.r(Nodes[1:end-1].*Δ[:]/2).>0
-        idxZero = Model.r.r(Nodes[1:end-1].*Δ[:]/2).==0
-        idxMinus = Model.r.r(Nodes[1:end-1].*Δ[:]/2).<0
+        idxPlus = Model.r.r(Nodes[1:end-1].+Δ[:]/2).>0
+        idxZero = Model.r.r(Nodes[1:end-1].+Δ[:]/2).==0
+        idxMinus = Model.r.r(Nodes[1:end-1].+Δ[:]/2).<0
         for i in 1:Model.NPhases
             Fil[string(i)*"+"] = idxPlus[:,i]
             Fil[string(i)*"0"] = idxZero[:,i]
@@ -422,17 +422,15 @@ function MakeB(;
 
     ## Make a Dictionary so that the blocks of B are easy to access
     BDict = Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}}()
-    pfalses = falses(N₋)
-    qfalses = falses(N₊)
     ppositions = cumsum(Model.C .<= 0)
     qpositions = cumsum(Model.C .>= 0)
     for ℓ in ["+", "-", "0"], m in ["+", "-", "0"]
         for i = 1:Model.NPhases, j = 1:Model.NPhases
             FilBases = repeat(Mesh.Fil[string(i, ℓ)]', Mesh.NBases, 1)[:]
-            pitemp = pfalses
-            qitemp = qfalses
-            pjtemp = pfalses
-            qjtemp = qfalses
+            pitemp = falses(N₋)
+            qitemp = falses(N₊)
+            pjtemp = falses(N₋)
+            qjtemp = falses(N₊)
             if Model.C[i] <= 0
                 pitemp[ppositions[i]] = Mesh.Fil["p"*string(i)*ℓ][1]
             end
@@ -470,12 +468,14 @@ function MakeB(;
     end
 
     ## Make QBD index
-    c = 0
-    QBDidx = zeros(Int, Model.NPhases * Mesh.TotalNBases)
+    c = N₋
+    QBDidx = zeros(Int, Model.NPhases * Mesh.TotalNBases + N₊ + N₋)
     for k = 1:Mesh.NIntervals, i = 1:Model.NPhases, n = 1:Mesh.NBases
         c += 1
-        QBDidx[c] = (i - 1) * Mesh.TotalNBases + (k - 1) * Mesh.NBases + n
+        QBDidx[c] = (i - 1) * Mesh.TotalNBases + (k - 1) * Mesh.NBases + n + N₋
     end
+    QBDidx[1:N₋] = 1:N₋
+    QBDidx[(end-N₊+1):end] = (Model.NPhases * Mesh.TotalNBases + N₋) .+ (1:N₊)
 
     println("B.Fields with Fields (.BDict, .B, .QBDidx)")
     return (BDict = BDict, B = B, QBDidx = QBDidx)
@@ -550,15 +550,13 @@ function MakeR(;
     #     end
     # end
     RDict = Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}}()
-    pfalses = falses(N₋)
-    qfalses = falses(N₊)
     ppositions = cumsum(Model.C .<= 0)
     qpositions = cumsum(Model.C .>= 0)
     for ℓ in ["+", "-"]
         for i = 1:Model.NPhases
             FilBases = repeat(Mesh.Fil[string(i, ℓ)]', Mesh.NBases, 1)[:]
-            pitemp = pfalses
-            qitemp = qfalses
+            pitemp = falses(N₋)
+            qitemp = falses(N₊)
             if Model.C[i] <= 0
                 pitemp[ppositions[i]] = Mesh.Fil["p"*string(i)*ℓ][1]
             end

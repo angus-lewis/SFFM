@@ -67,7 +67,10 @@ function PlotSFM!(p;
             )
         end
         currYLims = Plots.ylims(p[i])
-        yLimValues = (min(yLimValues[1], currYLims[1]), max(yLimValues[2], currYLims[2]))
+        yLimValues = (
+            min(yLimValues[1], currYLims[1]),
+            max(yLimValues[2], currYLims[2]).*1.1,
+        )
         p = Plots.plot!(ylims = yLimValues, subplot = i)
     end
 
