@@ -71,7 +71,7 @@ function SimSFFM(;
             φ = InitCondition.φ[m],
             X = InitCondition.X[m],
             Y = InitCondition.Y[m],
-            n = 0,
+            n = 0.0,
         )
         if !(Model.Bounds[1, 1] <= SFFM0.X <= Model.Bounds[1, 2]) ||
            !(Model.Bounds[2, 1] <= SFFM0.Y <= Model.Bounds[2, 2]) ||
@@ -85,11 +85,15 @@ function SimSFFM(;
                 X = UpdateXt(Model = Model, SFM0 = SFFM0, S = S)
                 Y = UpdateYt(Model = Model, SFFM0 = SFFM0, S = S)
                 φ = findfirst(rand() .< CumP[SFFM0.φ, :])
-                n = SFFM0.n + 1
+                n = SFFM0.n + 1.0
                 SFFM = (t = t, φ = φ, X = X, Y = Y, n = n)
                 τ = StoppingTime(Model, SFFM, SFFM0)
                 if τ.Ind
                     (tSims[m], φSims[m], XSims[m], YSims[m], nSims[m]) = τ.SFFM
+                    break
+                end
+                if t > 300.0
+                    (tSims[m], φSims[m], XSims[m], YSims[m], nSims[m]) = SFFM
                     break
                 end
                 SFFM0 = SFFM

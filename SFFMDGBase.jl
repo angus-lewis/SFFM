@@ -612,12 +612,12 @@ function MakeD(;
                 return if (ℓ == m)
                     R.RDict[ℓ] * (
                         B.BDict[ℓ*m] - s * Idℓ +
-                        B.BDict[ℓ*"0"] * inv(s * Id0 - B.BDict["00"]) * B.BDict["0"*m]
+                        B.BDict[ℓ*"0"] * inv(Matrix(s * Id0 - B.BDict["00"])) * B.BDict["0"*m]
                     )
                 else
                     R.RDict[ℓ] * (
                         B.BDict[ℓ*m] +
-                        B.BDict[ℓ*"0"] * inv(s * Id0 - B.BDict["00"]) * B.BDict["0"*m]
+                        B.BDict[ℓ*"0"] * inv(Matrix(s * Id0 - B.BDict["00"])) * B.BDict["0"*m]
                     )
                 end
             end # end function
