@@ -92,10 +92,6 @@ function SimSFFM(;
                     (tSims[m], φSims[m], XSims[m], YSims[m], nSims[m]) = τ.SFFM
                     break
                 end
-                if t > 300.0
-                    (tSims[m], φSims[m], XSims[m], YSims[m], nSims[m]) = SFFM
-                    break
-                end
                 SFFM0 = SFFM
             end
         end
@@ -349,10 +345,17 @@ function Sims2Dist(;
             distribution[:, :, i] = h
             xvals = Mesh.CellNodes[1, :] + Mesh.Δ / 2
         elseif type == "density"
-            U = KernelDensity.kde(
-                data,
-                boundary = (Model.Bounds[1, 1], Model.Bounds[1, end]),
-            )
+            if Model.Bounds[1, end] == Inf
+                U = KernelDensity.kde(
+                    data,
+                    boundary = (Model.Bounds[1, 1], 1/eps()),
+                )
+            else
+                U = KernelDensity.kde(
+                    data,
+                    boundary = (Model.Bounds[1, 1], Model.Bounds[1, end]),
+                )
+            end
             distribution[:, :, i] =
                 reshape(
                     KernelDensity.pdf(U, Mesh.CellNodes[:])',

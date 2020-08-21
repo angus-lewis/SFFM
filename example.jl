@@ -24,37 +24,37 @@ Mesh = SFFM.MakeMesh(
 )
 
 ## simulate
-innerNSim = 10^2
-NSim = 10^3*innerNSim
-
-using SharedArrays, Distributed
-nprocs() < 5 && addprocs(5-nprocs())
-@everywhere include("./SFFM.jl")
-@everywhere include("./exampleModelDef.jl")
-
-simsOuter = SharedArray(zeros(NSim,5))
-@time @sync @distributed for n in 1:(NSim÷innerNSim)
-    IC = (
-        φ = 3 .* ones(Int, innerNSim),
-        X = 5 .* ones(innerNSim),
-        Y = zeros(innerNSim)
-    )
-    simsInner = SFFM.SimSFFM(
-        Model = simModel,
-        StoppingTime = SFFM.FirstExitY(u = 0, v = Inf),
-        InitCondition = IC,
-    )
-    simsOuter[1+(n-1)*innerNSim:n*innerNSim,:] =
-        [simsInner.t simsInner.φ simsInner.X simsInner.Y simsInner.n]
-end
-
-sims = (
-    t = simsOuter[:,1],
-    φ = simsOuter[:,2],
-    X = simsOuter[:,3],
-    Y = simsOuter[:,4],
-    n = simsOuter[:,5],
-)
+# innerNSim = 10^2
+# NSim = 10^3*innerNSim
+#
+# using SharedArrays, Distributed
+# nprocs() < 5 && addprocs(5-nprocs())
+# @everywhere include("./SFFM.jl")
+# @everywhere include("./exampleModelDef.jl")
+#
+# simsOuter = SharedArray(zeros(NSim,5))
+# @time @sync @distributed for n in 1:(NSim÷innerNSim)
+#     IC = (
+#         φ = 3 .* ones(Int, innerNSim),
+#         X = 5 .* ones(innerNSim),
+#         Y = zeros(innerNSim)
+#     )
+#     simsInner = SFFM.SimSFFM(
+#         Model = simModel,
+#         StoppingTime = SFFM.FirstExitY(u = 0, v = Inf),
+#         InitCondition = IC,
+#     )
+#     simsOuter[1+(n-1)*innerNSim:n*innerNSim,:] =
+#         [simsInner.t simsInner.φ simsInner.X simsInner.Y simsInner.n]
+# end
+#
+# sims = (
+#     t = simsOuter[:,1],
+#     φ = simsOuter[:,2],
+#     X = simsOuter[:,3],
+#     Y = simsOuter[:,4],
+#     n = simsOuter[:,5],
+# )
 # Profile.clear()
 # @profiler SFFM.SimSFFM(
 #     Model = simModel,
@@ -71,14 +71,10 @@ cumprobs[1,:,1] = [0; cumprobs[1,1:end-1,1]]
 cumprobs[1,:,2] = [0; cumprobs[1,1:end-1,2]]
 cumprobs[1,:,3] = [simprobs.pm[1]; cumprobs[1,1:end-1,3]]
 cumprobs[1,:,4] = [simprobs.pm[2]; cumprobs[1,1:end-1,4]]
-x = [
-    Mesh.CellNodes .- Δ/2;
-    Mesh.CellNodes .+ Δ/2;
-]
 cumprobs = (
     pm = simprobs.pm,
     distribution = cumprobs,
-    x = x,
+    x = [Mesh.CellNodes .- Mesh.Δ'/2; Mesh.CellNodes .+ Mesh.Δ'/2],
     type = "density",
 )
 
@@ -90,7 +86,7 @@ initpm = [
     zeros(sum(approxModel.C.>=0)) # RHS point mass
 ]
 initprobs = zeros(Float64,1,Mesh.NIntervals,approxModel.NPhases)
-initprobs[1,13,3] = 1
+initprobs[1,convert(Int,ceil(5/Δ)),3] = 1
 initdist = (
     pm = initpm,
     distribution = initprobs,
@@ -98,10 +94,25 @@ initdist = (
     type = "probability"
 )
 x0 = SFFM.Dist2Coeffs(Model = approxModel, Mesh = Mesh, Distn = initdist)
-x0 = x0[[Mesh.Fil["p+"]; Mesh.Fil["+"]; Mesh.Fil["q+"]]]'
+plusIdx = [
+    Mesh.Fil["p+"];
+    repeat(Mesh.Fil["+"]', Mesh.NBases, 1)[:];
+    Mesh.Fil["q+"];
+]
+x0 = x0[plusIdx]'
 println(sum(x0))
-z = zeros(Float64,Mesh.NIntervals*approxModel.NPhases+sum(approxModel.C.<=0)+sum(approxModel.C.>=0))
-z[[Mesh.Fil["p-"]; Mesh.Fil["-"]; Mesh.Fil["q-"]]] = x0*Ψ
+
+minusIdx = [
+    Mesh.Fil["p-"];
+    repeat(Mesh.Fil["-"]', Mesh.NBases, 1)[:];
+    Mesh.Fil["q-"];
+]
+z = zeros(
+    Float64,
+    Mesh.NBases*Mesh.NIntervals * approxModel.NPhases +
+        sum(approxModel.C.<=0) + sum(approxModel.C.>=0)
+)
+z[minusIdx] = x0*Ψ
 println(sum(z))
 DGProbs = SFFM.Coeffs2Dist(
     Model = approxModel,
@@ -118,31 +129,55 @@ DGcumprobs[1,:,1] = [0; DGcumprobs[1,1:end-1,1]]
 DGcumprobs[1,:,2] = [0; DGcumprobs[1,1:end-1,2]]
 DGcumprobs[1,:,3] = [DGProbs.pm[1]; DGcumprobs[1,1:end-1,3]]
 DGcumprobs[1,:,4] = [DGProbs.pm[2]; DGcumprobs[1,1:end-1,4]]
-x = [
-    Mesh.CellNodes .- Δ/2;
-    Mesh.CellNodes .+ Δ/2;
-]
 DGcumprobs = (
     pm = DGProbs.pm,
     distribution = DGcumprobs,
-    x = x,
+    x = [Mesh.CellNodes .- Mesh.Δ'/2; Mesh.CellNodes .+ Mesh.Δ'/2],
     type = "density",
 )
 ## plots
 
-p1 = SFFM.PlotSFM(Model=approxModel,Mesh=Mesh,Dist=DGcumprobs)
-p1 = SFFM.PlotSFM!(p1;Model=approxModel,Mesh=Mesh,Dist=cumprobs,color=2)
+q = SFFM.PlotSFM(Model=approxModel,Mesh=Mesh,
+    Dist = SFFM.Coeffs2Dist(
+        Model = approxModel,
+        Mesh = Mesh,
+        Coeffs = z,
+        type="density",
+    ),
+)
+q = SFFM.PlotSFM(Model=approxModel,Mesh=Mesh,
+    Dist=simprobs, #SFFM.Sims2Dist(Model=simModel,Mesh=Mesh,sims=sims,type="probability"),
+    color=2,
+)
+# p1 = SFFM.PlotSFM(Model=approxModel,Mesh=Mesh,Dist=DGcumprobs)
+# p1 = SFFM.PlotSFM!(p1;Model=approxModel,Mesh=Mesh,Dist=cumprobs,color=2)
 
 p2 = plot(
     cumprobs.x[:],
     cumprobs.distribution[:,:,4][:],
     label = "Sim",
     color = 1,
-    xlims = (0,1.6),
-    legend = :topleft,
+    xlims = (0,2),
+    legend = :bottomright,
 )
 p2 = plot!(
     DGcumprobs.x[:],
+    DGcumprobs.distribution[:,:,4][:],
+    label = "DG",
+    color = 2,
+    xlims = (0,2),
+)
+
+p2 = plot(
+    Mesh.CellNodes[:],
+    cumprobs.distribution[:,:,4][:],
+    label = "Sim",
+    color = 1,
+    xlims = (0,1.6),
+    legend = :bottomright,
+)
+p2 = plot!(
+    Mesh.CellNodes[:],
     DGcumprobs.distribution[:,:,4][:],
     label = "DG",
     color = 2,
