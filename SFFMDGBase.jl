@@ -135,9 +135,9 @@ function vandermonde(; NBases::Int)
                 Jacobi.legendre.(Jacobi.zglj(NBases, 0, 0), NBases - 1) .^ 2
             )
     elseif NBases == 1
-        V .= [1]
+        V .= [1/sqrt(2)]
         DV .= [0]
-        w = [1]
+        w = [2]
     end
     return (V = V, inv = inv(V), D = DV, w = w)
 end
@@ -767,6 +767,9 @@ function Dist2Coeffs(;
     },
     Distn::NamedTuple{(:pm, :distribution, :x, :type)},
 )
+    # Distn.type == "probability" is an 1 × NIntervals × NPhases array where
+    # each element represents a (cell,phase) pair. i.e. each element is
+    # P(X(0) ∈ D_k, φ(0) = i )
     V = SFFM.vandermonde(NBases = Mesh.NBases)
     theDistribution =
         zeros(Float64, Mesh.NBases, Mesh.NIntervals, Model.NPhases)

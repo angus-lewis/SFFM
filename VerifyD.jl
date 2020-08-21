@@ -54,7 +54,7 @@ Nodes = collect(Bounds[1, 1]:Δ:Bounds[1, 2])
 #     "q1+" => trues(1),
 #     "q3+" => trues(1),
 # )
-NBases = 2
+NBases = 1
 Basis = "lagrange"
 Mesh = SFFM.MakeMesh(Model = Model, Nodes = Nodes, NBases = NBases, Basis=Basis)
 
