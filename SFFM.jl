@@ -6,6 +6,7 @@ include("SFFMPlots.jl")
 include("SimulateSFFM.jl")
 include("SFFMDGBase.jl")
 include("SFFMDGAdv.jl")
+include("SFFMDGpi.jl")
 
 # Fil = Dict{String,BitArray{1}}("1+" => Bool[1, 1, 0, 0, 0],
 #                                "2+" => Bool[0, 0, 1, 1, 1],

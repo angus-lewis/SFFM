@@ -66,10 +66,9 @@ function PlotSFM!(p;
                 subplot = i,
             )
         end
-        currYLims = Plots.ylims(p[i])
         yLimValues = (
-            min(yLimValues[1], currYLims[1]),
-            max(yLimValues[2], currYLims[2]).*1.1,
+            -0.01,
+            max(maximum(Dist.distribution[:, :, i][:]), maximum(y)) + 0.01,
         )
         p = Plots.plot!(ylims = yLimValues, subplot = i)
     end
@@ -94,7 +93,7 @@ function PlotSFM(;
     Dist::NamedTuple{(:pm, :distribution, :x, :type)},
     color = 1,
 )
-    p = Plots.plot(legend = false, layout = (Model.NPhases, 1))
+    p = Plots.plot(legend = false, layout = ((Model.NPhases+1)÷2, 2))
     p = SFFM.PlotSFM!(p;
         Model = Model,
         Mesh = Mesh,

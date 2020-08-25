@@ -14,7 +14,7 @@ approxModel = SFFM.MakeModel(T = T, C = C, r = r, Bounds = approxBounds)
 Δ = 0.4
 Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
 
-NBases = 1
+NBases = 2
 Basis = "lagrange"
 Mesh = SFFM.MakeMesh(
     Model = approxModel,
@@ -23,38 +23,38 @@ Mesh = SFFM.MakeMesh(
     Basis=Basis
 )
 
-## simulate
-# innerNSim = 10^2
-# NSim = 10^3*innerNSim
-#
-# using SharedArrays, Distributed
-# nprocs() < 5 && addprocs(5-nprocs())
-# @everywhere include("./SFFM.jl")
-# @everywhere include("./exampleModelDef.jl")
-#
-# simsOuter = SharedArray(zeros(NSim,5))
-# @time @sync @distributed for n in 1:(NSim÷innerNSim)
-#     IC = (
-#         φ = 3 .* ones(Int, innerNSim),
-#         X = 5 .* ones(innerNSim),
-#         Y = zeros(innerNSim)
-#     )
-#     simsInner = SFFM.SimSFFM(
-#         Model = simModel,
-#         StoppingTime = SFFM.FirstExitY(u = 0, v = Inf),
-#         InitCondition = IC,
-#     )
-#     simsOuter[1+(n-1)*innerNSim:n*innerNSim,:] =
-#         [simsInner.t simsInner.φ simsInner.X simsInner.Y simsInner.n]
-# end
-#
-# sims = (
-#     t = simsOuter[:,1],
-#     φ = simsOuter[:,2],
-#     X = simsOuter[:,3],
-#     Y = simsOuter[:,4],
-#     n = simsOuter[:,5],
-# )
+## simulate Ψ paths
+innerNSim = 10^2
+NSim = 10^2*innerNSim
+
+using SharedArrays, Distributed
+nprocs() < 5 && addprocs(5-nprocs())
+@everywhere include("./SFFM.jl")
+@everywhere include("./exampleModelDef.jl")
+
+simsOuter = SharedArray(zeros(NSim,5))
+@time @sync @distributed for n in 1:(NSim÷innerNSim)
+    IC = (
+        φ = 3 .* ones(Int, innerNSim),
+        X = 5 .* ones(innerNSim),
+        Y = zeros(innerNSim)
+    )
+    simsInner = SFFM.SimSFFM(
+        Model = simModel,
+        StoppingTime = SFFM.FirstExitY(u = 0, v = Inf),
+        InitCondition = IC,
+    )
+    simsOuter[1+(n-1)*innerNSim:n*innerNSim,:] =
+        [simsInner.t simsInner.φ simsInner.X simsInner.Y simsInner.n]
+end
+
+sims = (
+    t = simsOuter[:,1],
+    φ = simsOuter[:,2],
+    X = simsOuter[:,3],
+    Y = simsOuter[:,4],
+    n = simsOuter[:,5],
+)
 # Profile.clear()
 # @profiler SFFM.SimSFFM(
 #     Model = simModel,
@@ -145,10 +145,11 @@ q = SFFM.PlotSFM(Model=approxModel,Mesh=Mesh,
         type="density",
     ),
 )
-q = SFFM.PlotSFM(Model=approxModel,Mesh=Mesh,
-    Dist=simprobs, #SFFM.Sims2Dist(Model=simModel,Mesh=Mesh,sims=sims,type="probability"),
+q = SFFM.PlotSFM!(q,Model=approxModel,Mesh=Mesh,
+    Dist=SFFM.Sims2Dist(Model=simModel,Mesh=Mesh,sims=sims,type="density"),
     color=2,
 )
+
 # p1 = SFFM.PlotSFM(Model=approxModel,Mesh=Mesh,Dist=DGcumprobs)
 # p1 = SFFM.PlotSFM!(p1;Model=approxModel,Mesh=Mesh,Dist=cumprobs,color=2)
 
@@ -198,4 +199,73 @@ p3 = plot!(
     label = "DG",
     color = 2,
     xlims = (0,1.6),
+)
+
+## section 4.3
+ξ = SFFM.MakeXi(B=All.B.BDict, Ψ = Ψ)
+
+marginalX, p, integralPibullet, integralPi0, K = SFFM.MakeLimitDistMatrices(;
+    B=All.B.BDict,
+    D=All.D,
+    R=All.R.RDict,
+    Ψ=Ψ,
+    ξ=ξ,
+    Mesh=Mesh,
+)
+
+q = SFFM.PlotSFM(Model=approxModel,Mesh=Mesh,
+    Dist = SFFM.Coeffs2Dist(
+        Model = approxModel,
+        Mesh = Mesh,
+        Coeffs = marginalX,
+        type="density",
+    ),
+)
+
+## simulate stationary distribution
+# innerNSim = 10^2
+# NSim = 5*10^2*innerNSim
+#
+# using SharedArrays, Distributed
+# nprocs() < 5 && addprocs(5-nprocs())
+# @everywhere include("./SFFM.jl")
+# @everywhere include("./exampleModelDef.jl")
+#
+# piφ = cumsum(eigen(Matrix(T')).vectors[:,end])
+# piφ = piφ ./ piφ[end]
+# dominantEigvalOfPiX = eigen(T*inv(diagm(C))).values[2]
+#
+# simsOuter = SharedArray(zeros(NSim,4))
+# @time @sync @distributed for n in 1:(NSim÷innerNSim)
+#     IC = (
+#         φ = 5 .- sum(rand(innerNSim) .< piφ', dims=2),
+#         X = log.(rand(innerNSim)) / dominantEigvalOfPiX,
+#     )
+#     simsInner = SFFM.SimSFM(
+#         Model = simModel,
+#         StoppingTime = SFFM.FixedTime(T=20000),
+#         InitCondition = IC,
+#     )
+#     simsOuter[1+(n-1)*innerNSim:n*innerNSim,:] =
+#         [simsInner.t simsInner.φ simsInner.X simsInner.n]
+# end
+#
+# sims = (
+#     t = simsOuter[:,1],
+#     φ = simsOuter[:,2],
+#     X = simsOuter[:,3],
+#     n = simsOuter[:,4],
+# )
+# Profile.clear()
+# @profiler SFFM.SimSFFM(
+#     Model = simModel,
+#     StoppingTime = SFFM.FirstExitY(u = 0, v = Inf),
+#     InitCondition = IC,
+# )
+
+simprobs = SFFM.Sims2Dist(Model=simModel,Mesh=Mesh,sims=sims,type="density")
+
+q = SFFM.PlotSFM!(q,Model=simModel,Mesh=Mesh,
+    Dist=simprobs,
+    color=2,
 )

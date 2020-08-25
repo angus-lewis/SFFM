@@ -101,7 +101,7 @@ end
 
 function UpdateXt(;
     Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
-    SFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
+    SFM0::NamedTuple,
     S::Real,
 )
     # given the last position of a SFM, SFM0, a time step of size s, find the
@@ -319,7 +319,7 @@ function Sims2Dist(;
             :Basis,
         ),
     },
-    sims::NamedTuple{(:t, :φ, :X, :Y, :n)},
+    sims::NamedTuple,
     type::String = "density",
 )
 
@@ -346,10 +346,7 @@ function Sims2Dist(;
             xvals = Mesh.CellNodes[1, :] + Mesh.Δ / 2
         elseif type == "density"
             if Model.Bounds[1, end] == Inf
-                U = KernelDensity.kde(
-                    data,
-                    boundary = (Model.Bounds[1, 1], 1/eps()),
-                )
+                U = KernelDensity.kde(data)
             else
                 U = KernelDensity.kde(
                     data,
