@@ -1,5 +1,5 @@
 function SimSFM(;
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     StoppingTime::Function,
     InitCondition::NamedTuple{(:φ, :X)},
 )
@@ -49,7 +49,7 @@ function SimSFM(;
 end
 
 function SimSFFM(;
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     StoppingTime::Function,
     InitCondition::NamedTuple{(:φ, :X, :Y)},
 )
@@ -100,7 +100,7 @@ function SimSFFM(;
 end
 
 function UpdateXt(;
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     SFM0::NamedTuple,
     S::Real,
 )
@@ -114,7 +114,7 @@ function UpdateXt(;
 end
 
 function UpdateYt(;
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     S::Real,
 )
@@ -147,7 +147,7 @@ function FixedTime(; T::Real)
     # Defines a simple stopping time, 1(t>T).
     # SFM method
     function FixedTimeFun(
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
         SFM::NamedTuple{(:t, :φ, :X, :n)},
         SFM0::NamedTuple{(:t, :φ, :X, :n)},
     )
@@ -161,7 +161,7 @@ function FixedTime(; T::Real)
     end
     # SFFM METHOD
     function FixedTimeFun(
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
         SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )
@@ -181,7 +181,7 @@ function NJumps(; N::Int)
     # Defines a simple stopping time, 1(n>N), where n is the number of jumps of φ.
     # SFM method
     function NJumpsFun(
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
         SFM::NamedTuple{(:t, :φ, :X, :n)},
         SFM0::NamedTuple{(:t, :φ, :X, :n)},
     )
@@ -190,7 +190,7 @@ function NJumps(; N::Int)
     end
     # SFFM method
     function NJumpsFun(
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
         SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )
@@ -213,7 +213,7 @@ function FirstExitX(; u::Real, v::Real)
 
     # SFM Method
     function FirstExitXFun(
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
         SFM::NamedTuple{(:t, :φ, :X, :n)},
         SFM0::NamedTuple{(:t, :φ, :X, :n)},
     )
@@ -232,7 +232,7 @@ function FirstExitX(; u::Real, v::Real)
     end
     # SFFM Method
     function FirstExitXFun(
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
         SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )
@@ -266,7 +266,7 @@ function FirstExitY(; u::Real, v::Real) #InOutYLevel(; y::Real)
 
     # SFFM Method
     function FirstExitYFun(
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
         SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )
@@ -306,7 +306,7 @@ function fzero(; f::Function, a::Real, b::Real, err::Float64 = 1e-8)
 end
 
 function Sims2Dist(;
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     Mesh::NamedTuple{
         (
             :NBases,

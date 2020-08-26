@@ -7,11 +7,7 @@ include("SimulateSFFM.jl")
 include("SFFMDGBase.jl")
 include("SFFMDGAdv.jl")
 include("SFFMDGpi.jl")
-
-# Fil = Dict{String,BitArray{1}}("1+" => Bool[1, 1, 0, 0, 0],
-#                                "2+" => Bool[0, 0, 1, 1, 1],
-#                                "2-" => Bool[1, 1, 0, 0, 0],
-#                                "1-" => Bool[0, 0, 1, 1, 1])
+include("SFM.jl")
 
 function MyPrint(Obj)
     show(stdout, "text/plain", Obj)
@@ -36,12 +32,33 @@ function MakeModel(;
     a(x) = abs.(r.r(x))
     r = (r = r.r, R = r.R, a = a)
     NPhases = length(C)
-    println("Model.Field with Fields (.T, .C, .r, .Bounds, .NPhases)")
-    return (T = T, C = C, r = r, Bounds = Bounds, NPhases = NPhases)
+
+    SDict = Dict{String,Array}("S" => 1:NPhases)
+    SDict["+"] = findall(C .> 0)
+    SDict["-"] = findall(C .< 0)
+    SDict["0"] = findall(C .== 0)
+    SDict["bullet"] = findall(C .!= 0)
+
+    TDict = Dict{String,Array}("T" => T)
+    for ℓ in ["+" "-" "0" "bullet"], m in ["+" "-" "0" "bullet"]
+        TDict[ℓ*m] = T[SDict[ℓ], SDict[m]]
+    end
+
+    Model = (
+        T = T,
+        C = C,
+        r = r,
+        Bounds = Bounds,
+        NPhases = NPhases,
+        SDict = SDict,
+        TDict = TDict,
+    )
+    println("Model object created with fields ", keys(Model))
+    return Model
 end
 
 function MakeAll(;
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     Mesh::NamedTuple{
         (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
     },

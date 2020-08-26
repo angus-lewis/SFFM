@@ -1,5 +1,5 @@
 function MakeBlockDiagonalMatrixR(;
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     Mesh::NamedTuple{
         (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
     },
@@ -32,7 +32,7 @@ function MakeFluxMatrixR(;
     Mesh::NamedTuple{
         (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
     },
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     Phi,
 )
     # MakeFluxMatrix creates the global block tridiagonal flux matrix for the
@@ -85,7 +85,7 @@ function MakeFluxMatrixR(;
 end
 
 function MakeMatricesR(;
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     Mesh::NamedTuple{
         (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
     },
@@ -197,7 +197,7 @@ end
 function MakeDR(;
     Matrices,
     MatricesR,
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     Mesh::NamedTuple{
         (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
     },

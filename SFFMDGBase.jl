@@ -1,5 +1,5 @@
 function MakeMesh(;
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     Nodes::Array{Float64,1},
     NBases::Int,
     Fil::Dict{String,BitArray{1}}=Dict{String,BitArray{1}}(),
@@ -189,7 +189,7 @@ function MakeFluxMatrix(;
             :Basis,
         ),
     },
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     Phi,
     Dw,
 )
@@ -243,7 +243,7 @@ function MakeFluxMatrix(;
 end
 
 function MakeMatrices(;
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     Mesh::NamedTuple{
         (
             :NBases,
@@ -329,7 +329,7 @@ function MakeMatrices(;
 end
 
 function MakeB(;
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     Mesh::NamedTuple{
         (
             :NBases,
@@ -391,7 +391,7 @@ function MakeB(;
     idxup = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .> 0) .- 1)')[:] .+ N₋
     B[1:N₋, idxup] = kron(
         Model.T[Model.C.<=0, Model.C.>0],
-        Matrices.Local.Phi[1, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv ./ η[1],
+        Matrices.Local.Phi[1, :]' * Matrices.Local.MInv * Matrices.Local.Dw.Dw ./ η[1],
     )
     # Into boundary
     idxdown = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .<= 0) .- 1)')[:] .+ N₋
@@ -409,7 +409,7 @@ function MakeB(;
         (N₋ + Mesh.TotalNBases - Mesh.NBases)
     B[(end-N₊+1):end, idxdown] = kron(
         Model.T[Model.C.>=0, Model.C.<0],
-        Matrices.Local.Phi[end, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv ./ η[1],
+        Matrices.Local.Phi[end, :]' * Matrices.Local.MInv * Matrices.Local.Dw.Dw  ./ η[1],
     )
     # Into boundary
     idxup =
@@ -482,7 +482,7 @@ function MakeB(;
 end
 
 function MakeR(;
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     Mesh::NamedTuple{
         (
             :NBases,
@@ -585,7 +585,7 @@ end
 function MakeD(;
     R,
     B,
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     Mesh::NamedTuple{
         (
             :NBases,
@@ -697,7 +697,7 @@ function EulerDG(;
 end
 
 function Coeffs2Dist(;
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     Mesh::NamedTuple{
         (
             :NBases,
@@ -752,7 +752,7 @@ function Coeffs2Dist(;
 end
 
 function Dist2Coeffs(;
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases)},
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     Mesh::NamedTuple{
         (
             :NBases,

@@ -14,7 +14,7 @@ function MakeXi(;
     invB₋₋ = inv(B["--"] - B["-0"]*tempMat*B["0-"])
     invB₋₀ = -invB₋₋*B["-0"]*tempMat
 
-    A = -(invB₋₋*B["-+"]*Ψ + invB₋₀*B["0+"]*Ψ-LinearAlgebra.I)
+    A = -(invB₋₋*B["-+"]*Ψ + invB₋₀*B["0+"]*Ψ + LinearAlgebra.I)
     b = zeros(1,size(B["--"],1))
 
     A[:,1] .= 1.0 # normalisation conditions
