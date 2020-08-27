@@ -61,9 +61,9 @@ function MakeLimitDistMatrices(;
     idx₊ = [Mesh.Fil["p+"]; repeat(Mesh.Fil["+"]', Mesh.NBases, 1)[:]; Mesh.Fil["q+"]]
     marginalX[idx₊] = integralPibullet[1:n₊]
     idx₋ = [Mesh.Fil["p-"]; repeat(Mesh.Fil["-"]', Mesh.NBases, 1)[:]; Mesh.Fil["q-"]]
-    marginalX[idx₋] = integralPibullet[(n₊+1):end]
+    marginalX[idx₋] = integralPibullet[(n₊+1):end] + p[1:n₋]
     idx₀ = [Mesh.Fil["p0"]; repeat(Mesh.Fil["0"]', Mesh.NBases, 1)[:]; Mesh.Fil["q0"]]
-    marginalX[idx₀] = integralPi0
+    marginalX[idx₀] = integralPi0[:] + p[(n₋+1):end]
 
     return marginalX, p, integralPibullet, integralPi0, K
 end

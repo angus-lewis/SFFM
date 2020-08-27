@@ -1,5 +1,5 @@
 # Toy model from paper
-include("./SFFM.jl")
+include("../src/SFFM.jl")
 using LinearAlgebra
 
 ## Define the model

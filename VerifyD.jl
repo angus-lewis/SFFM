@@ -1,4 +1,4 @@
-include("./SFFM.jl")
+include("./src/SFFM.jl")
 using Plots, LinearAlgebra, KernelDensity, StatsBase
 
 ## Define the model

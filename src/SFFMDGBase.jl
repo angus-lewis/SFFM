@@ -1,4 +1,3 @@
-
 function MakeMesh(;
     Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     Nodes::Array{Float64,1},
@@ -752,6 +751,31 @@ function Coeffs2Dist(;
             )
             pm = [Coeffs[1:N₋]; Coeffs[end-N₊+1:end]]
         end
+    elseif type == "cumulative"
+        if Mesh.NBases > 1
+            xvals = Mesh.CellNodes[[1;end], :]
+        else
+            xvals = [Mesh.CellNodes-Mesh.Δ'/2;Mesh.CellNodes+Mesh.Δ'/2]
+        end
+        if Mesh.Basis == "legendre"
+            tempDist = (reshape(Coeffs[N₋+1:Mesh.NBases:end-N₊], 1, Mesh.NIntervals, Model.NPhases).*Mesh.Δ')./sqrt(2)
+            pm = [Coeffs[1:N₊]; Coeffs[end-N₊+1:end]]
+        elseif Mesh.Basis == "lagrange"
+            tempDist = sum(
+                reshape(Coeffs[N₋+1:end-N₊], Mesh.NBases, Mesh.NIntervals, Model.NPhases),
+                dims = 1,
+            )
+            pm = [Coeffs[1:N₋]; Coeffs[end-N₊+1:end]]
+        end
+        tempDist = cumsum(tempDist,dims=2)
+        temppm = zeros(Float64,1,2,Model.NPhases)
+        temppm[:,1,Model.C.<=0] = pm[1:N₋]
+        temppm[:,2,Model.C.>=0] = pm[N₊+1:end]
+        yvals = zeros(Float64,2,Mesh.NIntervals,Model.NPhases)
+        yvals[1,2:end,:] = tempDist[1,1:end-1,:]
+        yvals[2,:,:] = tempDist
+        yvals = yvals .+ reshape(temppm[1,1,:],1,1,Model.NPhases)
+        pm[N₋+1:end] = pm[N₋+1:end] + yvals[end,end,Model.C.>=0]
     end
     return (pm=pm, distribution=yvals, x=xvals, type=type)
 end

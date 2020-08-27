@@ -82,12 +82,25 @@ function StationaryDistributionX(; Model::NamedTuple, Ψ::Array, ξ::Array)
     α = sum(αpₓ) + sum(απₓ) + sum(απₓ0)
 
     pₓ = αpₓ/α
-    πₓ(x) = pₓ *
+    function πₓ(x::Real)
+        pₓ *
         [Model.TDict["-+"]; Model.TDict["0+"]] *
         exp(K*x) *
         [LinearAlgebra.I(length(Model.SDict["+"])) Ψ] *
         LinearAlgebra.diagm(1 ./ abs.(Model.C[Model.SDict["bullet"]])) *
         [LinearAlgebra.I(sum(Model.C .!= 0)) [Model.TDict["+0"];Model.TDict["-0"]] * T00inv]
+    end
+
+    function πₓ(x::Array)
+        temp = πₓ.(x)
+        Evalπₓ = zeros(Float64, size(x,1), size(x,2), Model.NPhases)
+        for cell in 1:size(x,2)
+            for basis in 1:size(x,1)
+                Evalπₓ[basis,cell,:] = temp[basis,cell]
+            end
+        end
+        return Evalπₓ
+    end
 
     return pₓ, πₓ, K
 end

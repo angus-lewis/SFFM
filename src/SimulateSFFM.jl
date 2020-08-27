@@ -327,6 +327,8 @@ function Sims2Dist(;
         distribution = zeros(Float64, Mesh.NBases, Mesh.NIntervals, Model.NPhases)
     elseif type == "probability"
         distribution = zeros(Float64, 1, Mesh.NIntervals, Model.NPhases)
+    elseif type == "cumulative"
+        distribution = zeros(Float64, 2, Mesh.NIntervals, Model.NPhases)
     end
     pm = zeros(Float64, sum(Model.C .<= 0) + sum(Model.C .>= 0))
     pc = 0
@@ -345,20 +347,32 @@ function Sims2Dist(;
             distribution[:, :, i] = h
             xvals = Mesh.CellNodes[1, :] + Mesh.Δ / 2
         elseif type == "density"
-            if Model.Bounds[1, end] == Inf
-                U = KernelDensity.kde(data)
-            else
-                U = KernelDensity.kde(
-                    data,
-                    boundary = (Model.Bounds[1, 1], Model.Bounds[1, end]),
-                )
+            if length(data)!=0
+                if Model.Bounds[1, end] == Inf
+                    U = KernelDensity.kde(data)
+                else
+                    U = KernelDensity.kde(
+                        data,
+                        boundary = (Model.Bounds[1, 1], Model.Bounds[1, end]),
+                    )
+                end
+                distribution[:, :, i] =
+                    reshape(
+                        KernelDensity.pdf(U, Mesh.CellNodes[:])',
+                        Mesh.NBases,
+                        Mesh.NIntervals,
+                    ) * totalprob
             end
-            distribution[:, :, i] =
-                reshape(
-                    KernelDensity.pdf(U, Mesh.CellNodes[:])',
-                    Mesh.NBases,
-                    Mesh.NIntervals,
-                ) * totalprob
+        elseif type == "cumulative"
+            if length(data)!=0
+                h = StatsBase.fit(StatsBase.Histogram, data, Mesh.Nodes)
+                tempDist = h.weights ./ sum(h.weights) * totalprob
+                tempDist = cumsum(tempDist)
+                distribution[1, 2:end, i] = tempDist[1:end-1]
+                distribution[2, :, i] = tempDist
+
+                xvals = Mesh.CellNodes[[1;end], :]
+            end
         end
 
         if Model.C[i] <= 0
@@ -366,12 +380,19 @@ function Sims2Dist(;
             whichsims = (sims.φ .== i) .& (sims.X .== Model.Bounds[1, 1])
             p = sum(whichsims) / length(sims.φ)
             pm[pc] = p
+            if type == "cumulative"
+                distribution[:,:,i] = distribution[:,:,i] .+ pm[pc]
+            end
         end
         if Model.C[i] >= 0
             qc = qc + 1
             whichsims = (sims.φ .== i) .& (sims.X .== Model.Bounds[1, end])
             p = sum(whichsims) / length(sims.φ)
-            pm[sum(Model.C .<= 0)+qc] = p
+            if type == "cumulative"
+                pm[sum(Model.C .<= 0)+qc] = p + distribution[end,end,i]
+            else
+                pm[sum(Model.C .<= 0)+qc] = p
+            end
         end
     end
     if type == "density" && Mesh.NBases == 1
