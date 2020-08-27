@@ -2,7 +2,7 @@ include("./SFFM.jl")
 using LinearAlgebra, Plots
 
 ## define the model(s)
-include("./exampleModelDef.jl")
+include("./example3ModelDef.jl")
 
 simBounds = [0 Inf; -Inf Inf] # bounds for simulation only
 simModel = SFFM.MakeModel(T = T, C = C, r = r, Bounds = simBounds)
@@ -11,7 +11,7 @@ approxBounds = [0 16; -Inf Inf] # bounds for approximation only
 approxModel = SFFM.MakeModel(T = T, C = C, r = r, Bounds = approxBounds)
 
 ## mesh
-Δ = 0.4
+Δ = 1
 Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
 
 NBases = 2
@@ -226,19 +226,24 @@ q = SFFM.PlotSFM(Model=approxModel,Mesh=Mesh,
 )
 
 ## analytic version for comparison
-Ψₓ = SFFM.PsiFunX(Model=simModel)
-ξₓ = SFFM.MakeXiX(Model=simModel, Ψ=Ψₓ)
-pₓ, πₓ, Kₓ = SFFM.StationaryDistributionX(Model=simModel, Ψ=Ψₓ, ξ=ξₓ)
+Ψₓ = SFFM.PsiFunX(Model=approxModel)
+ξₓ = SFFM.MakeXiX(Model=approxModel, Ψ=Ψₓ)
+pₓ, πₓ, Kₓ = SFFM.StationaryDistributionX(Model=approxModel, Ψ=Ψₓ, ξ=ξₓ)
 
 temp = πₓ.(Mesh.CellNodes)
-Evalπₓ = zeros(Float64, Mesh.NBases, Mesh.NIntervals, simModel.NPhases)
+Evalπₓ = zeros(Float64, Mesh.NBases, Mesh.NIntervals, approxModel.NPhases)
 for cell in 1:Mesh.NIntervals
     for basis in 1:Mesh.NBases
-        Evalπₓ[basis,cell,:] = temp[basis,cell]
+        Evalπₓ[basis,cell,:] = temp[basis,cell]*Mesh.Δ[cell]
     end
 end
 
-analyticX = (pm = [pₓ[:];0;0], distribution = Evalπₓ, x = Mesh.CellNodes, type = "density")
+analyticX = (
+    pm = [pₓ[:];0;0],
+    distribution = Evalπₓ,
+    x = Mesh.CellNodes,
+    type = "density"
+)
 q = SFFM.PlotSFM!(q;
     Model=approxModel,
     Mesh=Mesh,
@@ -246,10 +251,11 @@ q = SFFM.PlotSFM!(q;
     color = 2,
 )
 
-Q = All.B.B
+## eigenvalue problem for π
+Q = copy(All.B.B)
 Q[:,1] .= 1
 
-b = zeros(1,324)
+b = zeros(1,size(Q,1))
 b[1] = 1
 
 w = b/Q
@@ -262,8 +268,8 @@ eigDist = SFFM.Coeffs2Dist(
 )
 
 q = SFFM.PlotSFM!(q;
-    Model=approxModel,
-    Mesh=Mesh,
+    Model = approxModel,
+    Mesh = Mesh,
     Dist = eigDist,
     color = 3,
 )

@@ -10,6 +10,7 @@ function MakeXi(;
     # solve the linear system -[ξ 0] [Bmm Bm0; B₀₋ B00]^-1 [B₋₊; B₀₊]Ψ = ξ
     # writing out the system it turns out we only need the index -- and -0
     # blocks of the inverse. Wikipedia tells us that these are
+
     tempMat = inv(Matrix(B["00"]))
     invBmm = inv(B["--"] - B["-0"]*tempMat*B["0-"])
     invBm0 = -invBmm*B["-0"]*tempMat
@@ -46,10 +47,8 @@ function MakeLimitDistMatrices(;
     n₋ = size(B["-+"],1)
 
     BBulletPlus = [B["-+"]; B["0+"]]
-    z₊₋ = SparseArrays.spzeros(Float64, n₊, n₋)
-    RBullet = [R["+"] z₊₋; z₊₋' R["-"]]
 
-    αintegralPibullet = ((αp * BBulletPlus) / -K) * [LinearAlgebra.I(n₊) Ψ] * RBullet
+    αintegralPibullet = ((αp * BBulletPlus) / -K) * [R["+"] Ψ*R["-"]]
     αintegralPi0 = -αintegralPibullet * [B["+0"]; B["-0"]] * B00inv
 
     α = sum(αintegralPibullet) + sum(αintegralPi0) + sum(αp)

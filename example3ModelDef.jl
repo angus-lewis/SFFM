@@ -8,10 +8,10 @@ T = [
 C = [1.0; -3.0]
 
 r₁(x) = 1.0 .* ones(Float64,size(x))
-r₂(x) = -3.0 .* ones(Float64,size(x))
+r₂(x) = -4.0 .* ones(Float64,size(x))
 
-R₁(x) = x .* ones(Float64,size(x))
-R₂(x) = -x .* ones(Float64,size(x))
+R₁(x) = x .* r₁(x)
+R₂(x) = x .* r₂(x)
 
 r = (
     r = function (x)

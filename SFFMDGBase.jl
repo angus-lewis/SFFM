@@ -1,3 +1,4 @@
+
 function MakeMesh(;
     Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     Nodes::Array{Float64,1},
@@ -736,7 +737,11 @@ function Coeffs2Dist(;
             xvals = [Mesh.CellNodes-Mesh.Δ'/2;Mesh.CellNodes+Mesh.Δ'/2]
         end
     elseif type == "probability"
-        xvals = Mesh.CellNodes[1, :] + (Mesh.Δ ./ 2)
+        if Mesh.NBases > 1
+            xvals = Mesh.CellNodes[1, :] + (Mesh.Δ ./ 2)
+        else
+            xvals = Mesh.CellNodes
+        end
         if Mesh.Basis == "legendre"
             yvals = (reshape(Coeffs[N₋+1:Mesh.NBases:end-N₊], 1, Mesh.NIntervals, Model.NPhases).*Mesh.Δ')./sqrt(2)
             pm = [Coeffs[1:N₊]; Coeffs[end-N₊+1:end]]
