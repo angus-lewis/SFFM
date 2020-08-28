@@ -13,22 +13,52 @@ function MyPrint(Obj)
     show(stdout, "text/plain", Obj)
 end
 
+"""
+Construct a SFFM model object.
+
+    MakeModel(;
+        T::Array{Float64,2},
+        C::Array{Float64,1},
+        r::NamedTuple{(:r, :R)},
+        Bounds::Array{<:Real,2} = [-Inf Inf; -Inf Inf],
+    )
+
+# Arguments
+- `T::Array{Float64,2}`: generator matrix for the CTMC ``φ(t)``
+- `C::Array{Float64,1}`: vector of rates ``d/dt X(t)=C[i]`` for ``i=φ(t)``.
+- `r::NamedTuple{(:r, :R)}`: rates for the second fluid.
+    - `:r(x::Array{Real})`, a function  which takes arrays of x-values and
+        returns a row vector of values for each x-value. i.e. `:r([0;1])`
+        returns a `2×NPhases` array where the first row contains all the
+        ``rᵢ(0)`` and row 2 all the ``rᵢ(1)`` values.
+    - `:R(x::Array{Real})`: has the same structure/behaviour as ``:r`` but
+        returns the integral of ``:r``. i.e. `Rᵢ(x)=∫ˣrᵢ(x)`.
+- `Bounds::Array{<:Real,2}`: contains the bounds for the model. The first row
+    are the L and R bounds for ``X(t)`` and the second row the bounds for
+    ``Y(t)`` (although the bounds for ``Y(t)`` don't actually do anything yet).
+
+# Outputs
+- a model object which is a tuple with fields
+    - `:T`: as input
+    - `:C`: as input
+    - `:r`: a named tuple with fields `(:r, :R, :a)`, `:r` and `:R` are as input
+        and `:a = abs.(:r)` returns the absolute values of the rates.
+    - `Bounds`: as input
+    - `NPhases::Int`: the number of states in the state space
+    - `SDict::Dict{String,Array}`: a dictionary with keys `"+","-","0","bullet"`
+        and corresponding values `findall(C .> 0)`, `findall(C .< 0)`,
+        `findall(C .== 0)`, `findall(C .!= 0)`, respectively.
+    - `TDict::Dict{String,Array}`: a dictionary of submatrices of `T` with keys
+        `"ℓm"` with ``ℓ,m∈{+,-,0,bullet}`` and corresponding values
+        `T[S[ℓ],S[m]]`.
+)
+"""
 function MakeModel(;
-    T::Array{Float64},
+    T::Array{Float64,2},
     C::Array{Float64,1},
     r::NamedTuple{(:r, :R)},
     Bounds::Array{<:Real,2} = [-Inf Inf; -Inf Inf],
 )
-    # Make a 'Model' object which carries all the info we need to
-    # know about the SFFM.
-    # T - n×n Array{Float64}, a generator matrix of φ(t)
-    # C - n×1 Array{Float64}, rates of the first fluid
-    # Signs - n×1 Array{String}, the m∈{"+","-","0"} where Fᵢᵐ≂̸∅
-    # r - array of rates for the second fluid,
-    #     functions r(x) = [r₁(x) r₂(x) ... r_n(x)], where x is a column vector
-    #
-    # output is a NamedTuple with fields
-    #                         .T, .C, .r, .Bounds, .NPhases
     a(x) = abs.(r.r(x))
     r = (r = r.r, R = r.R, a = a)
     NPhases = length(C)
@@ -53,10 +83,36 @@ function MakeModel(;
         SDict = SDict,
         TDict = TDict,
     )
-    println("Model object created with fields ", keys(Model))
+    println("UPDATE: Model object created with fields ", keys(Model))
     return Model
 end
 
+"""
+Construct all the DG operators.
+
+    MakeAll(;
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        Mesh::NamedTuple{
+            (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
+        },
+        approxType::String = "projection"
+    )
+
+# Arguments
+- `Model`: a model object as output from MakeModel
+- `Mesh`: a mesh object as output from MakeMesh
+- `approxType::String`: (optional) argument specifying how to approximate R (in
+    `MakeR()`)
+
+
+# Output
+- a tuple with keys
+    - `Matrices`: see `MakeMatrices`
+    - `MatricesR`: see `MakeMatricesR`
+    - `B`: see `MakeB`
+    - `D`: see `MakeD`
+    - `DR`: see `MakeDR`
+"""
 function MakeAll(;
     Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     Mesh::NamedTuple{
@@ -80,4 +136,4 @@ function MakeAll(;
     return (Matrices = Matrices, MatricesR = MatricesR, B = B, R = R, D = D, DR = DR)
 end
 
-end # end module
+end

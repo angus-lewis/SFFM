@@ -1,3 +1,31 @@
+"""
+Add to a figure a plot of a SFM distribution.
+
+    PlotSFM!(p;
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        Mesh::NamedTuple{
+            (
+                :NBases,
+                :CellNodes,
+                :Fil,
+                :Δ,
+                :NIntervals,
+                :Nodes,
+                :TotalNBases,
+                :Basis,
+            ),
+        },
+        Dist::NamedTuple{(:pm, :distribution, :x, :type)},
+        color = 1,
+    )
+
+# Arguments
+- `p::Plots.Plot{Plots.GRBackend}`: a plot object as initialised by `PlotSFM()`
+- `Model`: A model tuple from `MakeModel`
+- `Mesh`: A Mesh tuple from `MakeMesh`
+- `Dist`: A distribution object as output from `Coeff2Dist` or `Sims2Dist`
+- `color`: (optional) a colour specifier for the plot
+"""
 function PlotSFM!(p;
     Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     Mesh::NamedTuple{
@@ -76,6 +104,37 @@ function PlotSFM!(p;
     return p
 end # end PlotSFM!
 
+"""
+Initialise and plot a SFM distribution.
+
+    PlotSFM(
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        Mesh::NamedTuple{
+            (
+                :NBases,
+                :CellNodes,
+                :Fil,
+                :Δ,
+                :NIntervals,
+                :Nodes,
+                :TotalNBases,
+                :Basis,
+            ),
+        },
+        Dist::NamedTuple{(:pm, :distribution, :x, :type)},
+        color = 1,
+    )
+
+# Arguments
+- `Model`: A model tuple from `MakeModel`
+- `Mesh`: A Mesh tuple from `MakeMesh`
+- `Dist`: A distribution object as output from `Coeff2Dist` or `Sims2Dist`
+- `color`: (optional) a colour specifier for the plot
+
+# Output
+- a plot object of type `Plots.Plot{Plots.GRBackend}` with `NPhases` subplots
+    containing a plot of the distribution for each phase.
+"""
 function PlotSFM(;
     Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     Mesh::NamedTuple{

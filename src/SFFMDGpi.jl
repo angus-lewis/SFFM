@@ -1,6 +1,23 @@
+"""
+Returns the DG approximation to the return probabilities ``ξ`` for the process
+``Y(t)``.
+NOTE: IMPLEMENTED FOR LAGRANGE BASIS ONLY
+
+    MakeXi(;
+        B::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
+        Ψ::Array,
+    )
+
+# Arguments
+- `B`: an object as returned by `MakeB`
+- `Ψ::Array{Float64,2}`: an array as returned by `PsiFun`
+
+# Output
+- `ξ::Array{Float64,2}`: a row-vector of first return probabilities
+"""
 function MakeXi(;
     B::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
-    Ψ::Array,
+    Ψ::Array{Float64,2},
 )
     # BBullet = [B["--"] B["-0"]; B["0-"] B["00"]]
     # invB = inv(Matrix(Bbullet))
@@ -26,7 +43,37 @@ function MakeXi(;
     return ξ
 end
 
+"""
+Returns the DG approximation to some quantities regarding the limiting
+distribution of a SFFM. See Ouput below
+NOTE: IMPLEMENTED FOR LAGRANGE BASIS ONLY
 
+    MakeLimitDistMatrices(;
+        B::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
+        D::Dict{String,Any},
+        R::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
+        Ψ::Array{<:Real},
+        ξ::Array{<:Real},
+        Mesh,
+    )
+
+# Arguments
+- `B`: an object as returned by `MakeB`
+- `D`: an object as returned by `MakeD`
+- `R`: an object as returned by `MakeR`
+- `Ψ::Array{Float64,2}`: an array as returned by `PsiFun`
+- `ξ::Array{Float64,2}`: an row-vector as returned by `XiFun`
+
+# Output
+marginalX, p, K
+- `marginalX::Array{Float64,2}`: a row-vector of the marginal limiting
+    distribution of the first buffer ``X(t)``.
+- `p::Array{Float64,2}`: a row-vector of the distribution of ``X(t)`` at the
+    times of first return of ``Y(t)`` to 0.
+- `K::Array{Float64,2}`: the array in the operator exponential of the stationary
+    distribution
+
+"""
 function MakeLimitDistMatrices(;
     B::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
     D::Dict{String,Any},
@@ -65,5 +112,5 @@ function MakeLimitDistMatrices(;
     idx₀ = [Mesh.Fil["p0"]; repeat(Mesh.Fil["0"]', Mesh.NBases, 1)[:]; Mesh.Fil["q0"]]
     marginalX[idx₀] = integralPi0[:] + p[(n₋+1):end]
 
-    return marginalX, p, integralPibullet, integralPi0, K
+    return marginalX, p, K
 end

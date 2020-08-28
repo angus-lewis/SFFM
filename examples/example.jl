@@ -161,7 +161,7 @@ p4 = plot!(p4,
 # the distribution of X when Y first returns to 0
 ξ = SFFM.MakeXi(B=All.B.BDict, Ψ = Ψ)
 
-marginalX, p, integralPibullet, integralPi0, K = SFFM.MakeLimitDistMatrices(;
+marginalX, p, K = SFFM.MakeLimitDistMatrices(;
     B = All.B.BDict,
     D = All.D,
     R = All.R.RDict,

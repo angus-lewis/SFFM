@@ -1,21 +1,47 @@
+"""
+Simulates a SFM defined by `Model` until the `StoppingTime` has occured,
+given the `InitialCondition` on (φ(0),X(0)).
+
+    SimSFM(;
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        StoppingTime::Function,
+        InitCondition::NamedTuple{(:φ, :X)},
+    )
+
+# Arguments
+- `Model`: A Model object as output from `MakeModel`
+- `StoppingTime`: A function which takes the value of the process at the current
+    time and at the time of the last jump of the phase process, as well as the
+    `Model` object.
+    i.e. `StoppingTime(;Model,SFM,SFM0)` where `SFM` and `SFM0` are tuples with
+    keys `(:t::Float64, :φ::Int, :X::Float64, :n::Int)` which are the value of
+    the SFM at the current time, and time of the previous jump of the phase
+    process, repsectively. The `StoppingTime` must return a
+    `NamedTuple{(:Ind, :SFM)}` type where `:Ind` is a `:Bool` value stating
+    whether the stopping time has occured or not and `:SFM` is a tuple in the
+    same form as the input `SFM` but which contains the value of the `SFM` at
+    the stopping time.
+- `InitCondition`: `NamedTuple` with keys `(:φ, :X)`, `InitCondition.φ` is a
+    vector of length `M` of initial states for the phase, and `InitCondition.X`
+    is a vector of length `M` of initial states for the level. `M` is the number
+    of simulations to be done.
+
+# Output
+- a tuple with keys
+    - `t::Array{Float64,1}` a vector of length `M` containing the values of
+        `t` at the `StoppingTime`.
+    - `φ::Array{Float64,1}` a vector of length `M` containing the values of
+        `φ` at the `StoppingTime`.
+    - `X::Array{Float64,1}` a vector of length `M` containing the values of
+        `X` at the `StoppingTime`.
+    - `n::Array{Float64,1}` a vector of length `M` containing the number of
+        transitions of `φ` at the `StoppingTime`
+"""
 function SimSFM(;
     Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     StoppingTime::Function,
     InitCondition::NamedTuple{(:φ, :X)},
 )
-    # Simulates a SFM defined by Model until the StoppingTime has occured,
-    # given the InitialConditions on (φ(0),X(0))
-    # Model - A Model object as output from MakeModel
-    # StoppingTime - A function which takes four arguments e.g.
-    #   StoppingTime(;t,φ,X,n) where
-    #   t is the current time, φ the current phase, X, the current level, n
-    #   the number of transition to time t, and returns a tuple (Ind,SFM),
-    #   where Ind is a boolen specifying whether the stopping time, τ, has
-    #   occured or not, and SFM is a tuple (τ,φ(τ),X(τ),n).
-    # InitCondition - M×2 Array with rows [φ(0) X(0)], M is the number of sims
-    #   to be performed, e.g.~to simulate ten SFMs starting from
-    #   [φ(0)=1 X(0)=0] then we set InitCondition = repeat([1 0], 10,1).
-
     # the transition matrix of the jump chain
     d = LinearAlgebra.diag(Model.T)
     P = (Model.T - LinearAlgebra.diagm(0 => d)) ./ -d
@@ -38,7 +64,7 @@ function SimSFM(;
             n = SFM0.n + 1
             SFM = (t = t, φ = φ, X = X, n = n)
             τ = StoppingTime(Model, SFM, SFM0)
-            if τ.Ind
+            if τ.Ind # if the stopping time occurs
                 (tSims[m], φSims[m], XSims[m], nSims[m]) = τ.SFM
                 break
             end
@@ -48,6 +74,48 @@ function SimSFM(;
     return (t = tSims, φ = φSims, X = XSims, n = nSims)
 end
 
+"""
+Simulates a SFFM defined by `Model` until the `StoppingTime` has occured,
+given the `InitialCondition` on (φ(0),X(0),Y(0)).
+
+    SimSFFM(;
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        StoppingTime::Function,
+        InitCondition::NamedTuple{(:φ, :X, :Y)},
+    )
+
+# Arguments
+- `Model`: A Model object as output from `MakeModel`
+- `StoppingTime`: A function which takes the value of the process at the current
+    time and at the time of the last jump of the phase process, as well as the
+    `Model` object.
+    i.e. `StoppingTime(;Model,SFFM,SFFM0)` where `SFFM` and `SFFM0` are tuples
+    with keys `(:t::Float64, :φ::Int, :X::Float64, :Y::Float64, :n::Int)` which
+    are the value of the SFFM at the current time, and time of the previous jump
+    of the phase process, repsectively. The `StoppingTime` must return a
+    `NamedTuple{(:Ind, :SFFM)}` type where `:Ind` is a `:Bool` value stating
+    whether the stopping time has occured or not and `:SFFM` is a tuple in the
+    same form as the input `SFFM` but which contains the value of the SFFM at
+    the stopping time.
+- `InitCondition`: `NamedTuple` with keys `(:φ, :X, :Y)`, `InitCondition.φ` is a
+    vector of length `M` of initial states for the phase, `InitCondition.X` is a
+    vector of length `M` of initial states for the X-level, `InitCondition.Y` is
+    a vector of length `M` of initial states for the Y-level. `M` is the number
+    of simulations to be done.
+
+# Output
+- a tuple with keys
+    - `t::Array{Float64,1}` a vector of length `M` containing the values of
+        `t` at the `StoppingTime`.
+    - `φ::Array{Float64,1}` a vector of length `M` containing the values of
+        `φ` at the `StoppingTime`.
+    - `X::Array{Float64,1}` a vector of length `M` containing the values of
+        `X` at the `StoppingTime`.
+    - `Y::Array{Float64,1}` a vector of length `M` containing the values of
+        `Y` at the `StoppingTime`.
+    - `n::Array{Float64,1}` a vector of length `M` containing the number of
+        transitions of `φ` at the `StoppingTime`
+"""
 function SimSFFM(;
     Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     StoppingTime::Function,
@@ -99,6 +167,23 @@ function SimSFFM(;
     return (t = tSims, φ = φSims, X = XSims, Y = YSims, n = nSims)
 end
 
+"""
+Returns ``X(t+S) = min(max(X(t) + cᵢS,0),U)`` where ``U`` is some upper bound
+on the process.
+
+    UpdateXt(;
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        SFM0::NamedTuple,
+        S::Real,
+    )
+
+# Arguments
+- `Model`: an object as output from 'MakeModel'
+- `SFM0::NamedTuple` containing at least the keys `:X` giving the value of
+    ``X(t)`` at the current time, and `:φ` giving the value of
+    ``φ(t)`` at the current time.
+- `S::Real`: an elapsed amount of time to evaluate ``X`` at, i.e. ``X(t+S)``.
+"""
 function UpdateXt(;
     Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     SFM0::NamedTuple,
@@ -113,6 +198,22 @@ function UpdateXt(;
     return X
 end
 
+"""
+Returns ``Y(t+S)`` given ``Y(t)``.
+
+    UpdateYt(;
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
+        S::Real,
+    )
+
+# Arguments
+- `Model`: an object as output from 'MakeModel'
+- `SFFM0::NamedTuple` containing at least the keys `:X` giving the value of
+    ``X(t)`` at the current time, and `:Y` giving the value of ``Y(t)`` at the
+    current time, and `:φ` giving the value of `φ(t)`` at the current time.
+- `S::Real`: an elapsed amount of time to evaluate ``X`` at, i.e. ``X(t+S)``.
+"""
 function UpdateYt(;
     Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
@@ -143,6 +244,27 @@ function UpdateYt(;
     return Y
 end
 
+"""
+Constructs the `StoppingTime` ``1(t>T)``
+
+    FixedTime(; T::Real)
+
+# Arguments
+- `T`: a time at which to stop the process
+
+# Output
+- `FixedTimeFun`: a function with two methods
+    - `FixedTimeFun(
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        SFM::NamedTuple{(:t, :φ, :X, :n)},
+        SFM0::NamedTuple{(:t, :φ, :X, :n)},
+    )`: a stopping time for a SFM.
+    - `FixedTimeFun(
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
+        SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
+    )`: a stopping time for a SFFM
+"""
 function FixedTime(; T::Real)
     # Defines a simple stopping time, 1(t>T).
     # SFM method
@@ -177,6 +299,28 @@ function FixedTime(; T::Real)
     return FixedTimeFun
 end
 
+"""
+Constructs the `StoppingTime` ``1(N(t)>n)`` where ``N(t)`` is the number of
+jumps of ``φ`` by time ``t``.
+
+    NJumps(; N::Int)
+
+# Arguments
+- `N`: a desired number of jumps
+
+# Output
+- `NJumpsFun`: a function with two methods
+    - `NJumpsFun(
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        SFM::NamedTuple{(:t, :φ, :X, :n)},
+        SFM0::NamedTuple{(:t, :φ, :X, :n)},
+    )`: a stopping time for a SFM.
+    - `NJumpsFun(
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
+        SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
+    )`: a stopping time for a SFFM
+"""
 function NJumps(; N::Int)
     # Defines a simple stopping time, 1(n>N), where n is the number of jumps of φ.
     # SFM method
@@ -200,17 +344,30 @@ function NJumps(; N::Int)
     return NJumpsFun
 end
 
-function FirstExitX(; u::Real, v::Real)
-    # Defines a first exit stopping time rule for the interval [u,v]
-    # Inputs:
-    #   u,v - scalars
-    # Outputs:
-    #   FirstExitFun(Model,t::Float64,φ,X,n::Int), a function with inputs;
-    #   t is the current time, φ the current phase, X, the current level, n
-    #   the number of transition to time t, and returns a tuple (Ind,SFM),
-    #   where Ind is a boolen specifying whether the stopping time, τ, has
-    #   occured or not, and SFM is a tuple (τ,φ(τ),X(τ),n).
+"""
+Constructs the `StoppingTime` which is the first exit of the process ``X(t)``
+from the interval ``[u,v]``.
 
+    FirstExitX(; u::Real, v::Real)
+
+# Arguments
+- `u`: a lower boundary
+- `v`: an upper boundary
+
+# Output
+- `FirstExitXFun`: a function with two methods
+    - `FirstExitXFun(
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        SFM::NamedTuple{(:t, :φ, :X, :n)},
+        SFM0::NamedTuple{(:t, :φ, :X, :n)},
+    )`: a stopping time for a SFM.
+    - `FirstExitXFun(
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
+        SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
+    )`: a stopping time for a SFFM
+"""
+function FirstExitX(; u::Real, v::Real)
     # SFM Method
     function FirstExitXFun(
         Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
@@ -253,17 +410,25 @@ function FirstExitX(; u::Real, v::Real)
     return FirstExitXFun
 end
 
-function FirstExitY(; u::Real, v::Real) #InOutYLevel(; y::Real)
-    # Defines a first exit stopping time rule for the Y-in-out fluid hitting y
-    # Inputs:
-    #   y - scalar
-    # Outputs:
-    #   FirstExitFun(Model,t::Float64,φ,X,n::Int), a function with inputs;
-    #   t is the current time, φ the current phase, X, the current level, n
-    #   the number of transition to time t, and returns a tuple (Ind,SFM),
-    #   where Ind is a boolen specifying whether the stopping time, τ, has
-    #   occured or not, and SFM is a tuple (τ,φ(τ),X(τ),n).
+"""
+Constructs the `StoppingTime` which is the first exit of the process ``Y(t)``
+from the interval ``[u,v]``. ASSUMES ``Y(t)`` is monotonic between jumps.
 
+    FirstExitY(; u::Real, v::Real)
+
+# Arguments
+- `u`: a lower boundary
+- `v`: an upper boundary
+
+# Output
+- `FirstExitYFun`: a function with one method
+    - `FirstExitYFun(
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
+        SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
+    )`: a stopping time for a SFFM
+"""
+function FirstExitY(; u::Real, v::Real)
     # SFFM Method
     function FirstExitYFun(
         Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
@@ -287,6 +452,13 @@ function FirstExitY(; u::Real, v::Real) #InOutYLevel(; y::Real)
     return FirstExitYFun
 end
 
+"""
+Finds zero of `f` using the bisection method on the interval `[a,b]` with
+error `err`.
+
+    fzero(; f::Function, a::Real, b::Real, err::Float64 = 1e-8)
+
+"""
 function fzero(; f::Function, a::Real, b::Real, err::Float64 = 1e-8)
     # finds zeros of f using the bisection method
     c = a + (b - a) / 2
@@ -305,6 +477,66 @@ function fzero(; f::Function, a::Real, b::Real, err::Float64 = 1e-8)
     return c
 end
 
+"""
+Convert from simulations of a SFM or SFFM to a distribution.
+
+    Sims2Dist(;
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        Mesh::NamedTuple{
+            (
+                :NBases,
+                :CellNodes,
+                :Fil,
+                :Δ,
+                :NIntervals,
+                :Nodes,
+                :TotalNBases,
+                :Basis,
+            ),
+        },
+        sims::NamedTuple,
+        type::String = "density",
+    )
+
+# Arguments
+- `Model`: a model object as output from `MakeModel`
+- `Mesh`: a mesh object as output from `MakeMesh`
+- `sims::Array`: a named tuple as output of `SFFMSim` or `SFMSim`
+- `type::String`: an (optional) declaration of what type of distribution you
+    want to convert to. Options are `"probability"` to return the probabilities
+    ``P(X(t)∈ D_k, φ(t) = i)`` where ``D_k``is the kth cell, `"cumulative"` to
+    return the CDF evaluated at cell edges, or `"density"` to return an
+    approximation to the density ar at the Mesh.CellNodes.
+
+# Output
+- a tuple with keys
+(pm=pm, distribution=yvals, x=xvals, type=type)
+    - `pm::Array{Float64}`: a vector containing the point masses, the first
+        `sum(Model.C.<=0)` entries are the left hand point masses and the last
+        `sum(Model.C.>=0)` are the right-hand point masses.
+    - `distribution::Array{Float64,3}`:
+        - if `type="cumulative"` returns a `2×NIntervals×NPhases` array
+            containing the CDF evaluated at the cell edges as contained in
+            `x` below. i.e. `distribution[1,:,i]` returns the cdf at the
+            left-hand edges of the cells in phase `i` and `distribution[2,:,i]`
+            at the right hand edges.
+        - if `type="probability"` returns a `1×NIntervals×NPhases` array
+            containing the probabilities ``P(X(t)∈ D_k, φ(t) = i)`` where ``D_k``
+            is the kth cell.
+        - if `type="density"` returns a `NBases×NIntervals×NPhases` array
+            containing the kde estimate of the density function evaluated at the
+            cell nodes as contained in `x` below.
+    - `x::Array{Float64,2}`:
+        - if `type="cumulative"` returns a `2×NIntervals×NPhases` array
+            containing the cell edges as contained. i.e. `x[1,:]`
+            returns the left-hand edges of the cells and `x[2,:]` at the
+            right-hand edges.
+        - if `type="probability"` returns a `1×NIntervals×NPhases` array
+            containing the cell centers.
+        - if `type="density"` returns a `NBases×NIntervals×NPhases` array
+            containing the cell nodes.
+    - `type`: as input in arguments.
+"""
 function Sims2Dist(;
     Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     Mesh::NamedTuple{
@@ -335,6 +567,7 @@ function Sims2Dist(;
     qc = 0
     xvals = Mesh.CellNodes
     for i = 1:Model.NPhases
+        # find the simluated value of imterest for this iteration
         whichsims =
             (sims.φ .== i) .&
             (sims.X .!= Model.Bounds[1, 1]) .&
