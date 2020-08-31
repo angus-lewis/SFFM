@@ -1,7 +1,9 @@
 ## Define the model
+## parameters
 γ₁, β₁, λ₁, θ₁, κ = 11.0, 1.0, 12.48, 1.6, 2.6
 γ₂, β₂, λ₂, θ₂, xstar = 22.0, 1.0, 16.25, 1.0, 1.6
 
+## state space is {11,10,01,00}
 T = [
     -(γ₁ + γ₂) γ₂ γ₁ 0;
     β₂ -(γ₁ + β₂) 0 γ₁;
@@ -37,3 +39,14 @@ r = (
         [R₁₁(x) R₁₀(x) R₀₁(x) R₀₀(x)]
     end,
 )
+
+## make models
+simBounds = [0 Inf; -Inf Inf] # bounds for simulation only
+simModel = SFFM.MakeModel(T = T, C = C, r = r, Bounds = simBounds)
+println("created simModel with no upper bound")
+println("")
+
+approxBounds = [0 48; -Inf Inf] # bounds for approximation only
+approxModel = SFFM.MakeModel(T = T, C = C, r = r, Bounds = approxBounds)
+println("Created approxModel with upper bound at x=16")
+println("")

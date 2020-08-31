@@ -164,5 +164,28 @@ function StationaryDistributionX(; Model::NamedTuple, Ψ::Array, ξ::Array)
         return Evalπₓ
     end
 
-    return pₓ, πₓ, K
+    # CDF method for scalar x-values
+    function Πₓ(x::Real)
+        [pₓ zeros(1,sum(Model.C.>0))] .+
+        pₓ *
+        [Model.TDict["-+"]; Model.TDict["0+"]] *
+        (exp(K*x) - LinearAlgebra.I) / K *
+        [LinearAlgebra.I(length(Model.SDict["+"])) Ψ] *
+        LinearAlgebra.diagm(1 ./ abs.(Model.C[Model.SDict["bullet"]])) *
+        [LinearAlgebra.I(sum(Model.C .!= 0)) [Model.TDict["+0"];Model.TDict["-0"]] * T00inv]
+    end
+    # CDF method for arrays so that Πₓ returns an array with the same shape
+    # as is output by Coeff2Dist
+    function Πₓ(x::Array)
+        temp = Πₓ.(x)
+        Evalπₓ = zeros(Float64, size(x,1), size(x,2), Model.NPhases)
+        for cell in 1:size(x,2)
+            for basis in 1:size(x,1)
+                Evalπₓ[basis,cell,:] = temp[basis,cell]
+            end
+        end
+        return Evalπₓ
+    end
+
+    return pₓ, πₓ, Πₓ, K
 end

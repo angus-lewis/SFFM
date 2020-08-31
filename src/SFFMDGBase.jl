@@ -511,7 +511,7 @@ function MakeB(;
     idxup = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .> 0) .- 1)')[:] .+ N₋
     B[1:N₋, idxup] = kron(
         Model.T[Model.C.<=0, Model.C.>0],
-        Matrices.Local.Phi[1, :]' * Matrices.Local.MInv * Matrices.Local.Dw.Dw ./ η[1],
+        Matrices.Local.Phi[1, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv ./ η[1],
     )
     # Into boundary
     idxdown = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .<= 0) .- 1)')[:] .+ N₋
@@ -529,7 +529,7 @@ function MakeB(;
         (N₋ + Mesh.TotalNBases - Mesh.NBases)
     B[(end-N₊+1):end, idxdown] = kron(
         Model.T[Model.C.>=0, Model.C.<0],
-        Matrices.Local.Phi[end, :]' * Matrices.Local.MInv * Matrices.Local.Dw.Dw  ./ η[1],
+        Matrices.Local.Phi[end, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv  ./ η[1],
     )
     # Into boundary
     idxup =
@@ -875,7 +875,7 @@ function PsiFun(; s::Real = 0, D, MaxIters::Int = 1000, err::Float64 = 1e-8)
             string(maximum(abs.(OldPsi - Psi))),
         )
     end
-    display(exitflag)
+    println("UPDATE: Iterations for Ψ exited with flag: ", exitflag)
     return Psi
 end
 
@@ -1164,4 +1164,14 @@ function Dist2Coeffs(;
     end
     coeffs = Matrix(coeffs[:]')
     return coeffs
+end
+
+function starSeminorm(;
+    d1::NamedTuple{(:pm, :distribution, :x, :type)},
+    d2::NamedTuple{(:pm, :distribution, :x, :type)},
+    )
+    if d1.type!="probability" || d2.type!="probability"
+        throw(ArgumentError("distributions need to be of type probability"))
+    end
+    return sum(abs.(d1.pm-d2.pm)) + sum(abs.(d1.distribution-d2.distribution))
 end

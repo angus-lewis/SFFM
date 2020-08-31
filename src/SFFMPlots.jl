@@ -42,6 +42,10 @@ function PlotSFM!(p;
     },
     Dist::NamedTuple{(:pm, :distribution, :x, :type)},
     color = 1,
+    label = false,
+    marker = :none,
+    seriestype = :line,
+    markersize = 3,
 )
     pc = 0
     qc = 0
@@ -55,6 +59,12 @@ function PlotSFM!(p;
                 subplot = i,
                 title = "φ=" * string(i),
                 ylabel = Dist.type,
+                label = false,
+                markershape = marker,
+                markercolor = color,
+                seriestype = seriestype,
+                grid = false,
+                markersize = markersize,
             )
         elseif Dist.type === "probability"
             p = Plots.bar!(
@@ -66,6 +76,8 @@ function PlotSFM!(p;
                 subplot = i,
                 title = "φ=" * string(i),
                 ylabel = Dist.type,
+                label = false,
+                grid = false,
             )
         end
         if Model.C[i] <= 0
@@ -73,12 +85,15 @@ function PlotSFM!(p;
             x = [Model.Bounds[1,1]]
             y = [Dist.pm[pc]]
             p = Plots.scatter!(
-                x,
+                x .- 0.1 .+ 0.2*rand(),
                 y,
-                markertype = :circle,
+                markershape = :+,
                 markercolor = color,
-                alpha = 0.25,
+                markersize = 3,
+                alpha = 1,
                 subplot = i,
+                label = false,
+                grid = false,
             )
         end
         if Model.C[i] >= 0
@@ -86,20 +101,41 @@ function PlotSFM!(p;
             x = [Model.Bounds[1,end]]
             y = [Dist.pm[sum(Model.C .>= 0) + qc]]
             p = Plots.scatter!(
-                x,
+                x .- 0.1 .+ 0.2*rand(),
                 y,
-                markertype = :circle,
+                markershape = :+,
                 markercolor = color,
-                alpha = 0.25,
+                markersize = 3,
+                alpha = 1,
                 subplot = i,
+                label = false,
+                grid = false,
             )
         end
         yLimValues = (
-            -0.01,
-            max(maximum(Dist.distribution[:, :, i][:]), maximum(y)) + 0.01,
+            -0,
+            max(maximum(Dist.distribution[:, :, i][:]), maximum(y))*1.025,
         )
-        p = Plots.plot!(ylims = yLimValues, subplot = i)
+        p = Plots.plot!(
+            ylims = yLimValues,
+            subplot = i,
+            tickfontsize = 7,
+            guidefontsize = 10,
+            titlefontsize = 12,
+        )
     end
+    p = Plots.plot!(
+        [],
+        subplot = Model.NPhases+1,
+        label = label,
+        showaxis = false,
+        grid = false,
+        seriestype = seriestype,
+        markershape = marker,
+        markercolor = color,
+        color = color,
+        legendfontsize = 7,
+    )
 
     return p
 end # end PlotSFM!
@@ -148,17 +184,35 @@ function PlotSFM(;
             :TotalNBases,
             :Basis,
         ),
-    },
-    Dist::NamedTuple{(:pm, :distribution, :x, :type)},
+    } = (
+        NBases = 0,
+        CellNodes = Float64[],
+        Fil = Dict(),
+        Δ = 0,
+        NIntervals = 0,
+        Nodes = 0,
+        TotalNBases = 0,
+        Basis = "",
+    ),
+    Dist::NamedTuple{(:pm, :distribution, :x, :type)} =
+        (pm=Float64[],distribution=Float64[],x=Float64[],type=""),
     color = 1,
+    label = false,
+    marker = :none,
+    seriestype = :line,
 )
-    p = Plots.plot(legend = false, layout = ((Model.NPhases+1)÷2, 2))
-    p = SFFM.PlotSFM!(p;
-        Model = Model,
-        Mesh = Mesh,
-        Dist = Dist,
-        color = color,
-    )
+    p = Plots.plot(layout = Plots.@layout([Plots.grid((Model.NPhases+1)÷2, 2) A{0.1w}]))
+    if length(Dist.distribution) != 0
+        p = SFFM.PlotSFM!(p;
+            Model = Model,
+            Mesh = Mesh,
+            Dist = Dist,
+            color = color,
+            label = label,
+            marker = marker,
+            seriestype = seriestype,
+        )
+    end
 
     return p
 end # end PlotSFM

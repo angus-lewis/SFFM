@@ -1,32 +1,14 @@
-include("../src/SFFM.jl")
+include("../../src/SFFM.jl")
 using LinearAlgebra, Plots
 
 ## define the model(s)
 include("exampleModelDef.jl")
 
-simBounds = [0 Inf; -Inf Inf] # bounds for simulation only
-simModel = SFFM.MakeModel(T = T, C = C, r = r, Bounds = simBounds)
-
-approxBounds = [0 16; -Inf Inf] # bounds for approximation only
-approxModel = SFFM.MakeModel(T = T, C = C, r = r, Bounds = approxBounds)
-
-## mesh
-Δ = 1.6
-Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
-
-NBases = 2
-Basis = "lagrange"
-Mesh = SFFM.MakeMesh(
-    Model = approxModel,
-    Nodes = Nodes,
-    NBases = NBases,
-    Basis=Basis
-)
-
 ## section 4.2: Ψ paths
+
 ## simulate Ψ paths
 innerNSim = 10^2
-NSim = 5*10^2*innerNSim
+NSim = 10^3*innerNSim
 
 # we can do this in parallell
 using SharedArrays, Distributed
@@ -58,7 +40,20 @@ sims = (
     n = simsOuter[:,5],
 )
 
-# turn into a cdf
+## mesh
+Δ = 0.4
+Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
+
+NBases = 1
+Basis = "lagrange"
+Mesh = SFFM.MakeMesh(
+    Model = approxModel,
+    Nodes = Nodes,
+    NBases = NBases,
+    Basis=Basis
+)
+
+## turn sims into a cdf
 simprobs = SFFM.Sims2Dist(Model=simModel,Mesh=Mesh,sims=sims,type="cumulative")
 
 ## plot simulations
@@ -84,7 +79,7 @@ p4 = plot(
 
 ## DG
 # construct matrices
-All = SFFM.MakeAll(Model = approxModel, Mesh = Mesh, approxType = "interpolation")
+All = SFFM.MakeAll(Model = approxModel, Mesh = Mesh, approxType = "projection")
 Ψ = SFFM.PsiFun(D=All.D)
 
 # construct initial condition
@@ -154,76 +149,4 @@ p4 = plot!(p4,
     label = "DG",
     color = 2,
     xlims = (0,2),
-)
-
-## section 4.3: the marginal stationary distribution of X
-# compute the marginal via DG
-# the distribution of X when Y first returns to 0
-ξ = SFFM.MakeXi(B=All.B.BDict, Ψ = Ψ)
-
-marginalX, p, K = SFFM.MakeLimitDistMatrices(;
-    B = All.B.BDict,
-    D = All.D,
-    R = All.R.RDict,
-    Ψ = Ψ,
-    ξ = ξ,
-    Mesh = Mesh,
-)
-# convert marginalX to a distribution for plotting
-Dist = SFFM.Coeffs2Dist(
-    Model = approxModel,
-    Mesh = Mesh,
-    Coeffs = marginalX,
-    type="density",
-)
-# plot it
-q = SFFM.PlotSFM(Model=approxModel,Mesh=Mesh,
-    Dist = Dist,
-)
-
-## analytic version for comparison
-# construction
-Ψₓ = SFFM.PsiFunX(Model=approxModel)
-ξₓ = SFFM.MakeXiX(Model=approxModel, Ψ=Ψₓ)
-pₓ, πₓ, Kₓ = SFFM.StationaryDistributionX(Model=approxModel, Ψ=Ψₓ, ξ=ξₓ)
-
-# evaluate the distribution
-analyticX = (
-    pm = [pₓ[:];0;0],
-    distribution = πₓ(Mesh.CellNodes),
-    x = Mesh.CellNodes,
-    type = "density"
-)
-
-# plot it
-q = SFFM.PlotSFM!(q;
-    Model=approxModel,
-    Mesh=Mesh,
-    Dist = analyticX,
-    color = 2,
-)
-
-## DG eigenvalue problem for πₓ
-Q = copy(All.B.B)
-Q[:,1] .= 1
-
-b = zeros(1,size(Q,1))
-b[1] = 1
-# w solves wQ = 0 s.t. sum(w) = 1
-w = b/Q
-
-# convert w to a distribution
-eigDist = SFFM.Coeffs2Dist(
-    Model = approxModel,
-    Mesh = Mesh,
-    Coeffs = w,
-    type="density",
-)
-
-# plot it
-q = SFFM.PlotSFM!(q;
-    Model = approxModel,
-    Mesh = Mesh,
-    Dist = eigDist,
-    color = 3,
 )
