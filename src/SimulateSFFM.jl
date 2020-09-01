@@ -459,7 +459,7 @@ error `err`.
     fzero(; f::Function, a::Real, b::Real, err::Float64 = 1e-8)
 
 """
-function fzero(; f::Function, a::Real, b::Real, err::Float64 = 1e-8)
+function fzero(; f::Function, a::Real, b::Real, err::Float64 = 1e-6)
     # finds zeros of f using the bisection method
     c = a + (b - a) / 2
     while a < c < b
@@ -575,9 +575,11 @@ function Sims2Dist(;
         data = sims.X[whichsims]
         totalprob = sum(whichsims) / length(sims.φ)
         if type == "probability"
-            h = StatsBase.fit(StatsBase.Histogram, data, Mesh.Nodes)
-            h = h.weights ./ sum(h.weights) * totalprob
-            distribution[:, :, i] = h
+            if length(data)!=0
+                h = StatsBase.fit(StatsBase.Histogram, data, Mesh.Nodes)
+                h = h.weights ./ sum(h.weights) * totalprob
+                distribution[:, :, i] = h
+            end
             xvals = Mesh.CellNodes[1, :] + Mesh.Δ / 2
         elseif type == "density"
             if length(data)!=0
@@ -603,8 +605,11 @@ function Sims2Dist(;
                 tempDist = cumsum(tempDist)
                 distribution[1, 2:end, i] = tempDist[1:end-1]
                 distribution[2, :, i] = tempDist
-
-                xvals = Mesh.CellNodes[[1;end], :]
+                if Mesh.NBases == 1
+                    xvals = [Mesh.Nodes[1:end-1]';Mesh.Nodes[2:end]']
+                else
+                    xvals = Mesh.CellNodes[[1;end], :]
+                end
             end
         end
 

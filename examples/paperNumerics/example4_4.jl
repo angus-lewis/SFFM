@@ -1,8 +1,8 @@
-include("../../src/SFFM.jl")
-using LinearAlgebra, Plots
-
-## define the model(s)
-include("exampleModelDef.jl")
+# include("../../src/SFFM.jl")
+# using LinearAlgebra, Plots
+#
+# ## define the model(s)
+# include("exampleModelDef.jl")
 
 ## section 4.4: the sensitivity of the stationary distribution of X to rates r
 Tfun(γ₂) = [
@@ -13,9 +13,8 @@ Tfun(γ₂) = [
     ]
 for γ₂ in [11;16;22]
     Ttemp = Tfun(γ₂)
-    tempModel = SFFM.MakeModel(T = Ttemp, C = C, r = r, Bounds = simBounds)
-    println("created tempModel with upper bound x=16")
-    println("")
+    tempModel = SFFM.MakeModel(T = Ttemp, C = C, r = r, Bounds = approxModel.Bounds)
+    println("created tempModel with upper bound x=", tempModel.Bounds[1,end])
     ## mesh
     Δ = 0.4
     Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])

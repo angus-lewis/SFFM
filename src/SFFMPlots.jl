@@ -45,7 +45,8 @@ function PlotSFM!(p;
     label = false,
     marker = :none,
     seriestype = :line,
-    markersize = 3,
+    markersize = 4,
+    jitter = 0,
 )
     pc = 0
     qc = 0
@@ -85,12 +86,12 @@ function PlotSFM!(p;
             x = [Model.Bounds[1,1]]
             y = [Dist.pm[pc]]
             p = Plots.scatter!(
-                x .- 0.1 .+ 0.2*rand(),
+                x .- jitter/2 .+ jitter*rand(),
                 y,
-                markershape = :+,
+                markershape = :o,
                 markercolor = color,
-                markersize = 3,
-                alpha = 1,
+                markersize = 4,
+                alpha = 0.3,
                 subplot = i,
                 label = false,
                 grid = false,
@@ -101,12 +102,12 @@ function PlotSFM!(p;
             x = [Model.Bounds[1,end]]
             y = [Dist.pm[sum(Model.C .>= 0) + qc]]
             p = Plots.scatter!(
-                x .- 0.1 .+ 0.2*rand(),
+                x .- jitter/2 .+ jitter*rand(),
                 y,
-                markershape = :+,
+                markershape = :o,
                 markercolor = color,
-                markersize = 3,
-                alpha = 1,
+                markersize = 4,
+                alpha = 0.3,
                 subplot = i,
                 label = false,
                 grid = false,
@@ -200,8 +201,11 @@ function PlotSFM(;
     label = false,
     marker = :none,
     seriestype = :line,
+    markersize = 4,
+    titles = false,
+    jitter = 0,
 )
-    p = Plots.plot(layout = Plots.@layout([Plots.grid((Model.NPhases+1)÷2, 2) A{0.1w}]))
+    p = Plots.plot(layout = Plots.@layout([Plots.grid((Model.NPhases+1)÷2, 2) A{0.001w}]))
     if length(Dist.distribution) != 0
         p = SFFM.PlotSFM!(p;
             Model = Model,
@@ -211,6 +215,9 @@ function PlotSFM(;
             label = label,
             marker = marker,
             seriestype = seriestype,
+            markersize = markersize,
+            titles = titles,
+            jitter = jitter,
         )
     end
 

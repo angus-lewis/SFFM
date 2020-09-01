@@ -122,18 +122,25 @@ function MakeAll(;
 )
 
     Matrices = MakeMatrices(Model = Model, Mesh = Mesh)
-    MatricesR = MakeMatricesR(Model = Model, Mesh = Mesh)
+    # MatricesR = MakeMatricesR(Model = Model, Mesh = Mesh)
     B = MakeB(Model = Model, Mesh = Mesh, Matrices = Matrices)
     R = MakeR(Model = Model, Mesh = Mesh, approxType = approxType)
     D = MakeD(Model = Model, Mesh = Mesh, R = R, B = B)
-    DR = MakeDR(
+    # DR = MakeDR(
+    #     Matrices = Matrices,
+    #     MatricesR = MatricesR,
+    #     Model = Model,
+    #     Mesh = Mesh,
+    #     B = B,
+    # )
+    return (
         Matrices = Matrices,
-        MatricesR = MatricesR,
-        Model = Model,
-        Mesh = Mesh,
+        # MatricesR = MatricesR,
         B = B,
+        R = R,
+        D = D,
+        # DR = DR
     )
-    return (Matrices = Matrices, MatricesR = MatricesR, B = B, R = R, D = D, DR = DR)
 end
 
 end

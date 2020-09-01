@@ -48,5 +48,5 @@ println("")
 
 approxBounds = [0 48; -Inf Inf] # bounds for approximation only
 approxModel = SFFM.MakeModel(T = T, C = C, r = r, Bounds = approxBounds)
-println("Created approxModel with upper bound at x=16")
+println("Created approxModel with upper bound at x=", approxModel.Bounds[1,end])
 println("")

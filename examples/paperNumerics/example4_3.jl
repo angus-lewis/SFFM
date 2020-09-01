@@ -1,8 +1,8 @@
-include("../../src/SFFM.jl")
-using LinearAlgebra, Plots
-
-## define the model(s)
-include("exampleModelDef.jl")
+# include("../../src/SFFM.jl")
+# using LinearAlgebra, Plots
+#
+# ## define the model(s)
+# include("exampleModelDef.jl")
 
 ## section 4.3: the marginal stationary distribution of X
 ## mesh
@@ -11,6 +11,33 @@ Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
 
 Basis = "lagrange"
 let q = SFFM.PlotSFM(Model = approxModel)
+    ## analytic version for comparison
+    # construction
+    Ψₓ = SFFM.PsiFunX(Model=approxModel)
+    ξₓ = SFFM.MakeXiX(Model=approxModel, Ψ=Ψₓ)
+    pₓ, πₓ, Πₓ, Kₓ = SFFM.StationaryDistributionX(Model=approxModel, Ψ=Ψₓ, ξ=ξₓ)
+
+    # evaluate the distribution
+    analyticX = (
+        pm = [pₓ[:];0;0],
+        distribution = πₓ(Mesh.CellNodes),
+        x = Mesh.CellNodes,
+        type = "density"
+    )
+
+    # plot it
+    q = SFFM.PlotSFM!(q;
+        Model=approxModel,
+        Mesh=Mesh,
+        Dist = analyticX,
+        color = :red,
+        label = "Analytic",
+        marker = :x,
+        seriestype = :scatter,
+        jitter = 0.5,
+    )
+
+    # now DG it
     c = 0
     colours = [:green;:blue]
     for NBases in 1:2
@@ -50,6 +77,7 @@ let q = SFFM.PlotSFM(Model = approxModel)
             color = colours[c],
             label = "NBases: "*string(NBases),
             seriestype = :line,
+            jitter = 0.5,
         )
 
         # ## DG eigenvalue problem for πₓ
@@ -79,29 +107,11 @@ let q = SFFM.PlotSFM(Model = approxModel)
         #     marker = :none,
         # )
     end
-    ## analytic version for comparison
-    # construction
-    Ψₓ = SFFM.PsiFunX(Model=approxModel)
-    ξₓ = SFFM.MakeXiX(Model=approxModel, Ψ=Ψₓ)
-    pₓ, πₓ, Πₓ, Kₓ = SFFM.StationaryDistributionX(Model=approxModel, Ψ=Ψₓ, ξ=ξₓ)
 
-    # evaluate the distribution
-    analyticX = (
-        pm = [pₓ[:];0;0],
-        distribution = πₓ(Mesh.CellNodes),
-        x = Mesh.CellNodes,
-        type = "density"
-    )
-
-    # plot it
-    q = SFFM.PlotSFM!(q;
-        Model=approxModel,
-        Mesh=Mesh,
-        Dist = analyticX,
-        color = :red,
-        label = "Analytic",
-        marker = :x,
-        seriestype = :scatter,
-    )
+    titles = ["11" "10" "01" "00"]
+    for sp in 1:4
+        q = plot!(subplot = sp, xlims = (-0.5,8), title = titles[sp])
+    end
     display(q)
+    savefig(pwd()*"/examples/paperNumerics/dump/marginalStationaryDistX.png")
 end
