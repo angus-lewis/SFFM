@@ -95,7 +95,7 @@ let
             temp[:,1,2],
             subplot = 2,
             color = colours[c],
-            label = "α₂: "*string(γ₂),
+            label = "γ₂: "*string(γ₂),
             ylabel = "density/probability",
             linestyle = styles[c],
             markershape = shapes[c],
