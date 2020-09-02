@@ -75,7 +75,7 @@ let q = SFFM.PlotSFM(Model = approxModel)
         q = SFFM.PlotSFM!(q;Model=approxModel,Mesh=Mesh,
             Dist = Dist,
             color = colours[c],
-            label = "NBases: "*string(NBases),
+            label = "DG: N_k = "*string(NBases),
             seriestype = :line,
             jitter = 0.5,
         )
@@ -108,10 +108,16 @@ let q = SFFM.PlotSFM(Model = approxModel)
         # )
     end
 
-    titles = ["11" "10" "01" "00"]
+    titles = ["Phase 11" "Phase 10" "Phase 01" "Phase 00"]
     for sp in 1:4
-        q = plot!(subplot = sp, xlims = (-0.5,8), title = titles[sp])
+        q = plot!(
+            subplot = sp,
+            xlims = (-0.5,8),
+            title = titles[sp],
+            xlabel = "x",
+            ylabel = "Density / Probability",
+        )
     end
     display(q)
-    # savefig(pwd()*"/examples/paperNumerics/dump/marginalStationaryDistX.png")
+    savefig(pwd()*"/examples/paperNumerics/dump/marginalStationaryDistX.png")
 end

@@ -1,8 +1,9 @@
-include("../../src/SFFM.jl")
-using LinearAlgebra, Plots, JLD2, GLM
+# include("../../src/SFFM.jl")
+# using LinearAlgebra, Plots, JLD2, GLM
+using GLM
 
-## define the model(s)
-include("exampleModelDef.jl")
+# ## define the model(s)
+# include("exampleModelDef.jl")
 
 ## load sims
 @load pwd()*"/examples/paperNumerics/dump/sims.jld2" sims
@@ -148,42 +149,48 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
 end
 
 let p = plot()
+    types = [:solid,:dash,:dashdot,:dashdotdot]
     for n = 1:length(NBasesRange)
         p = plot!(
             Δs,
             πnorms[:, n],
             xaxis = :log,
             yaxis = :log,
-            xlabel = "Δ",
+            xlabel = "log(Δ)",
             ylabel = "log error",
-            label = "NBases = " * string(NBasesRange[n]),
+            label = "N_k = " * string(NBasesRange[n]),
             legend = :outertopright,
+            linestyle = types[n],
             seriestype = :line,
-            markershape = :diamond,
-            title = "Error for χ",
+            markershape = :auto,
+            title = "Error",
+            grid = false,
         )
     end
     display(p)
-    # savefig(pwd()*"/examples/paperNumerics/dump/piErrorVsDelta.png")
+    savefig(pwd()*"/examples/paperNumerics/dump/piErrorVsDelta.png")
 end
 
 let p = plot()
+    types = [:solid,:dash,:dashdot,:dashdotdot,:solid,:dash]
     for d = 1:length(Δs)
         p = plot!(
             NBasesRange,
             πnorms[d, :],
             yaxis = :log,
-            xlabel = "NBases",
+            xlabel = "N_k",
             ylabel = "log error",
             label = "Δ = " * string(Δs[d]),
             legend = :outertopright,
+            linestyle = types[d],
             seriestype = :line,
-            markershape = :diamond,
-            title = "Error for χ",
+            markershape = :auto,
+            title = "Error",
+            grid = false,
         )
     end
     display(p)
-    # savefig(pwd()*"/examples/paperNumerics/dump/piErrorVsNBases.png")
+    savefig(pwd()*"/examples/paperNumerics/dump/piErrorVsNBases.png")
 end
 
 begin
@@ -255,7 +262,7 @@ let q = plot()
         )
     end
     display(q)
-    # savefig(pwd()*"/examples/paperNumerics/dump/psiErrorVsDelta.png")
+    savefig(pwd()*"/examples/paperNumerics/dump/psiErrorVsDelta.png")
 end
 
 mq =

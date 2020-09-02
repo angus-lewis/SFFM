@@ -1,8 +1,8 @@
-# include("../../src/SFFM.jl")
-# using LinearAlgebra, Plots
+include("../../src/SFFM.jl")
+using LinearAlgebra, Plots, JLD2
 
 ## define the model(s)
-# include("exampleModelDef.jl")
+include("exampleModelDef.jl")
 
 ## section 4.2: Ψ paths
 
@@ -36,11 +36,11 @@ let
         legend = :bottomright,
         title = "Phase 10",
         seriestype = :line,
-        linestyle = :dash,
+        linestyle = :dot,
         markershape = :x,
         markersize = 4,
         xlabel = "x",
-        ylabel = "Density",
+        ylabel = "Cumulative probability",
         windowsize = (600,400),
         grid = false,
         tickfontsize = 10,
@@ -58,11 +58,11 @@ let
         legend = :bottomright,
         title = "Phase 00",
         seriestype = :line,
-        linestyle = :dash,
+        linestyle = :dot,
         markershape = :x,
         markersize = 4,
         xlabel = "x",
-        ylabel = "Density",
+        ylabel = "Cumulative probability",
         windowsize = (600,400),
         grid = false,
         tickfontsize = 10,
@@ -71,9 +71,12 @@ let
         legendfontsize = 10,
     )
 
-    colours = [:blue;:green]
+    colours = [:blue;:black]
     ## DG
+    c = 0
+    styles = [:solid,:dash]
     for NBases in 1:2
+        c = c+1
         Mesh = SFFM.MakeMesh(
             Model = approxModel,
             Nodes = Nodes,
@@ -145,19 +148,21 @@ let
         p2 = plot!(p2,
             DGProbs.x[:],
             DGProbs.distribution[:,:,2][:],
-            label = "DG: "*string(NBases)*" bases",
+            label = "DG: N_k = "*string(NBases),
             color = colours[NBases],
             xlims = (0,2),
             seriestype = :line,
+            linestyle = styles[c],
         )
 
         p4 = plot!(p4,
             DGProbs.x[:],
             DGProbs.distribution[:,:,4][:],
-            label = "DG: "*string(NBases)*" bases",
+            label = "DG:  N_k = "*string(NBases),
             color = colours[NBases],
             xlims = (0,2),
             seriestype = :line,
+            linestyle = styles[c],
         )
     end
 

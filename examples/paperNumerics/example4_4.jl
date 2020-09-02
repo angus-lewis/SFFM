@@ -18,7 +18,7 @@ let
     styles = [:solid,:dash,:dot]
     q = plot(layout = (1,2))
     for sp in 1:2
-        q = plot!(windowsize = (600,400), subplot = sp)
+        q = plot!(windowsize = (600,250), subplot = sp)
     end
     for γ₂ in [11;16;22]
         c = c+1
@@ -79,7 +79,6 @@ let
             color = colours[c],
             seriestype = :line,
             linestyle = styles[c],
-            ylabel = "density",
             markershape = shapes[c],
             xlabel = "x",
         )
@@ -96,7 +95,6 @@ let
             subplot = 2,
             color = colours[c],
             label = "γ₂: "*string(γ₂),
-            ylabel = "density/probability",
             linestyle = styles[c],
             markershape = shapes[c],
         )
@@ -106,7 +104,6 @@ let
             subplot = 2,
             color = colours[c],
             label = :none,
-            ylabel = "density/probability",
             markershape = shapes[c],
             linestyle = styles[c],
             xlabel = "x",
@@ -131,7 +128,13 @@ let
     end
     titles = ["Phases 11 + 10" "Phases 01 + 00"]
     for sp in 1:2
-        q = plot!(subplot = sp, xlims = (-0.5,8), title = titles[sp])
+        q = plot!(
+            subplot = sp,
+            xlims = (-0.5,8),
+            title = titles[sp],
+            ylabel = "Density / Probability",
+            grid = false,
+        )
     end
     display(q)
     savefig(pwd()*"/examples/paperNumerics/dump/sensitivityMarginalStationaryDistX.png")
