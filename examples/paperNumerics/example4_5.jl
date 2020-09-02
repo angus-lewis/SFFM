@@ -1,8 +1,8 @@
-# include("../../src/SFFM.jl")
-# using LinearAlgebra, Plots, JLD2, GLM
-#
-# ## define the model(s)
-# include("exampleModelDef.jl")
+include("../../src/SFFM.jl")
+using LinearAlgebra, Plots, JLD2, GLM
+
+## define the model(s)
+include("exampleModelDef.jl")
 
 ## load sims
 @load pwd()*"/examples/paperNumerics/dump/sims.jld2" sims
@@ -164,7 +164,7 @@ let p = plot()
         )
     end
     display(p)
-    savefig(pwd()*"/examples/paperNumerics/dump/piErrorVsDelta.png")
+    # savefig(pwd()*"/examples/paperNumerics/dump/piErrorVsDelta.png")
 end
 
 let p = plot()
@@ -183,7 +183,7 @@ let p = plot()
         )
     end
     display(p)
-    savefig(pwd()*"/examples/paperNumerics/dump/piErrorVsNBases.png")
+    # savefig(pwd()*"/examples/paperNumerics/dump/piErrorVsNBases.png")
 end
 
 begin
@@ -220,7 +220,7 @@ begin
     println("")
 end
 
-for d = 1:length(NBasesRange)
+for d = 1:6
     data = log.(πnorms[d,:])
     ind = .!isnan.(data)
     data = data[ind]
@@ -236,7 +236,7 @@ mp =
     (log.(Δs[1:end-1]) - log.(Δs[2:end]))
 np =
     (log.(πnorms[:, 1:end-1]) .- log.(πnorms[:, 2:end])) ./
-    (log.(NBasesRange[1:end-1]) - log.(NBasesRange[2:end]))'
+    ((NBasesRange[1:end-1]) - (NBasesRange[2:end]))'
 
 let q = plot()
     for n = 1:length(NBasesRange)
@@ -255,7 +255,7 @@ let q = plot()
         )
     end
     display(q)
-    savefig(pwd()*"/examples/paperNumerics/dump/psiErrorVsDelta.png")
+    # savefig(pwd()*"/examples/paperNumerics/dump/psiErrorVsDelta.png")
 end
 
 mq =

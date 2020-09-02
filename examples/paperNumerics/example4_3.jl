@@ -113,5 +113,5 @@ let q = SFFM.PlotSFM(Model = approxModel)
         q = plot!(subplot = sp, xlims = (-0.5,8), title = titles[sp])
     end
     display(q)
-    savefig(pwd()*"/examples/paperNumerics/dump/marginalStationaryDistX.png")
+    # savefig(pwd()*"/examples/paperNumerics/dump/marginalStationaryDistX.png")
 end
