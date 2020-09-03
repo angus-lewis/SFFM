@@ -7,10 +7,10 @@ T = [-1.0 1.0; 1.0 -1.0]
 C = [1.0; -2.0]
 r = (
     r = function (x)
-        [(x .< 1)-(x .>= 1) (x .>= 1)-(x .< 1)]
+        [(x .<= 1)-(x .> 1) ((x .> 1))-2*(x .<= 1).*(x .> 0)-(x.==0)]
     end,
     R = function (x)
-        [(x .< 1).*x-(x .>= 1).*x (x .>= 1).*x-(x .< 1).*x]
+        [x.*((x .<= 1)-(x .> 1)) x.*(((x .> 1))-2*(x .<= 1).*(x .> 0)-(x.==0))]
     end,
 )
 
@@ -80,3 +80,24 @@ display(Matrix(All.B.BDict["22-+"]))
 println("")
 println("for 22--")
 display(Matrix(All.B.BDict["22--"]))
+
+plusIdx = All.B.QBDidx[[Mesh.Fil["p+"];repeat(Mesh.Fil["+"]',2)[:];Mesh.Fil["q+"]]]
+minusIdx = All.B.QBDidx[[Mesh.Fil["p-"];repeat(Mesh.Fil["-"]',2)[:];Mesh.Fil["q-"]]]
+println("")
+println("for ++")
+display(Matrix(All.B.B)[plusIdx,plusIdx])
+println("")
+println("for +-")
+display(Matrix(All.B.B)[plusIdx,minusIdx])
+println("")
+println("for -+")
+display(Matrix(All.B.B)[minusIdx,plusIdx])
+println("")
+println("for --")
+display(Matrix(All.B.B)[minusIdx,minusIdx])
+
+println("The operator R⁺ is ")
+display(Matrix(All.R.RDict["+"]))
+println("")
+println("The operator R⁻ is ")
+display(Matrix(All.R.RDict["-"]))

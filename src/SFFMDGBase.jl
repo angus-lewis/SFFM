@@ -690,6 +690,12 @@ function MakeR(;
             if approxType == "interpolation"
                 temp = LinearAlgebra.diagm(EvalR[Mesh.NBases*(n-1).+(1:Mesh.NBases)])
             elseif approxType == "projection"
+                # the first term, LinearAlgebra.diagm(EvalR[Mesh.NBases*(n-1).+(1:Mesh.NBases)])
+                # is the quadrature approximation of M^r. The quadrature weights to not
+                # appear since they cancel when we transform to integral/probability
+                # representation. The second term V.V*V.V' is Minv. The last term
+                # LinearAlgebra.diagm(V.w)is a result of the conversion to probability
+                # / integral representation.
                 temp = LinearAlgebra.diagm(EvalR[Mesh.NBases*(n-1).+(1:Mesh.NBases)])*V.V*V.V'*LinearAlgebra.diagm(V.w)
             end
         end
