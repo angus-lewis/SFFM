@@ -120,7 +120,7 @@ function MakeMatricesR(;
             # Inputs:
             #   - x a vector of Gauss-Lobatto points on Dk
             #   - i a phase
-            V.V' * LinearAlgebra.diagm(0 => V.w ./ Model.r.a(x)[:, i]) * V.V
+            V.V' * LinearAlgebra.diagm(V.w ./ Model.r.a(x)[:, i]) * V.V
         end
         GLocal = function (x::Array{Float64}, i::Int)
             # Numerical integration of ϕᵢ(x)|r(x)|ϕⱼ'(x) over Dk with Gauss-Lobatto
@@ -128,7 +128,7 @@ function MakeMatricesR(;
             # Inputs:
             #   - x a vector of Gauss-Lobatto points on Dk
             #   - i a phase
-            V.V' * LinearAlgebra.diagm(0 => V.w ./ Model.r.a(x)[:, i]) * V.D
+            V.V' * LinearAlgebra.diagm(V.w ./ Model.r.a(x)[:, i]) * V.D
         end
         MInvLocal = function (x::Array{Float64}, i::Int)
             MLocal(x, i)^-1
@@ -240,7 +240,7 @@ function MakeDR(;
     idxdown = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .<= 0) .- 1)')[:] .+ N₋
     BR[idxdown, 1:N₋] = LinearAlgebra.kron(
         LinearAlgebra.diagm(
-            0 => Model.C[Model.C.<=0] ./ Model.r.a(Mesh.CellNodes[1])[Model.C.<=0],
+            Model.C[Model.C.<=0] ./ Model.r.a(Mesh.CellNodes[1])[Model.C.<=0],
         ),
         -Matrices.Local.Phi[1, :] * 2 / Mesh.Δ[1],
     )
@@ -263,7 +263,7 @@ function MakeDR(;
         (N₋ + Mesh.TotalNBases - Mesh.NBases)
     BR[idxup, (end-N₊+1):end] = LinearAlgebra.kron(
         LinearAlgebra.diagm(
-            0 => Model.C[Model.C.>=0] ./ Model.r.a(Mesh.CellNodes[end])[Model.C.<=0],
+            Model.C[Model.C.>=0] ./ Model.r.a(Mesh.CellNodes[end])[Model.C.<=0],
         ),
         Matrices.Local.Phi[end, :] * 2 / Mesh.Δ[end],
     )
@@ -291,7 +291,7 @@ function MakeDR(;
         BR[bullet, bullet] -
         MR[bullet, bullet] * s * SparseArrays.sparse(LinearAlgebra.I,sum(bullet),sum(bullet)) * Minv[bullet, bullet] +
         BR[bullet, idx0] *
-        (BR[idx0, idx0] - s * SparseArrays.sparse(LinearAlgebra.I,sum(idx0),sum(idx0)))^-1 *
+        Matrix(BR[idx0, idx0] - s * SparseArrays.sparse(LinearAlgebra.I,sum(idx0),sum(idx0)))^-1 *
         BR[idx0, bullet]
     end
     # D = function (s)
