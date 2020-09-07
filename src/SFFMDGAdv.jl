@@ -285,14 +285,14 @@ function MakeDR(;
         SparseArrays.spzeros(Float64, N₊, BigN - N₊) LinearAlgebra.I(N₊)
     ]
 
-    BR[idx0, :] = B.B[idx0, :]
+    # BR[idx0, :] = B.B[idx0, :]
 
     DR = function (;s=0)
         BR[bullet, bullet] -
         MR[bullet, bullet] * s * SparseArrays.sparse(LinearAlgebra.I,sum(bullet),sum(bullet)) * Minv[bullet, bullet] +
         BR[bullet, idx0] *
-        Matrix(BR[idx0, idx0] - s * SparseArrays.sparse(LinearAlgebra.I,sum(idx0),sum(idx0)))^-1 *
-        BR[idx0, bullet]
+        Matrix(s * SparseArrays.sparse(LinearAlgebra.I,sum(idx0),sum(idx0)) - B.B[idx0, idx0])^-1 *
+        B.B[idx0, bullet]
     end
     # D = function (s)
     #     MR[bullet, bullet] *
