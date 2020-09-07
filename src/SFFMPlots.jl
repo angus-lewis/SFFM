@@ -46,11 +46,12 @@ function PlotSFM!(p;
     marker = :none,
     seriestype = :line,
     markersize = 4,
+    titles = false,
     jitter = 0,
 )
     pc = 0
     qc = 0
-    yLimValues = (0.0, 0.0)
+    # yLimValues = (0.0, 0.0)
     for i = 1:Model.NPhases
         if Dist.type == "density"
             p = Plots.plot!(
@@ -113,12 +114,12 @@ function PlotSFM!(p;
                 grid = false,
             )
         end
-        yLimValues = (
-            -0,
-            max(maximum(Dist.distribution[:, :, i][:]), maximum(y))*1.025,
-        )
+        # yLimValues = (
+        #     -0,
+        #     max(maximum(Dist.distribution[:, :, i][:]), maximum(y))*1.025,
+        # )
         p = Plots.plot!(
-            ylims = yLimValues,
+            # ylims = yLimValues,
             subplot = i,
             tickfontsize = 7,
             guidefontsize = 10,

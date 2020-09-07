@@ -621,14 +621,14 @@ end
                 :Basis,
             ),
         },
-        approxType::String = "interpolation",
+        approxType::String = "projection",
     )
 
 # Arguments
 - `Model`: a model object from MakeModel
 - `Mesh`: a mesh object from MakeMesh
-- `approxType::String`: (optional) either "interpolation" (default) or
-    "projection"
+- `approxType::String`: (optional) either "interpolation" or
+    "projection" (default).
 
 # Output
 - a tuple with keys
@@ -654,7 +654,7 @@ function MakeR(;
             :Basis,
         ),
     },
-    approxType::String = "interpolation",
+    approxType::String = "projection",
 )
     V = SFFM.vandermonde(NBases=Mesh.NBases)
 
