@@ -1,3 +1,65 @@
+function MakeMatrices2(;
+    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+    Mesh::NamedTuple{
+        (
+            :NBases,
+            :CellNodes,
+            :Fil,
+            :Δ,
+            :NIntervals,
+            :Nodes,
+            :TotalNBases,
+            :Basis,
+        ),
+    },
+)
+    ## Construct local blocks
+    V = vandermonde(NBases = Mesh.NBases)
+    if Mesh.Basis == "legendre"
+        MLocal = Matrix{Float64}(LinearAlgebra.I(Mesh.NBases))
+        GLocal = V.inv * V.D
+        MInvLocal = Matrix{Float64}(LinearAlgebra.I(Mesh.NBases))
+        Phi = V.V[[1; end], :]
+    elseif Mesh.Basis == "lagrange"
+        MLocal = V.inv' * V.inv
+        GLocal = V.inv' * V.inv * (V.D * V.inv)
+        MInvLocal = V.V * V.V'
+        Phi = (V.inv*V.V)[[1; end], :]
+    end
+
+    ## Assemble into global block diagonal matrices
+    G = SFFM.MakeBlockDiagonalMatrix(
+        Mesh = Mesh,
+        Blocks = GLocal,
+        Factors = ones(Mesh.NIntervals),
+    )
+    M = SFFM.MakeBlockDiagonalMatrix(Mesh = Mesh, Blocks = MLocal, Factors = Mesh.Δ * 0.5)
+    MInv = SFFM.MakeBlockDiagonalMatrix(
+        Mesh = Mesh,
+        Blocks = MInvLocal,
+        Factors = 2 ./ Mesh.Δ,
+    )
+    F = SFFM.MakeFluxMatrix(Mesh = Mesh, Phi = Phi, Dw = (Dw=LinearAlgebra.I,DwInv=LinearAlgebra.I))
+
+    ## Assemble the DG drift operator
+    Q = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,Model.NPhases)
+    for i = 1:Model.NPhases
+        if Model.C[i] > 0
+            Q[i] = Model.C[i] * (G + F["+"]) * MInv
+        elseif Model.C[i] < 0
+            Q[i] = Model.C[i] * (G + F["-"]) * MInv
+        end
+    end
+
+    Local = (G = GLocal, M = MLocal, MInv = MInvLocal, V = V, Phi = Phi)
+    Global = (G = G, M = M, MInv = MInv, F = F, Q = Q)
+    out = (Local = Local, Global = Global)
+    # println("UPDATE: Matrices object created with keys ", keys(out))
+    # println("UPDATE:    Matrices[:",keys(out)[1],"] object created with keys ", keys(out[1]))
+    # println("UPDATE:    Matrices[:",keys(out)[2],"] object created with keys ", keys(out[2]))
+    return out
+end
+
 function MakeBlockDiagonalMatrixR(;
     Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     Mesh::NamedTuple{
