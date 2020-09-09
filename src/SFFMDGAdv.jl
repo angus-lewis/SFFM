@@ -39,7 +39,12 @@ function MakeMatrices2(;
         Blocks = MInvLocal,
         Factors = 2 ./ Mesh.Δ,
     )
-    F = SFFM.MakeFluxMatrix(Mesh = Mesh, Phi = Phi, Dw = (Dw=LinearAlgebra.I,DwInv=LinearAlgebra.I))
+    F = SFFM.MakeFluxMatrix(
+        Mesh = Mesh,
+        Phi = Phi,
+        Dw = (Dw=LinearAlgebra.I,DwInv=LinearAlgebra.I),
+        probTransform = false,
+    )
 
     ## Assemble the DG drift operator
     Q = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,Model.NPhases)

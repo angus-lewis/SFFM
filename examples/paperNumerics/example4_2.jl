@@ -1,5 +1,5 @@
 include("../../src/SFFM.jl")
-using LinearAlgebra, Plots, JLD2
+using LinearAlgebra, Plots, JLD2, StatsBase
 
 ## define the model(s)
 include("exampleModelDef.jl")
@@ -25,56 +25,43 @@ Mesh = SFFM.MakeMesh(
 ## turn sims into a cdf
 simprobs = SFFM.Sims2Dist(Model=simModel,Mesh=Mesh,sims=sims,type="cumulative")
 
+## bootstrap to get CI
+function bootFun(sims; nBoot = 10_000)
+    l = length(sims.t)
+    samplesBoot = Array{Float64,3}(undef,nBoot,6,2)
+    for n in 1:nBoot
+        sampleIdx = sample(1:l,l)
+        tempData = (
+            φ = sims.φ[sampleIdx],
+            X = sims.X[sampleIdx],
+        )
+        tempDist = SFFM.Sims2Dist(Model=simModel,Mesh=Mesh,sims=tempData,type="cumulative").distribution[1,1:6,[2;4]]
+        samplesBoot[n,:,:] = tempDist
+    end
+    ql = zeros(6,2)
+    qu = zeros(6,2)
+    for xpos in 1:6
+        for phase in 1:2
+            ql[xpos,phase] = quantile(samplesBoot[:,xpos,phase],0.025)
+            qu[xpos,phase] = quantile(samplesBoot[:,xpos,phase],0.975)
+        end
+    end
+    return (ql, qu)
+end
+@time ql, qu = bootFun(sims)
+
+
+
 ## plot simulations
 let
-    p2 = plot(
-        simprobs.x[:],
-        simprobs.distribution[:,:,2][:],
-        label = "Sim",
-        color = :red,
-        xlims = (0,2),
-        legend = :bottomright,
-        title = "Phase 10",
-        seriestype = :line,
-        linestyle = :dot,
-        markershape = :x,
-        markersize = 4,
-        xlabel = "x",
-        ylabel = "Cumulative probability",
-        windowsize = (600,400),
-        grid = false,
-        tickfontsize = 10,
-        guidefontsize = 12,
-        titlefontsize = 18,
-        legendfontsize = 10,
-    )
+    p2 = plot()
+    p4 = plot()
 
-    p4 = plot(
-        simprobs.x[:],
-        simprobs.distribution[:,:,4][:],
-        label = "Sim",
-        color = :red,
-        xlims = (0,2),
-        legend = :bottomright,
-        title = "Phase 00",
-        seriestype = :line,
-        linestyle = :dot,
-        markershape = :x,
-        markersize = 4,
-        xlabel = "x",
-        ylabel = "Cumulative probability",
-        windowsize = (600,400),
-        grid = false,
-        tickfontsize = 10,
-        guidefontsize = 12,
-        titlefontsize = 18,
-        legendfontsize = 10,
-    )
-
-    colours = [:blue;:black]
+    colours = [:black,:blue]
+    shapes = [:+,:star7]
     ## DG
     c = 0
-    styles = [:solid,:dash]
+    styles = [:dashdot,:dash]
     for NBases in 1:2
         c = c+1
         Mesh = SFFM.MakeMesh(
@@ -150,9 +137,12 @@ let
             DGProbs.distribution[:,:,2][:],
             label = "DG: N_k = "*string(NBases),
             color = colours[NBases],
-            xlims = (0,2),
-            seriestype = :line,
-            linestyle = styles[c],
+            xlims = (-0.1,2.1),
+            seriestype = :scatter,
+            # linestyle = styles[c],
+            markershape = shapes[NBases],
+            markerstrokecolor = colours[NBases],
+            markersize=6,
         )
 
         p4 = plot!(p4,
@@ -160,11 +150,73 @@ let
             DGProbs.distribution[:,:,4][:],
             label = "DG:  N_k = "*string(NBases),
             color = colours[NBases],
-            xlims = (0,2),
-            seriestype = :line,
-            linestyle = styles[c],
+            xlims = (-0.1,2.1),
+            seriestype = :scatter,
+            # linestyle = styles[c],
+            markershape = shapes[NBases],
+            markerstrokecolor = colours[NBases],
+            markersize=6,
         )
     end
+    p2 = plot!(p2,
+        [1;1]*simprobs.x[1,1:6]',
+        [ql[:,1]';qu[:,1]'],
+        color=:red,
+        marker=:hline,
+        markersize=12,
+        seriestype=:line,
+        label=:false,
+        xlabel = "x",
+        ylabel = "Cumulative probability",
+        windowsize = (600,400),
+        grid = false,
+        tickfontsize = 10,
+        guidefontsize = 12,
+        titlefontsize = 18,
+        title = "Phase 10",
+    )
+    p2 = plot!(p2,
+        [1;1]*simprobs.x[1,1]',
+        [ql[1,1]';qu[1,1]'],
+        color=:red,
+        marker=:hline,
+        markersize=12,
+        seriestype=:scatter,
+        label="Simulation",
+        legendfontsize = 10,
+        legend = :bottomright,
+    )
+
+    p4 = plot!(p4,
+        [1;1]*simprobs.x[1,1:6]',
+        [ql[:,2]';qu[:,2]'],
+        color=:red,
+        marker=:hline,
+        markersize=12,
+        seriestype=:line,
+        label=:false,
+        xlabel = "x",
+        ylabel = "Cumulative probability",
+        windowsize = (600,400),
+        grid = false,
+        tickfontsize = 10,
+        guidefontsize = 12,
+        titlefontsize = 18,
+        legendfontsize = 10,
+        legend = :bottomright,
+        title = "Phase 00",
+    )
+    p4 = plot!(p4,
+        [1;1]*simprobs.x[1,1]',
+        [ql[1,2]';qu[1,2]'],
+        color=:red,
+        marker=:hline,
+        markersize=12,
+        seriestype=:scatter,
+        label="Simulation",
+        legendfontsize = 10,
+        legend = :bottomright,
+    )
 
     display(p2)
     display(p4)

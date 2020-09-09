@@ -242,6 +242,7 @@ Constructs the flux matrices for DG
         Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
         Phi,
         Dw,
+        probTransform::Bool=true,
     )
 
 # Arguments
@@ -250,6 +251,8 @@ Constructs the flux matrices for DG
     function evaluated at the left-hand and right-hand edge of a cell,
     respectively
 - `Dw::Array{Float64,2}`: a diagonal matrix function weights
+- `probTransform::Bool=true`: an (optional) specification for the lagrange basis
+    to specify whether transform to probability coefficients.
 
 # Output
 - `F::Dict{String, SparseArrays.SparseMatrixCSC{Float64,Int64},1}`: a dictionary
@@ -271,6 +274,7 @@ function MakeFluxMatrix(;
     },
     Phi,
     Dw,
+    probTransform::Bool=true,
 )
     ## Create the blocks
     PosDiagBlock = -Dw.DwInv * Phi[end, :] * Phi[end, :]' * Dw.Dw
@@ -296,14 +300,22 @@ function MakeFluxMatrix(;
                     if Mesh.Basis == "legendre"
                         η = 1
                     elseif Mesh.Basis == "lagrange"
-                        η = Mesh.Δ[k] / Mesh.Δ[k-1]
+                        if !probTransform
+                            η = 1
+                        else
+                            η = Mesh.Δ[k] / Mesh.Δ[k-1]
+                        end
                     end
                     F[i][idxup, idx] = UpDiagBlock * η
                 elseif i=="-"
                     if Mesh.Basis == "legendre"
                         η = 1
                     elseif Mesh.Basis == "lagrange"
-                        η = Mesh.Δ[k-1] / Mesh.Δ[k]
+                        if !probTransform
+                            η = 1
+                        else
+                            η = Mesh.Δ[k-1] / Mesh.Δ[k]
+                        end
                     end
                     F[i][idx, idxup] = LowDiagBlock * η
                 end # end if C[i]
@@ -331,11 +343,14 @@ Creates the Local and global mass, stiffness and flux matrices.
                 :Basis,
             ),
         },
+        probTransform::Bool=true,
     )
 
 # Arguments
 - `Model`: A model tuple from MakeModel
 - `Mesh`: A mesh tuple from MakeMesh
+- `probTransform::Bool=true`: an (optional) specification for the lagrange basis
+    to specify whether transform to probability coefficients.
 
 # Output
 - A tuple of tuples
@@ -371,6 +386,7 @@ function MakeMatrices(;
             :Basis,
         ),
     },
+    probTransform::Bool=true,
 )
     ## Construct local blocks
     V = vandermonde(NBases = Mesh.NBases)
@@ -385,11 +401,19 @@ function MakeMatrices(;
         MInvLocal = Matrix{Float64}(LinearAlgebra.I(Mesh.NBases))
         Phi = V.V[[1; end], :]
     elseif Mesh.Basis == "lagrange"
-        Dw = (
-            DwInv = LinearAlgebra.diagm(0 => 1.0 ./ V.w),
-            Dw = LinearAlgebra.diagm(0 => V.w),
-        )# function weights so that we can work in probability land as
-        # opposed to density land
+        if !probTransform
+            Dw = (
+                DwInv = LinearAlgebra.I,
+                Dw = LinearAlgebra.I,
+            )# function weights so that we can work in probability land as
+            # opposed to density land
+        else
+            Dw = (
+                DwInv = LinearAlgebra.diagm(0 => 1.0 ./ V.w),
+                Dw = LinearAlgebra.diagm(0 => V.w),
+            )# function weights so that we can work in probability land as
+            # opposed to density land
+        end
         MLocal = Dw.DwInv * V.inv' * V.inv * Dw.Dw
         GLocal = Dw.DwInv * V.inv' * V.inv * (V.D * V.inv) * Dw.Dw
         MInvLocal = Dw.DwInv * V.V * V.V' * Dw.Dw
@@ -408,7 +432,7 @@ function MakeMatrices(;
         Blocks = MInvLocal,
         Factors = 2.0 ./ Mesh.Δ,
     )
-    F = SFFM.MakeFluxMatrix(Mesh = Mesh, Phi = Phi, Dw = Dw)
+    F = SFFM.MakeFluxMatrix(Mesh = Mesh, Phi = Phi, Dw = Dw, probTransform = probTransform)
 
     ## Assemble the DG drift operator
     Q = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,Model.NPhases)
@@ -447,12 +471,15 @@ Creates the DG approximation to the generator B.
             ),
         },
         Matrices::NamedTuple,
+        probTransform::Bool=true,
     )
 
 # Arguments
 - `Model`: A model tuple from `MakeModel`
 - `Mesh`: A Mesh tuple from `MakeMesh`
 - `Matrices`: A Matrices tuple from `MakeMatrices`
+- `probTransform::Bool=true`: an (optional) specification for the lagrange basis
+    to specify whether transform to probability coefficients.
 
 # Output
 - A tuple with fields .BDict, .B, .QBDidx
@@ -480,6 +507,7 @@ function MakeB(;
         ),
     },
     Matrices::NamedTuple,
+    probTransform::Bool=true,
 )
     ## Make B on the interior of the space
     N₊ = sum(Model.C .>= 0)
@@ -502,7 +530,11 @@ function MakeB(;
         η = Mesh.Δ[[1; end]] ./ 2 # this is the inverse of the η=Mesh.Δ/2 bit
         # below there are no η's for the legendre basis
     elseif Mesh.Basis == "lagrange"
-        η = [1; 1]
+        if !probTransform
+            η = Mesh.Δ[[1; end]] ./ 2
+        else
+            η = [1; 1]
+        end
     end
     # Lower boundary
     # At boundary
