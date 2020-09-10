@@ -170,9 +170,10 @@ let
         ylabel = "Cumulative probability",
         windowsize = (600,400),
         grid = false,
-        tickfontsize = 10,
-        guidefontsize = 12,
-        titlefontsize = 18,
+        tickfontsize = 12,
+        guidefontsize = 14,
+        titlefontsize = 20,
+        legendfontsize = 12,
         title = "Phase 10",
     )
     p2 = plot!(p2,
@@ -183,7 +184,6 @@ let
         markersize=12,
         seriestype=:scatter,
         label="Simulation",
-        legendfontsize = 10,
         legend = :bottomright,
     )
 
@@ -199,10 +199,10 @@ let
         ylabel = "Cumulative probability",
         windowsize = (600,400),
         grid = false,
-        tickfontsize = 10,
-        guidefontsize = 12,
-        titlefontsize = 18,
-        legendfontsize = 10,
+        tickfontsize = 12,
+        guidefontsize = 14,
+        titlefontsize = 20,
+        legendfontsize = 12,
         legend = :bottomright,
         title = "Phase 00",
     )
@@ -214,7 +214,6 @@ let
         markersize=12,
         seriestype=:scatter,
         label="Simulation",
-        legendfontsize = 10,
         legend = :bottomright,
     )
 
