@@ -301,7 +301,7 @@ function MakeDR(;
     idxup = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .> 0) .- 1)')[:] .+ N₋
     BR[1:N₋, idxup] = kron(
         (1.0./Model.r.a(Mesh.CellNodes[1])'.*Model.T)[Model.C.<=0, Model.C.>0],
-        Matrices.Local.Phi[1, :]' * Matrices.Local.MInv,
+        Matrices.Local.Phi[1, :]', # Minv stuff done later
     )
     # Into boundary
     idxdown = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .<= 0) .- 1)')[:] .+ N₋
@@ -309,7 +309,7 @@ function MakeDR(;
         LinearAlgebra.diagm(
             Model.C[Model.C.<=0] ./ Model.r.a(Mesh.CellNodes[1])[Model.C.<=0],
         ),
-        -Matrices.Local.Phi[1, :] * 2 / Mesh.Δ[1],
+        -Matrices.Local.Phi[1, :], # Minv stuff done later
     )
 
     # Upper boundary
@@ -322,7 +322,7 @@ function MakeDR(;
         (N₋ + Mesh.TotalNBases - Mesh.NBases)
     BR[(end-N₊+1):end, idxdown] = kron(
         (1.0./Model.r.a(Mesh.CellNodes[end])'.*Model.T)[Model.C.>=0, Model.C.<0],
-        Matrices.Local.Phi[end, :]' * Matrices.Local.MInv,
+        Matrices.Local.Phi[end, :]', # Minv stuff done later
     )
     # Into boundary
     idxup =
@@ -332,7 +332,7 @@ function MakeDR(;
         LinearAlgebra.diagm(
             Model.C[Model.C.>=0] ./ Model.r.a(Mesh.CellNodes[end])[Model.C.<=0],
         ),
-        Matrices.Local.Phi[end, :] * 2 / Mesh.Δ[end],
+        Matrices.Local.Phi[end, :], # Minv stuff done later
     )
 
     idx0 = [Mesh.Fil["p0"]; repeat(Mesh.Fil["0"]', Mesh.NBases, 1)[:]; Mesh.Fil["q0"]]

@@ -536,6 +536,7 @@ function MakeB(;
             η = [1; 1]
         end
     end
+
     # Lower boundary
     # At boundary
     B[1:N₋, 1:N₋] = Model.T[Model.C.<=0, Model.C.<=0]
@@ -561,7 +562,7 @@ function MakeB(;
         (N₋ + Mesh.TotalNBases - Mesh.NBases)
     B[(end-N₊+1):end, idxdown] = kron(
         Model.T[Model.C.>=0, Model.C.<0],
-        Matrices.Local.Phi[end, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv  ./ η[1],
+        Matrices.Local.Phi[end, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv  ./ η[end],
     )
     # Into boundary
     idxup =

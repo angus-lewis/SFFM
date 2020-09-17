@@ -1,11 +1,23 @@
-include("src/SFFM.jl")
+include("../src/SFFM.jl")
 using LinearAlgebra, Plots, JLD2
 
-include("examples/paperNumerics/exampleModelDef.jl")
+include("../examples/paperNumerics/exampleModelDef.jl")
 
 @load pwd()*"/examples/paperNumerics/dump/sims.jld2" sims
 
-simprobs = SFFM.Sims2Dist(Model=simModel,Mesh=Mesh,sims=sims,type="cumulative")
+Δ = 0.2
+Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
+
+NBases = 1
+Basis = "legendre"
+Mesh = SFFM.MakeMesh(
+    Model = approxModel,
+    Nodes = Nodes,
+    NBases = NBases,
+    Basis = Basis,
+)
+
+simprobs = SFFM.Sims2Dist(Model=simModel,Mesh=Mesh,sims=sims,type="density")
 
 p2 = plot(
     simprobs.x,
@@ -29,18 +41,6 @@ p2 = plot(
     legendfontsize = 10,
 )
 
-Δ = 0.4
-Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
-
-NBases = 2
-Basis = "legendre"
-Mesh = SFFM.MakeMesh(
-    Model = approxModel,
-    Nodes = Nodes,
-    NBases = NBases,
-    Basis = Basis,
-)
-
 All = SFFM.MakeAll(Model = approxModel, Mesh = Mesh, approxType = "projection")
 Matrices = SFFM.MakeMatrices2(Model=approxModel,Mesh=Mesh)
 MatricesR = SFFM.MakeMatricesR(Model=approxModel,Mesh=Mesh)
@@ -59,13 +59,14 @@ basisValues = zeros(length(theNodes))
 for n in 1:length(theNodes)
     basisValues[n] = prod(5.0.-theNodes[[1:n-1;n+1:end]])./prod(theNodes[n].-theNodes[[1:n-1;n+1:end]])
 end
-basisValues = basisValues'*V.V
+V = SFFM.vandermonde(NBases=NBases)
+basisValues = basisValues'*All.Matrices.Local.V.V*All.Matrices.Local.V.V'.*2/Δ
 initpm = [
     zeros(sum(approxModel.C.<=0)) # LHS point mass
     zeros(sum(approxModel.C.>=0)) # RHS point mass
 ]
 initprobs = zeros(Float64,Mesh.NBases,Mesh.NIntervals,approxModel.NPhases)
-initprobs[:,convert(Int,ceil(5/Δ)),3] = basisValues'*sqrt(2)/0.4#*All.Matrices.Local.V.V*All.Matrices.Local.V.V'.*2/Δ
+initprobs[:,convert(Int,ceil(5/Δ)),3] = basisValues #*All.Matrices.Local.V.V*All.Matrices.Local.V.V'.*2/Δ
 # initprobs[1,convert(Int,ceil(5/Δ)),3] = sqrt(2)
 initdist = (
     pm = initpm,
@@ -109,7 +110,7 @@ DGProbs = SFFM.Coeffs2Dist(
     Model = approxModel,
     Mesh = Mesh,
     Coeffs = z,
-    type="cumulative",
+    type="density",
 )
 
 # plot them
@@ -123,7 +124,8 @@ p2 = plot!(p2,
     linestyle = :dash,
 )
 
-SFFM.PlotSFM(Model=approxModel,Mesh=Mesh,Dist=DGProbs)
+p = SFFM.PlotSFM(Model=approxModel,Mesh=Mesh,Dist=DGProbs)
+SFFM.PlotSFM!(p;Model=approxModel,Mesh=Mesh,Dist=simprobs,color=2)
 for sp in 1:4
     plot!(subplot=sp, xlims=(0,2))
 end
@@ -157,10 +159,10 @@ T = [-1.0 1.0; 1.0 -1.0]
 C = [2.0; -1.0]
 r = (
     r = function (x)
-        [cos.(x).+1.05 -1.25*(x.>-1)]
+        [(cos.(x).+1.05).*(x.<5) -4*(x.>-1).*(x.<20)]
     end,
     R = function (x)
-        [sin.(x).+1.05.*x -1.25*(x.>-1).*x]
+        [(sin.(x).+1.05.*x).*(x.<5).+(sin.(5 .*x./x).+1.05.*5 .*x./x).*(x.>=5) -4*(x.>-1).*(x.<20).*x .+ -4*(x.>-1).*(x.>=20)*20]
     end,
 )
 
@@ -170,9 +172,9 @@ Model = SFFM.MakeModel(T = T, C = C, r = r, Bounds = Bounds)
 
 ## Define mesh
 
-Δ = 1
+Δ = 2.5
 Nodes = collect(Bounds[1,1]:Δ:Bounds[1,2])
-NBases = 5
+NBases = 1
 Basis = "legendre"
 Mesh = SFFM.MakeMesh(Model = Model, Nodes = Nodes, NBases = NBases, Basis=Basis)
 
@@ -187,8 +189,8 @@ Dr = SFFM.MakeDR(
     Mesh=Mesh,
     B=All.B,
 )
-## sims fro gound truth
-x₀ = 4*π
+## sims for gound truth
+x₀ = 0.01;#4*π
 NSim = 50000
 IC = (φ = ones(Int, NSim), X = x₀ .* ones(NSim), Y = zeros(NSim))
 y = 10
@@ -293,10 +295,10 @@ println(sum(z))
 DRdensity = SFFM.Coeffs2Dist(Model=Model,Mesh=Mesh,Coeffs=zr,type="density")
 Ddensity = SFFM.Coeffs2Dist(Model=Model,Mesh=Mesh,Coeffs=z,type="density")
 
-SFFM.PlotSFM(Model=Model,Mesh=Mesh,Dist=simdensity)
-SFFM.PlotSFM!(p;Model=Model,Mesh=Mesh,Dist=DRdensity,color=:red)
-SFFM.PlotSFM!(p;Model=Model,Mesh=Mesh,Dist=Ddensity,color=:black)
+p = SFFM.PlotSFM(Model=Model,Mesh=Mesh,Dist=simdensity)
+p = SFFM.PlotSFM!(p;Model=Model,Mesh=Mesh,Dist=DRdensity,color=:red)
+p = SFFM.PlotSFM!(p;Model=Model,Mesh=Mesh,Dist=Ddensity,color=:black)
 
-plot(DRdensity.x[:], DRdensity.distribution[:,:,2][:])
-plot!(Ddensity.x[:], Ddensity.distribution[:,:,2][:])
-plot!(simdensity.x[:], simdensity.distribution[:,:,2][:])
+plot(DRdensity.x[:], DRdensity.distribution[:,:,2][:],label="DR")
+plot!(Ddensity.x[:], Ddensity.distribution[:,:,2][:],label="D")
+plot!(simdensity.x[:], simdensity.distribution[:,:,2][:],label="Sim")
