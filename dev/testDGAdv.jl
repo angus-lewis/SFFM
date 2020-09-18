@@ -5,10 +5,10 @@ include("../examples/paperNumerics/exampleModelDef.jl")
 
 @load pwd()*"/examples/paperNumerics/dump/sims.jld2" sims
 
-Δ = 0.2
+Δ = 1.6
 Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
 
-NBases = 1
+NBases = 3
 Basis = "legendre"
 Mesh = SFFM.MakeMesh(
     Model = approxModel,
@@ -17,7 +17,7 @@ Mesh = SFFM.MakeMesh(
     Basis = Basis,
 )
 
-simprobs = SFFM.Sims2Dist(Model=simModel,Mesh=Mesh,sims=sims,type="density")
+simprobs = SFFM.Sims2Dist(Model=simModel,Mesh=Mesh,sims=sims,type="cumulative")
 
 p2 = plot(
     simprobs.x,
@@ -53,6 +53,8 @@ Dr = SFFM.MakeDR(
 )
 
 Ψ = SFFM.PsiFun(D=Dr.DDict)
+Ψbase = SFFM.PsiFun(D=All.D)
+
 # construct initial condition
 theNodes = Mesh.CellNodes[:,convert(Int,ceil(5/Δ))]
 basisValues = zeros(length(theNodes))
@@ -60,7 +62,12 @@ for n in 1:length(theNodes)
     basisValues[n] = prod(5.0.-theNodes[[1:n-1;n+1:end]])./prod(theNodes[n].-theNodes[[1:n-1;n+1:end]])
 end
 V = SFFM.vandermonde(NBases=NBases)
-basisValues = basisValues'*All.Matrices.Local.V.V*All.Matrices.Local.V.V'.*2/Δ
+basisValues = basisValues./V.w
+if Mesh.Basis=="lagrange"
+    basisValues = basisValues'*V.V*V.V'
+else
+    basisValues = basisValues'*V.inv'*2/Δ
+end
 initpm = [
     zeros(sum(approxModel.C.<=0)) # LHS point mass
     zeros(sum(approxModel.C.>=0)) # RHS point mass
@@ -72,7 +79,7 @@ initdist = (
     pm = initpm,
     distribution = initprobs,
     x = Mesh.CellNodes,
-    type = "density"
+    type = "cumulative"
 ) # convert to a distribution object so we can apply Dist2Coeffs
 # convert to Coeffs α in the DG context
 x0 = [0;0;initdist.distribution[:];0;0]' # SFFM.Dist2Coeffs(Model = approxModel, Mesh = Mesh, Distn = initdist) # #
@@ -89,6 +96,8 @@ println(sum(x0))
 
 # compute x-distribution at the time when Y returns to 0
 w = x0*Ψ
+wbase = x0*Ψbase
+
 # this can occur in - states only, so find the - states
 minusIdx = [
     Mesh.Fil["p-"];
@@ -101,16 +110,25 @@ z = zeros(
     Mesh.NBases*Mesh.NIntervals * approxModel.NPhases +
         sum(approxModel.C.<=0) + sum(approxModel.C.>=0)
 )
+zbase = copy(z)
 z[minusIdx] = w
+zbase[minusIdx] = wbase
 # check that it is equal to 1
 println(sum(z))
+println(sum(zbase))
 
 # convert to a distribution object for plotting
 DGProbs = SFFM.Coeffs2Dist(
     Model = approxModel,
     Mesh = Mesh,
     Coeffs = z,
-    type="density",
+    type="cumulative",
+)
+DGProbsBase = SFFM.Coeffs2Dist(
+    Model = approxModel,
+    Mesh = Mesh,
+    Coeffs = zbase,
+    type="cumulative",
 )
 
 # plot them
@@ -119,6 +137,15 @@ p2 = plot!(p2,
     DGProbs.distribution[:,:,2],
     label = :false,#"DG: N_k = "*string(NBases),
     color = :blue,
+    xlims = (0,2),
+    seriestype = :line,
+    linestyle = :dash,
+)
+p2 = plot!(p2,
+    DGProbsBase.x,
+    DGProbsBase.distribution[:,:,2],
+    label = :false,#"DG: N_k = "*string(NBases),
+    color = :black,
     xlims = (0,2),
     seriestype = :line,
     linestyle = :dash,
@@ -151,6 +178,15 @@ r = (
     end,
     R = function (x)
         [x.*abs.(((x .<= 1)-(x .> 1))) x.*abs.((((x .> 1))-2*(x .<= 1).*(x .> 0)-(x.==0)))]#[x x]
+    end,
+)
+
+r = (
+    r = function (x)
+        [2*(x.>-1).*(x.<5) -2*(x.>-1)]#[ones(size(x)) ones(size(x))]#
+    end,
+    R = function (x)
+        [2*(x.>-1).*(x.<5).*x.+(x.>=5).*5 -2*(x.>-1).*x]
     end,
 )
 

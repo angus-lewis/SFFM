@@ -296,18 +296,18 @@ function MakeDR(;
     # Boundary behaviour
     # Lower boundary
     # At boundary
-    BR[1:N₋, 1:N₋] = (1.0./ Model.r.a(Mesh.CellNodes[1])'.*Model.T)[Model.C.<=0, Model.C.<=0]
+    BR[1:N₋, 1:N₋] = (1.0./ Model.r.a(Mesh.Nodes[1])'.*Model.T)[Model.C.<=0, Model.C.<=0]
     # Out of boundary
     idxup = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .> 0) .- 1)')[:] .+ N₋
     BR[1:N₋, idxup] = kron(
-        (1.0./Model.r.a(Mesh.CellNodes[1])'.*Model.T)[Model.C.<=0, Model.C.>0],
-        Matrices.Local.Phi[1, :]', # Minv stuff done later
+        (1.0./Model.r.a(Mesh.Nodes[1])'.*Model.T)[Model.C.<=0, Model.C.>0],
+        Matrices.Local.Phi[1, :]' * Matrices.Local.MInv * 2 ./ Mesh.Δ[1], # Minv stuff done later
     )
     # Into boundary
     idxdown = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .<= 0) .- 1)')[:] .+ N₋
     BR[idxdown, 1:N₋] = LinearAlgebra.kron(
         LinearAlgebra.diagm(
-            Model.C[Model.C.<=0] ./ Model.r.a(Mesh.CellNodes[1])[Model.C.<=0],
+            Model.C[Model.C.<=0] ./ Model.r.a(Mesh.Nodes[1].+sqrt(eps()))[Model.C.<=0],
         ),
         -Matrices.Local.Phi[1, :], # Minv stuff done later
     )
@@ -315,14 +315,14 @@ function MakeDR(;
     # Upper boundary
     # At boundary
     BR[(end-N₊+1):end, (end-N₊+1):end] =
-        (1.0./Model.r.a(Mesh.CellNodes[end])'.*Model.T)[Model.C.>=0, Model.C.>=0]
+        (1.0./Model.r.a(Mesh.Nodes[end])'.*Model.T)[Model.C.>=0, Model.C.>=0]
     # Out of boundary
     idxdown =
         ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .< 0) .- 1)')[:] .+
         (N₋ + Mesh.TotalNBases - Mesh.NBases)
     BR[(end-N₊+1):end, idxdown] = kron(
-        (1.0./Model.r.a(Mesh.CellNodes[end])'.*Model.T)[Model.C.>=0, Model.C.<0],
-        Matrices.Local.Phi[end, :]', # Minv stuff done later
+        (1.0./Model.r.a(Mesh.Nodes[end])'.*Model.T)[Model.C.>=0, Model.C.<0],
+        Matrices.Local.Phi[end, :]' * Matrices.Local.MInv * 2 ./ Mesh.Δ[end], # Minv stuff done later
     )
     # Into boundary
     idxup =
@@ -330,7 +330,7 @@ function MakeDR(;
         (N₋ + Mesh.TotalNBases - Mesh.NBases)
     BR[idxup, (end-N₊+1):end] = LinearAlgebra.kron(
         LinearAlgebra.diagm(
-            Model.C[Model.C.>=0] ./ Model.r.a(Mesh.CellNodes[end])[Model.C.<=0],
+            Model.C[Model.C.>=0] ./ Model.r.a(Mesh.Nodes[end].-sqrt(eps()))[Model.C.>=0],
         ),
         Matrices.Local.Phi[end, :], # Minv stuff done later
     )
