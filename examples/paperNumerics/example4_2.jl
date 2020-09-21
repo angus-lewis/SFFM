@@ -219,6 +219,6 @@ let
 
     display(p2)
     display(p4)
-    savefig(p2, pwd()*"/examples/paperNumerics/dump/psiPhase10.png")
-    savefig(p4, pwd()*"/examples/paperNumerics/dump/psiPhase00.png")
+    # savefig(p2, pwd()*"/examples/paperNumerics/dump/psiPhase10.png")
+    # savefig(p4, pwd()*"/examples/paperNumerics/dump/psiPhase00.png")
 end

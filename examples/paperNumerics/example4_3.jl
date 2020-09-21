@@ -119,5 +119,5 @@ let q = SFFM.PlotSFM(Model = approxModel)
         )
     end
     display(q)
-    savefig(pwd()*"/examples/paperNumerics/dump/marginalStationaryDistX.png")
+    # savefig(pwd()*"/examples/paperNumerics/dump/marginalStationaryDistX.png")
 end
