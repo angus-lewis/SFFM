@@ -202,28 +202,30 @@ r = (
     end,
 )
 
-Bounds = [0 30; -Inf Inf]
+Bounds = [0 20; -Inf Inf]
 Model = SFFM.MakeModel(T = T, C = C, r = r, Bounds = Bounds)
 
 
 ## Define mesh
 
-Δ = 2.5
+Δ = 5
 Nodes = collect(Bounds[1,1]:Δ:Bounds[1,2])
-NBases = 1
-Basis = "legendre"
+NBases = 2
+Basis = "lagrange"
 Mesh = SFFM.MakeMesh(Model = Model, Nodes = Nodes, NBases = NBases, Basis=Basis)
 
 ## matrices
 All = SFFM.MakeAll(Model = Model, Mesh = Mesh, approxType = "projection")
 Matrices = All.Matrices
 MatricesR = SFFM.MakeMatricesR(Model=Model,Mesh=Mesh)
+Matrices2 = SFFM.MakeMatrices2(Model=Model,Mesh=Mesh)
+B = SFFM.MakeB(Model=Model,Mesh=Mesh,Matrices=Matrices2)
 Dr = SFFM.MakeDR(
     Matrices=Matrices,
     MatricesR=MatricesR,
     Model=Model,
     Mesh=Mesh,
-    B=All.B,
+    B=B,
 )
 ## sims for gound truth
 x₀ = 0.01;#4*π

@@ -26,6 +26,10 @@ function MakeMatrices2(;
         MInvLocal = V.V * V.V'
         Phi = (V.inv*V.V)[[1; end], :]
     end
+    Dw = (
+        DwInv = LinearAlgebra.I,
+        Dw = LinearAlgebra.I,
+    )
 
     ## Assemble into global block diagonal matrices
     G = SFFM.MakeBlockDiagonalMatrix(
@@ -56,7 +60,7 @@ function MakeMatrices2(;
         end
     end
 
-    Local = (G = GLocal, M = MLocal, MInv = MInvLocal, V = V, Phi = Phi)
+    Local = (G = GLocal, M = MLocal, MInv = MInvLocal, V = V, Phi = Phi, Dw = Dw)
     Global = (G = G, M = M, MInv = MInv, F = F, Q = Q)
     out = (Local = Local, Global = Global)
     # println("UPDATE: Matrices object created with keys ", keys(out))
