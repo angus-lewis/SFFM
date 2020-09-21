@@ -297,7 +297,7 @@ x0 = SFFM.Dist2Coeffs(Model = Model, Mesh = Mesh, Distn = initdist)
     SFFM.SimSFFM(Model = Model, StoppingTime = SFFM.FirstExitY(u = 0, v = Inf), InitCondition = IC)
 
 simdensity = SFFM.Sims2Dist(Model=Model,Mesh=Mesh,sims=sims,type="density")
-
+We are now on a branch
 plusIdx = [
     Mesh.Fil["p+"];
     repeat(Mesh.Fil["+"]', Mesh.NBases, 1)[:];
