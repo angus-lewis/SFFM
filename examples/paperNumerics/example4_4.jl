@@ -137,5 +137,5 @@ let
         )
     end
     display(q)
-    savefig(pwd()*"/examples/paperNumerics/dump/sensitivityMarginalStationaryDistX.png")
+    # savefig(pwd()*"/examples/paperNumerics/dump/sensitivityMarginalStationaryDistX.png")
 end

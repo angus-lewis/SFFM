@@ -168,7 +168,7 @@ let p = plot()
         )
     end
     display(p)
-    savefig(pwd()*"/examples/paperNumerics/dump/piErrorVsDelta.png")
+    # savefig(pwd()*"/examples/paperNumerics/dump/piErrorVsDelta.png")
 end
 
 let p = plot()
@@ -190,7 +190,7 @@ let p = plot()
         )
     end
     display(p)
-    savefig(pwd()*"/examples/paperNumerics/dump/piErrorVsNBases.png")
+    # savefig(pwd()*"/examples/paperNumerics/dump/piErrorVsNBases.png")
 end
 
 begin
@@ -262,7 +262,7 @@ let q = plot()
         )
     end
     display(q)
-    savefig(pwd()*"/examples/paperNumerics/dump/psiErrorVsDelta.png")
+    # savefig(pwd()*"/examples/paperNumerics/dump/psiErrorVsDelta.png")
 end
 
 mq =

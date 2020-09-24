@@ -69,8 +69,8 @@ else
     basisValues = basisValues'*V.inv'*2/Δ
 end
 initpm = [
-    zeros(sum(Model.C.<=0)) # LHS point mass
-    zeros(sum(Model.C.>=0)) # RHS point mass
+    zeros(sum(approxModel.C.<=0)) # LHS point mass
+    zeros(sum(approxModel.C.>=0)) # RHS point mass
 ]
 initprobs = zeros(Float64,Mesh.NBases,Mesh.NIntervals,approxModel.NPhases)
 initprobs[:,convert(Int,ceil(5/Δ)),3] = basisValues #*All.Matrices.Local.V.V*All.Matrices.Local.V.V'.*2/Δ
