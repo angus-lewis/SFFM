@@ -165,3 +165,77 @@ let
         # b(t) = [t; (a₁+a₂*λ₂*t)./sum([a₁+a₂*λ₂*t; a₂]); a₂./sum([a₁+a₂*λ₂*t; a₂])]
     end
 end
+
+let
+    α = [3 -1 -1]
+    # C = [-1 1 0; 0 -2 2; 0 0 -3]
+    # C = [-1 1 0; 0 -2 1; 1 1 -3]
+    C = [-1 0 0; -2/3 -1 1; 2/3 -1 -1]
+    c = -sum(C,dims=2)
+    D = c*α
+    Q = C + D
+    π = real.(eigen(Matrix(Q')).vectors[:,end])
+    π = π./sum(π)
+    Δ = diagm(π)
+    Δinv = diagm(1 ./ π)
+
+    Qr = Δinv*Q'*Δ
+    Cr = Δinv*C'*Δ
+    Dr = Δinv*D'*Δ
+    cr = -sum(Cr,dims=2)
+
+    idx = findfirst(abs.(cr).>sqrt(sqrt(eps())))[1]
+    αr = Dr[idx,:]'./cr[idx]
+
+    plot()
+
+    # α = [1 0 0]
+    na(t) = [0 α*exp(C*t)]
+    a(t) = na(t)./sum(na(t))
+    nb(t) = [0 α*exp(Cr*t)]
+    b(t) = nb(t)./sum(nb(t))
+    plot(xlims=(-1.3,1.3),ylims=(-1.3,1.3),zlims=(-1.3,1.3))#,layout=(2,1))
+    plot(xlabel="a₁(t)",ylabel="a₂(t)",zlabel="a₃(t)") # xlabel="t",
+    for n in 1:14
+        e₁ = 1;log(rand())/C[1,1]
+        e₂ = 1;log(rand())/C[2,2]
+        e₃ = 1;log(rand())/C[3,3]
+        r = rand()
+        erlangrnd = e₁*(r.<(a(0)[1]+a(0)[2])) + e₂*(r.<a(0)[2]) + e₃
+        h = erlangrnd/9
+        for t in range(0,erlangrnd,length=10)[2:end]
+            if n%2==1
+                c = a(t)
+                d = a(t-h)
+                # display(plot!([c[2];d[2]],[c[3];d[3]],label=false,color=:blue,markershape=:x,seriestype=:line))
+                display(plot3d!([d[2];c[2]],[d[3];c[3]],[d[4];c[4]],label=false,color=:blue,markershape=:rtriangle))
+                # display(plot!(totaltime.+[c[1];d[1]],[c[2];d[2]],label=false,color=:blue,subplot=1))
+                # display(plot!(totaltime.+[c[1];d[1]],[c[3];d[3]],label=false,color=:blue,subplot=2))
+            else
+                c = b(t)
+                d = b(t-h)
+                # display(plot!([c[2];d[2]],[c[3];d[3]],label=false,color=:red,markershape=:rtriangle,seriestype=:line))
+                display(plot3d!([d[2];c[2]],[d[3];c[3]],[d[4];c[4]],label=false,color=:red,markershape=:ltriangle))
+                # display(plot!(totaltime.+[c[1];d[1]],[c[2];d[2]],label=false,color=:red,subplot=1))
+                # display(plot!(totaltime.+[c[1];d[1]],[c[3];d[3]],label=false,color=:red,subplot=2))
+            end
+        end
+        if n%2==1
+            temp = a(erlangrnd)
+            a₁ = temp[2]
+            a₂ = temp[3]
+            a₃ = temp[4]
+            α = [a₁ a₂ a₃]
+        else
+            temp = b(erlangrnd)
+            a₁ = temp[2]
+            a₂ = temp[3]
+            a₃ = temp[4]
+            α = [a₁ a₂ a₃]
+        end
+        na(t) = [0 α*exp(C*t)]
+        a(t) = na(t)./sum(na(t))
+        nb(t) = [0 α*exp(Cr*t)]
+        b(t) = nb(t)./sum(nb(t))
+    end
+end
