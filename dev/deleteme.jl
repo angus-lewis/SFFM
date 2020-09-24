@@ -174,10 +174,12 @@ let
     c = -sum(C,dims=2)
     D = c*α
     Q = C + D
-    π = real.(eigen(Matrix(Q')).vectors[:,end])
+    E = eigen(Matrix(Q'))
+    Eidx = abs.(E.values).<0.0001
+    π = real.(E.vectors[:,Eidx])
     π = π./sum(π)
-    Δ = diagm(π)
-    Δinv = diagm(1 ./ π)
+    Δ = diagm(0=>π[:])
+    Δinv = diagm(0=>1 ./ π[:])
 
     Qr = Δinv*Q'*Δ
     Cr = Δinv*C'*Δ
@@ -194,33 +196,33 @@ let
     a(t) = na(t)./sum(na(t))
     nb(t) = [0 α*exp(Cr*t)]
     b(t) = nb(t)./sum(nb(t))
-    plot(xlims=(-1.3,1.3),ylims=(-1.3,1.3),zlims=(-1.3,1.3))#,layout=(2,1))
-    plot(xlabel="a₁(t)",ylabel="a₂(t)",zlabel="a₃(t)") # xlabel="t",
+    #plot(xlims=(-1.5,1.5),ylims=(-1.5,1.5))#,layout=(2,1))
+    plot(xlabel="a₁(t)",ylabel="a₂(t)") # xlabel="t",
     for n in 1:14
-        e₁ = 1;log(rand())/C[1,1]
-        e₂ = 1;log(rand())/C[2,2]
-        e₃ = 1;log(rand())/C[3,3]
+        e₁ = log(rand())/C[1,1]
+        e₂ = log(rand())/C[2,2]
+        e₃ = log(rand())/C[3,3]
         r = rand()
         erlangrnd = e₁*(r.<(a(0)[1]+a(0)[2])) + e₂*(r.<a(0)[2]) + e₃
         h = erlangrnd/9
         for t in range(0,erlangrnd,length=10)[2:end]
-            if n%2==1
+            if true#n%2==1
                 c = a(t)
                 d = a(t-h)
                 # display(plot!([c[2];d[2]],[c[3];d[3]],label=false,color=:blue,markershape=:x,seriestype=:line))
-                display(plot3d!([d[2];c[2]],[d[3];c[3]],[d[4];c[4]],label=false,color=:blue,markershape=:rtriangle))
+                display(plot!([d[3];c[3]],[d[4];c[4]],label=false,color=:blue,markershape=:rtriangle))
                 # display(plot!(totaltime.+[c[1];d[1]],[c[2];d[2]],label=false,color=:blue,subplot=1))
                 # display(plot!(totaltime.+[c[1];d[1]],[c[3];d[3]],label=false,color=:blue,subplot=2))
             else
                 c = b(t)
                 d = b(t-h)
                 # display(plot!([c[2];d[2]],[c[3];d[3]],label=false,color=:red,markershape=:rtriangle,seriestype=:line))
-                display(plot3d!([d[2];c[2]],[d[3];c[3]],[d[4];c[4]],label=false,color=:red,markershape=:ltriangle))
+                display(plot!([d[3];c[3]],[d[4];c[4]],label=false,color=:red,markershape=:ltriangle))
                 # display(plot!(totaltime.+[c[1];d[1]],[c[2];d[2]],label=false,color=:red,subplot=1))
                 # display(plot!(totaltime.+[c[1];d[1]],[c[3];d[3]],label=false,color=:red,subplot=2))
             end
         end
-        if n%2==1
+        if true#n%2==1
             temp = a(erlangrnd)
             a₁ = temp[2]
             a₂ = temp[3]
