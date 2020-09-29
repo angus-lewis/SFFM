@@ -221,7 +221,7 @@ function MakeMatricesR(;
             # Inputs:
             #   - x a vector of Gauss-Lobatto points on Dk
             #   - i a phase
-            V.inv' * V.inv * MLocal(x, i) * V.inv' * V.D
+            V.inv' * V.inv * MLocal(x, i) * V.D * V.inv
         end
         MInvLocal = function (x::Array{Float64}, i::Int)
             MLocal(x, i)^-1
@@ -305,7 +305,7 @@ function MakeDR(;
     idxup = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .> 0) .- 1)')[:] .+ N₋
     BR[1:N₋, idxup] = kron(
         (1.0./Model.r.a(Mesh.Nodes[1])'.*Model.T)[Model.C.<=0, Model.C.>0],
-        Matrices.Local.Phi[1, :]' * Matrices.Local.MInv * 2 ./ Mesh.Δ[1], # Minv stuff done later
+        Matrices.Local.Phi[1, :]' * Matrices.Local.MInv * 2 ./ Mesh.Δ[1],
     )
     # Into boundary
     idxdown = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .<= 0) .- 1)')[:] .+ N₋
@@ -313,7 +313,7 @@ function MakeDR(;
         LinearAlgebra.diagm(
             Model.C[Model.C.<=0] ./ Model.r.a(Mesh.Nodes[1].+sqrt(eps()))[Model.C.<=0],
         ),
-        -Matrices.Local.Phi[1, :], # Minv stuff done later
+        -Matrices.Local.Phi[1, :],
     )
 
     # Upper boundary
@@ -326,7 +326,7 @@ function MakeDR(;
         (N₋ + Mesh.TotalNBases - Mesh.NBases)
     BR[(end-N₊+1):end, idxdown] = kron(
         (1.0./Model.r.a(Mesh.Nodes[end])'.*Model.T)[Model.C.>=0, Model.C.<0],
-        Matrices.Local.Phi[end, :]' * Matrices.Local.MInv * 2 ./ Mesh.Δ[end], # Minv stuff done later
+        Matrices.Local.Phi[end, :]' * Matrices.Local.MInv * 2 ./ Mesh.Δ[end],
     )
     # Into boundary
     idxup =
@@ -336,7 +336,7 @@ function MakeDR(;
         LinearAlgebra.diagm(
             Model.C[Model.C.>=0] ./ Model.r.a(Mesh.Nodes[end].-sqrt(eps()))[Model.C.>=0],
         ),
-        Matrices.Local.Phi[end, :], # Minv stuff done later
+        Matrices.Local.Phi[end, :],
     )
 
     idx0 = [Mesh.Fil["p0"]; repeat(Mesh.Fil["0"]', Mesh.NBases, 1)[:]; Mesh.Fil["q0"]]
@@ -357,7 +357,6 @@ function MakeDR(;
     ]
 
     # BR[idx0, :] = B.B[idx0, :]
-
     DR = function (;s=0)
         BR[bullet, bullet] -
         MR[bullet, bullet] * s * SparseArrays.sparse(LinearAlgebra.I,sum(bullet),sum(bullet)) * Minv[bullet, bullet] +
