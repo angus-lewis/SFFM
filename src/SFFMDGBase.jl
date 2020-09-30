@@ -691,7 +691,7 @@ function MakeR(;
 )
     V = SFFM.vandermonde(NBases=Mesh.NBases)
 
-    EvalPoints = Mesh.CellNodes
+    EvalPoints = copy(Mesh.CellNodes)
     EvalPoints[1, :] .+= sqrt(eps()) # LH edges + eps
     EvalPoints[end, :] .+= -sqrt(eps()) # RH edges - eps
     EvalR = 1.0 ./ Model.r.a(EvalPoints[:])

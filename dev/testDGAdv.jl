@@ -5,10 +5,10 @@ include("../examples/paperNumerics/exampleModelDef.jl")
 
 @load pwd()*"/examples/paperNumerics/dump/sims.jld2" sims
 
-Δ = 1.6
+Δ = 0.4
 Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
 
-NBases = 3
+NBases = 4
 Basis = "lagrange"
 Mesh = SFFM.MakeMesh(
     Model = approxModel,
@@ -44,12 +44,13 @@ p2 = plot(
 All = SFFM.MakeAll(Model = approxModel, Mesh = Mesh, approxType = "projection")
 Matrices = SFFM.MakeMatrices2(Model=approxModel,Mesh=Mesh)
 MatricesR = SFFM.MakeMatricesR(Model=approxModel,Mesh=Mesh)
+B = SFFM.MakeB(Model=approxModel,Mesh=Mesh,Matrices=Matrices,probTransform=false)
 Dr = SFFM.MakeDR(
     Matrices=Matrices,
     MatricesR=MatricesR,
     Model=approxModel,
     Mesh=Mesh,
-    B=All.B,
+    B=B,
 )
 
 Ψ = SFFM.PsiFun(D=Dr.DDict)
@@ -163,7 +164,7 @@ if Basis=="lagrange"
             color = :black,
             xlims = (0,2),
             seriestype = :line,
-            linestyle = :dash,
+            linestyle = :dot,
         )
     else
         p2 = plot!(p2,
@@ -175,15 +176,15 @@ if Basis=="lagrange"
             seriestype = :line,
             linestyle = :dash,
         )
-        # p2 = plot!(p2,
-        #     Mesh.CellNodes[[1;end],:], # DGProbsBase.x,
-        #     [1;1]*0.5*Δ*V.w'*reshape(zbase[3:end-2], Mesh.NBases, Mesh.NIntervals, approxModel.NPhases)[:,:,4], #DGProbsBase.distribution[:,:,2],
-        #     label = :false,#"DG: N_k = "*string(NBases),
-        #     color = :black,
-        #     xlims = (0,2),
-        #     seriestype = :line,
-        #     linestyle = :dash,
-        # )
+        p2 = plot!(p2,
+            Mesh.CellNodes[[1;end],:],
+            [1;1]*ones(1,NBases)*reshape(zbase[3:end-2], Mesh.NBases, Mesh.NIntervals, approxModel.NPhases)[:,:,4], #DGProbs.distribution[:,:,2],
+            label = :false,#"DG: N_k = "*string(NBases),
+            color = :black,
+            xlims = (0,2),
+            seriestype = :line,
+            linestyle = :dot,
+        )
     end
 else
     p2 = plot!(p2,
@@ -202,7 +203,7 @@ else
         color = :black,
         xlims = (0,2),
         seriestype = :line,
-        linestyle = :dash,
+        linestyle = :dot,
     )
 end
 
@@ -225,8 +226,8 @@ end
 
 ## simpler set up to start
 ## Model 1
-T = [-1.0 1.0; 1.0 -1.0]*2
-C = [1.0; -2.0]
+T = [-1.0 1.0; 1.0 -1.0]
+C = [1.0; -1.2]
 # r = (
 #     r = function (x)
 #         [abs.((x .<= 1)-(x .> 1)) abs.(((x .> 1))-2*(x .<= 1).*(x .> 0)-(x.==0))]#[ones(size(x)) ones(size(x))]#
@@ -236,36 +237,47 @@ C = [1.0; -2.0]
 #     end,
 # )
 
-r = (
-    r = function (x)
-        [1.5*(x.>-1) -2*(x.>-1)]#[ones(size(x)) ones(size(x))]#
-    end,
-    R = function (x)
-        [1.5*(x.>-1).*x -2*(x.>-1).*x]
-    end,
-)
-
-## Model 3
-# T = [-1.0 1.0; 1.0 -1.0]
-# C = [1.0; -1.01]
 # r = (
 #     r = function (x)
-#         [(cos.(x).+1.05) -4*(x.>-1)]
+#         [1.5*(x.>-1) -2*(x.>-1)]#[ones(size(x)) ones(size(x))]#
 #     end,
 #     R = function (x)
-#         [(sin.(x).+1.05.*x) -4*(x.>-1).*x]
+#         [1.5*(x.>-1).*x -2*(x.>-1).*x]
 #     end,
 # )
 
-Bounds = [0 20; -Inf Inf]
+## Model 3
+# T = [-1.0 1.0; 1.0 -1.0]*4
+# C = [1.0; -2.0]
+# r = (
+#     r = function (x)
+#         [-2*(cos.(x).+1.05) 1*(x.>-1)]
+#     end,
+#     R = function (x)
+#         [-2*(sin.(x).+1.05.*x) 1*(x.>-1).*x]
+#     end,
+# )
+
+T = [-1.0 1.0; 1.0 -1.0]*5
+C = [1.0; -5]
+r = (
+    r = function (x)
+        [(cos.(x).+1.05)./(2.05) -3*(x.>1).*(x.>0).-(x.<=1)]
+    end,
+    R = function (x)
+        [(sin.(x).+1.05.*x)./(2.05) -(x.<=1).*x.-3*(x.>1).*x.-1]
+    end,
+)
+
+Bounds = [0 10; -Inf Inf]
 Model = SFFM.MakeModel(T = T, C = C, r = r, Bounds = Bounds)
 
 
 ## Define mesh
 
-Δ = 1
+Δ = 2.5
 Nodes = collect(Bounds[1,1]:Δ:Bounds[1,2])
-NBases = 1
+NBases = 3
 Basis = "lagrange"
 Mesh = SFFM.MakeMesh(Model = Model, Nodes = Nodes, NBases = NBases, Basis=Basis)
 
@@ -283,10 +295,19 @@ Dr = SFFM.MakeDR(
     B=B,
 )
 ## sims for gound truth
-x₀ = 0.1;#4*π
+x₀ = 0.21
 NSim = 50000
 IC = (φ = ones(Int, NSim), X = x₀ .* ones(NSim), Y = zeros(NSim))
 y = 10
+Ψr = SFFM.PsiFun(D=Dr.DDict,s=0)
+Ψ = SFFM.PsiFun(D=All.D,s=0)
+simBounds = [0 Inf; -Inf Inf]
+simModel = SFFM.MakeModel(T = T, C = C, r = r, Bounds = simBounds)
+
+@time sims =
+    SFFM.SimSFFM(Model = simModel, StoppingTime = SFFM.FirstExitY(u = 0, v = Inf), InitCondition = IC)
+
+simdensity = SFFM.Sims2Dist(Model=simModel,Mesh=Mesh,sims=sims,type="density")
 # @time sims =
     # SFFM.SimSFFM(Model = Model, StoppingTime = SFFM.FirstExitY(u = -Inf, v = y), InitCondition = IC)
 
@@ -302,68 +323,27 @@ if Mesh.Basis=="lagrange"
     basisValues = basisValues'*V.V*V.V'*2/Δ
 else
     basisValues = basisValues./V.w
-    basisValues = basisValues'*V.inv'*2
+    basisValues = basisValues'*V.inv'*2/Δ
 end
 initpm = [
     zeros(sum(Model.C.<=0)) # LHS point mass
     zeros(sum(Model.C.>=0)) # RHS point mass
 ]
 initprobs = zeros(Float64,Mesh.NBases,Mesh.NIntervals,Model.NPhases)
-initprobs[:,convert(Int,ceil(x₀/Δ)),1] = basisValues #*All.Matrices.Local.V.V*All.Matrices.Local.V.V'.*2/Δ
+initprobs[:,convert(Int,max(1,ceil(x₀/Δ))),1] = basisValues #*All.Matrices.Local.V.V*All.Matrices.Local.V.V'.*2/Δ
+initprobsBase = zeros(Float64,Mesh.NBases,Mesh.NIntervals,Model.NPhases)
+initprobsBase[:,convert(Int,max(1,ceil(x₀/Δ))),1] = basisValues.*V.w'/2*Δ
 # initprobs[1,convert(Int,ceil(5/Δ)),3] = sqrt(2)
 initdist = (
     pm = initpm,
     distribution = initprobs,
     x = Mesh.CellNodes,
-    type = "density"
-)
-x0 = [0;initdist.distribution[:];0]'
-# x0 = SFFM.Dist2Coeffs(Model = Model, Mesh = Mesh, Distn = initdist)
-# h = 0.0001
-# @time DRyvals = SFFM.EulerDG(D = Dr.DR(s = 0), y = y, x0 = x0, h = h)
-# @time vikramyvals = SFFM.EulerDG(D = vikramD, y = y, x0 = x0, h = h)
-
-## plotting
-# simdensity = SFFM.Sims2Dist(Model=Model,Mesh=Mesh,sims=sims,type="probability")
-# DRdensity = SFFM.Coeffs2Dist(Model=Model,Mesh=Mesh,Coeffs=DRyvals,type="probability")
-
-# vikramdensity = SFFM.Coeffs2Dist(Model=Model,Mesh=Mesh,Coeffs=vikramyvals,type="density")
-# println("DR error: ",SFFM.starSeminorm(d1 = DRdensity, d2 = simdensity))
-
-## plots
-# plot solutions
-# densities
-# p = SFFM.PlotSFM(Model=Model,Mesh=Mesh,Dist=DRdensity,color=:blue,label="DR")#,marker=:rtriangle)
-
-# plot sims
-# p = SFFM.PlotSFM!(p;Model=Model,Mesh=Mesh,Dist=simdensity,color=:black,label="sim")#,marker=:ltriangle)
-
-# display(p)
-## probabilities
-# simdensity = SFFM.Sims2Dist(Model=Model,Mesh=Mesh,sims=sims,type="density")
-# DRdensity = SFFM.Coeffs2Dist(Model=Model,Mesh=Mesh,Coeffs=DRyvals,type="density")
-
-## plots
-# plot solutions
-# densities
-# p = SFFM.PlotSFM(Model=Model,Mesh=Mesh,Dist=DRdensity,color=:blue,label="DR")#,marker=:rtriangle)
-
-# plot sims
-# p = SFFM.PlotSFM!(p;Model=Model,Mesh=Mesh,Dist=simdensity,color=:black,label="sim")#,marker=:ltriangle)
-
-# display(p)
-
-## Ψ
-Ψr = SFFM.PsiFun(D=Dr.DDict,s=1)
-Ψ = SFFM.PsiFun(D=All.D,s=1)
-simBounds = [0 Inf; -Inf Inf]
-simModel = SFFM.MakeModel(T = T, C = C, r = r, Bounds = simBounds)
-
-@time sims =
-    SFFM.SimSFFM(Model = simModel, StoppingTime = SFFM.FirstExitY(u = 0, v = Inf), InitCondition = IC)
-
-simdensity = SFFM.Sims2Dist(Model=simModel,Mesh=Mesh,sims=sims,type="density")
-
+    type = "cumulative"
+) # convert to a distribution object so we can apply Dist2Coeffs
+# convert to Coeffs α in the DG context
+x0 = [0;initdist.distribution[:];0]' # SFFM.Dist2Coeffs(Model = approxModel, Mesh = Mesh, Distn = initdist) # #
+x0Base = [0;initprobsBase[:];0]' # SFFM.Dist2Coeffs(Model = approxModel, Mesh = Mesh, Distn = initdist) # #
+# the initial condition on Ψ is restricted to + states so find the + states
 plusIdx = [
     Mesh.Fil["p+"];
     repeat(Mesh.Fil["+"]', Mesh.NBases, 1)[:];
@@ -371,9 +351,15 @@ plusIdx = [
 ]
 # get the elements of x0 in + states only
 x0 = x0[plusIdx]'
+x0Base = x0Base[plusIdx]'
+# check that it is equal to 1 (or at least close)
+println(sum(x0))
 
-wr = x0*Ψr
-w = x0*Ψ
+# compute x-distribution at the time when Y returns to 0
+w = x0*Ψr
+
+wbase = x0Base*Ψ
+
 # this can occur in - states only, so find the - states
 minusIdx = [
     Mesh.Fil["p-"];
@@ -386,26 +372,23 @@ z = zeros(
     Mesh.NBases*Mesh.NIntervals * Model.NPhases +
         sum(Model.C.<=0) + sum(Model.C.>=0)
 )
+zbase = copy(z)
 z[minusIdx] = w
-zr = zeros(
-    Float64,
-    Mesh.NBases*Mesh.NIntervals * Model.NPhases +
-        sum(Model.C.<=0) + sum(Model.C.>=0)
-)
-zr[minusIdx] = wr
+zbase[minusIdx] = wbase
 # check that it is equal to 1
 println(sum(z))
+println(sum(zbase))
 
-DRdensity = SFFM.Coeffs2Dist(Model=Model,Mesh=Mesh,Coeffs=zr,type="density")
-Ddensity = SFFM.Coeffs2Dist(Model=Model,Mesh=Mesh,Coeffs=z,type="density")
+DRdensity = SFFM.Coeffs2Dist(Model=Model,Mesh=Mesh,Coeffs=z,type="density")
+Ddensity = SFFM.Coeffs2Dist(Model=Model,Mesh=Mesh,Coeffs=zbase,type="density")
 
 # p = SFFM.PlotSFM(Model=Model,Mesh=Mesh,Dist=simdensity)
 # p = SFFM.PlotSFM!(p;Model=Model,Mesh=Mesh,Dist=DRdensity,color=:red)
 # p = SFFM.PlotSFM!(p;Model=Model,Mesh=Mesh,Dist=Ddensity,color=:black)
 
 simprobs = SFFM.Sims2Dist(Model=Model,Mesh=Mesh,sims=sims,type="probability")
-DRprobs = SFFM.Coeffs2Dist(Model=Model,Mesh=Mesh,Coeffs=zr,type="probability")
-Dprobs = SFFM.Coeffs2Dist(Model=Model,Mesh=Mesh,Coeffs=z,type="probability")
+DRprobs = SFFM.Coeffs2Dist(Model=Model,Mesh=Mesh,Coeffs=z,type="probability")
+Dprobs = SFFM.Coeffs2Dist(Model=Model,Mesh=Mesh,Coeffs=zbase,type="probability")
 
 display(simprobs.pm)
 display(DRprobs.pm)
@@ -413,6 +396,48 @@ display(Dprobs.pm)
 eR = SFFM.starSeminorm(d1 = DRprobs, d2 = simprobs)
 e = SFFM.starSeminorm(d1 = Dprobs, d2 = simprobs)
 ediff = SFFM.starSeminorm(d1 = DRprobs, d2 = Dprobs)
-plot(DRdensity.x[:], DRdensity.distribution[:,:,2][:],label="DR")
-plot!(Ddensity.x[:], Ddensity.distribution[:,:,2][:],label="D")
-plot!(simdensity.x[:], simdensity.distribution[:,:,2][:],label="Sim")
+# plot(DRprobs.x[:], DRprobs.distribution[:,:,2][:],label="DR")
+xvals = [Mesh.Nodes[1:end-1]'; Mesh.Nodes[2:end]']
+plot(xvals, [1;1]*Dprobs.distribution[:,:,2],label=false, color=:black,
+    seriestype = :line,
+)
+plot!(xvals, [1;1]*simprobs.distribution[:,:,2],label=false, color=:red)
+
+if Basis=="lagrange"
+    if Mesh.NBases==1
+        p2 = plot!(
+            xvals,
+            [1;1]*0.5*Δ*2*reshape(z[2:end-1], Mesh.NBases, Mesh.NIntervals, Model.NPhases)[:,:,2], #DGProbs.distribution[:,:,2],
+            label = :false,#"DG: N_k = "*string(NBases),
+            color = :blue,
+            xlims = (0,10),
+            seriestype = :line,
+            linestyle = :dash,
+        )
+    else
+        p2 = plot!(
+            xvals,
+            [1;1]*0.5*Δ*V.w'*reshape(z[2:end-1], Mesh.NBases, Mesh.NIntervals, Model.NPhases)[:,:,2], #DGProbs.distribution[:,:,2],
+            label = :false,#"DG: N_k = "*string(NBases),
+            color = :blue,
+            xlims = (0,10),
+            seriestype = :line,
+            linestyle = :dash,
+        )
+    end
+else
+    plot!(xvals, [1;1]*DRprobs.distribution[:,:,2],label=false, color=:blue)
+    # p2 = plot!(
+    #     DGProbs.x,
+    #     DGProbs.distribution[:,:,2],
+    #     label = :false,#"DG: N_k = "*string(NBases),
+    #     color = :blue,
+    #     xlims = (0,10),
+    #     seriestype = :line,
+    #     linestyle = :dash,
+    # )
+end
+
+plot!([0],[0], color = :blue, label = "DR")
+plot!([0],[0], color = :black,label = "D")
+plot!([0],[0], color = :red,label = "SIM")

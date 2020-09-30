@@ -167,27 +167,37 @@ let
 end
 
 let
-    α = [3 -1 -1]
+    # α = [1 0 0]
     # C = [-1 1 0; 0 -2 2; 0 0 -3]
-    # C = [-1 1 0; 0 -2 1; 1 1 -3]
-    C = [-1 0 0; -2/3 -1 1; 2/3 -1 -1]
+    # C = [-1 1 0; 1 -3 1; 1 1 -3]
+    # α = [ 0.539216  0.231871  0.228913]
+    # C = [-1 0.7 0.2; 0.25 -pi 1; 1 1 -2]
+    α = [3 -1 -1]
+    C = [-1 0 0; -2/3 -2 2; 2/3 -2 -1]
     c = -sum(C,dims=2)
     D = c*α
     Q = C + D
-    E = eigen(Matrix(Q'))
-    Eidx = abs.(E.values).<0.0001
-    π = real.(E.vectors[:,Eidx])
-    π = π./sum(π)
+
+    # E = eigen(Matrix(Q'))
+    # Eidx = abs.(E.values).<0.0001
+    # π = real.(E.vectors[:,Eidx])
+    # π = π./sum(π)
+    μ = -sum(α*C^-1,dims=2)
+    π = -α*C^-1 ./ μ
     Δ = diagm(0=>π[:])
     Δinv = diagm(0=>1 ./ π[:])
 
-    Qr = Δinv*Q'*Δ
+    # Qr = Δinv*Q'*Δ
     Cr = Δinv*C'*Δ
-    Dr = Δinv*D'*Δ
-    cr = -sum(Cr,dims=2)
+    # Dr = Δinv*D'*Δ
+    # cr = -sum(Cr,dims=2)
+    cr = (α*Δinv ./ μ)'
 
     idx = findfirst(abs.(cr).>sqrt(sqrt(eps())))[1]
-    αr = Dr[idx,:]'./cr[idx]
+    # αr = Dr[idx,:]'./cr[idx]
+    αr = μ*c'*Δ
+    Dr = cr*αr
+    Qr = Cr + Dr
 
     plot()
 
@@ -197,8 +207,8 @@ let
     nb(t) = [0 α*exp(Cr*t)]
     b(t) = nb(t)./sum(nb(t))
     #plot(xlims=(-1.5,1.5),ylims=(-1.5,1.5))#,layout=(2,1))
-    plot(xlabel="a₁(t)",ylabel="a₂(t)") # xlabel="t",
-    for n in 1:14
+    plot(xlabel="a₁(t)",ylabel="a₂(t)",zlabel="a₃(t)") # xlabel="t",
+    for n in 1:6
         e₁ = log(rand())/C[1,1]
         e₂ = log(rand())/C[2,2]
         e₃ = log(rand())/C[3,3]
@@ -206,23 +216,23 @@ let
         erlangrnd = e₁*(r.<(a(0)[1]+a(0)[2])) + e₂*(r.<a(0)[2]) + e₃
         h = erlangrnd/9
         for t in range(0,erlangrnd,length=10)[2:end]
-            if true#n%2==1
+            if n%2==1
                 c = a(t)
                 d = a(t-h)
                 # display(plot!([c[2];d[2]],[c[3];d[3]],label=false,color=:blue,markershape=:x,seriestype=:line))
-                display(plot!([d[3];c[3]],[d[4];c[4]],label=false,color=:blue,markershape=:rtriangle))
+                display(plot!([d[2];c[2]],[d[3];c[3]],[d[4];c[4]],label=false,color=:blue,markershape=:rtriangle))
                 # display(plot!(totaltime.+[c[1];d[1]],[c[2];d[2]],label=false,color=:blue,subplot=1))
                 # display(plot!(totaltime.+[c[1];d[1]],[c[3];d[3]],label=false,color=:blue,subplot=2))
             else
                 c = b(t)
                 d = b(t-h)
                 # display(plot!([c[2];d[2]],[c[3];d[3]],label=false,color=:red,markershape=:rtriangle,seriestype=:line))
-                display(plot!([d[3];c[3]],[d[4];c[4]],label=false,color=:red,markershape=:ltriangle))
+                display(plot!([d[2];c[2]],[d[3];c[3]],[d[4];c[4]],label=false,color=:red,markershape=:ltriangle))
                 # display(plot!(totaltime.+[c[1];d[1]],[c[2];d[2]],label=false,color=:red,subplot=1))
                 # display(plot!(totaltime.+[c[1];d[1]],[c[3];d[3]],label=false,color=:red,subplot=2))
             end
         end
-        if true#n%2==1
+        if n%2==1
             temp = a(erlangrnd)
             a₁ = temp[2]
             a₂ = temp[3]

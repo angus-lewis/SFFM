@@ -127,23 +127,23 @@ function MakeFluxMatrixR(;
         for k = 1:Mesh.NIntervals
             idx = (1:Mesh.NBases) .+ (k - 1) * Mesh.NBases
             if Model.C[i] > 0
-                xright = Mesh.CellNodes[end, k]
+                xright = Mesh.CellNodes[end, k].-sqrt(eps())
                 R = 1.0 ./ Model.r.a(xright)[i]
                 F[i][idx, idx] = PosDiagBlock * R
             elseif Model.C[i] < 0
-                xleft = Mesh.CellNodes[1, k]
+                xleft = Mesh.CellNodes[1, k].+sqrt(eps())
                 R = 1.0 ./ Model.r.a(xleft)[i]
                 F[i][idx, idx] = NegDiagBlock * R
             end # end if C[i]
             if k > 1
                 idxup = (1:Mesh.NBases) .+ (k - 2) * Mesh.NBases
                 if Model.C[i] > 0
-                    xright = Mesh.CellNodes[end, k-1]
+                    xright = Mesh.CellNodes[end, k-1].-sqrt(eps())
                     R = 1.0 ./ Model.r.a(xright)[i]
                     η = (Mesh.Δ[k] / Mesh.NBases) / (Mesh.Δ[k-1] / Mesh.NBases)
                     F[i][idxup, idx] = UpDiagBlock * η * R
                 elseif Model.C[i] < 0
-                    xleft = Mesh.CellNodes[1, k]
+                    xleft = Mesh.CellNodes[1, k].+sqrt(eps())
                     R = 1.0 ./ Model.r.a(xleft)[i]
                     η = (Mesh.Δ[k-1] / Mesh.NBases) / (Mesh.Δ[k] / Mesh.NBases)
                     F[i][idx, idxup] = LowDiagBlock * η * R
