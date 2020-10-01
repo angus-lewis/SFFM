@@ -56,6 +56,10 @@ function MakeMesh(;
         # Map the LGL nodes on [-1,1] to each cell
         CellNodes[:, i] .= (Nodes[i+1] + Nodes[i]) / 2 .+ (Nodes[i+1] - Nodes[i]) / 2 * z
     end
+    CellNodes[1,:] .+= sqrt(eps())
+    if NBases>1
+        CellNodes[end,:] .-= sqrt(eps())
+    end
     TotalNBases = NBases * NIntervals # the total number of bases in the stencil
 
     ## Construct the sets Fᵐ = ⋃ᵢ Fᵢᵐ, global index for sets of type m
@@ -691,10 +695,7 @@ function MakeR(;
 )
     V = SFFM.vandermonde(NBases=Mesh.NBases)
 
-    EvalPoints = copy(Mesh.CellNodes)
-    EvalPoints[1, :] .+= sqrt(eps()) # LH edges + eps
-    EvalPoints[end, :] .+= -sqrt(eps()) # RH edges - eps
-    EvalR = 1.0 ./ Model.r.a(EvalPoints[:])
+    EvalR = 1.0 ./ Model.r.a(Mesh.CellNodes[:])
 
     N₋ = sum(Model.C .<= 0)
     N₊ = sum(Model.C .>= 0)

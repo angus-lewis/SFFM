@@ -127,23 +127,23 @@ function MakeFluxMatrixR(;
         for k = 1:Mesh.NIntervals
             idx = (1:Mesh.NBases) .+ (k - 1) * Mesh.NBases
             if Model.C[i] > 0
-                xright = Mesh.CellNodes[end, k].-sqrt(eps())
+                xright = Mesh.CellNodes[end, k]
                 R = 1.0 ./ Model.r.a(xright)[i]
                 F[i][idx, idx] = PosDiagBlock * R
             elseif Model.C[i] < 0
-                xleft = Mesh.CellNodes[1, k].+sqrt(eps())
+                xleft = Mesh.CellNodes[1, k]
                 R = 1.0 ./ Model.r.a(xleft)[i]
                 F[i][idx, idx] = NegDiagBlock * R
             end # end if C[i]
             if k > 1
                 idxup = (1:Mesh.NBases) .+ (k - 2) * Mesh.NBases
                 if Model.C[i] > 0
-                    xright = Mesh.CellNodes[end, k-1].-sqrt(eps())
+                    xright = Mesh.CellNodes[end, k-1]
                     R = 1.0 ./ Model.r.a(xright)[i]
                     η = (Mesh.Δ[k] / Mesh.NBases) / (Mesh.Δ[k-1] / Mesh.NBases)
                     F[i][idxup, idx] = UpDiagBlock * η * R
                 elseif Model.C[i] < 0
-                    xleft = Mesh.CellNodes[1, k].+sqrt(eps())
+                    xleft = Mesh.CellNodes[1, k]
                     R = 1.0 ./ Model.r.a(xleft)[i]
                     η = (Mesh.Δ[k-1] / Mesh.NBases) / (Mesh.Δ[k] / Mesh.NBases)
                     F[i][idx, idxup] = LowDiagBlock * η * R
@@ -221,7 +221,7 @@ function MakeMatricesR(;
             # Inputs:
             #   - x a vector of Gauss-Lobatto points on Dk
             #   - i a phase
-            V.inv' * V.inv * MLocal(x, i) * V.D * V.inv
+            MLocal(x, i) * V.D * V.inv
         end
         MInvLocal = function (x::Array{Float64}, i::Int)
             MLocal(x, i)^-1
@@ -254,7 +254,7 @@ function MakeMatricesR(;
     ## Assemble the DG drift operator
     Q = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,Model.NPhases)
     for i = 1:Model.NPhases
-        Q[i] = Model.C[i] * (G[i] + F[i]) * MInv[i]
+        Q[i] = Model.C[i] * (G[i] + F[i])
     end
 
     Local = (G = GLocal, M = MLocal, MInv = MInvLocal, V = V, Phi = Phi)
@@ -286,10 +286,10 @@ function MakeDR(;
         idx = ((i-1)*Mesh.TotalNBases+1:i*Mesh.TotalNBases)
         MR[idx, idx] = MatricesR.Global.M[i]
         Minv[idx, idx] = Matrices.Global.MInv
-        FGR[idx, idx] =
-            (MatricesR.Global.F[i] + MatricesR.Global.G[i]) *
-            Model.C[i] *
-            Minv[idx, idx]
+        FGR[idx, idx] = MatricesR.Global.Q[i] * Matrices.Global.MInv
+            # (MatricesR.Global.F[i] + MatricesR.Global.G[i]) *
+            # Model.C[i] *
+            # Minv[idx, idx]
     end
 
     # Interior behaviour
