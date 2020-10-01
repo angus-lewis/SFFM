@@ -1,0 +1,4 @@
+Efficient implementation of DGAdv
+Implement DGBase lagrange without probability transform
+Implement Dist2Coeffs for lagrange without probability transform
+Document DGAdv code
