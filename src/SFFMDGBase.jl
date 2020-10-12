@@ -1206,6 +1206,20 @@ function Dist2Coeffs(;
     return coeffs
 end
 
+"""
+Computes the error between distributions.
+
+    starSeminorm(;
+        d1::NamedTuple{(:pm, :distribution, :x, :type)},
+        d2::NamedTuple{(:pm, :distribution, :x, :type)},
+        )
+
+# Arguments
+- `d1`: a distribution object as output from `Coeffs2Dist` with
+    `type="probability"``
+- `d2`: a distribution object as output from `Coeffs2Dist` with
+    `type="probability"``
+"""
 function starSeminorm(;
     d1::NamedTuple{(:pm, :distribution, :x, :type)},
     d2::NamedTuple{(:pm, :distribution, :x, :type)},

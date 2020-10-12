@@ -1,15 +1,21 @@
-# include("../../src/SFFM.jl")
-# using LinearAlgebra, Plots
-#
-# ## define the model(s)
-# include("exampleModelDef.jl")
+include("../../src/SFFM.jl")
+using LinearAlgebra, Plots
+
+## define the model(s)
+include("exampleModelDef.jl")
 
 ## section 4.3: the marginal stationary distribution of X
 ## mesh
 Δ = 0.4
 Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
-
+NBases = 2
 Basis = "lagrange"
+Mesh = SFFM.MakeMesh(
+    Model = approxModel,
+    Nodes = Nodes,
+    NBases = NBases,
+    Basis = Basis,
+)
 let q = SFFM.PlotSFM(Model = approxModel)
     ## analytic version for comparison
     # construction
@@ -33,7 +39,7 @@ let q = SFFM.PlotSFM(Model = approxModel)
         color = :red,
         label = "Analytic",
         marker = :x,
-        seriestype = :scatter,
+        seriestype = :line,
         jitter = 0.5,
     )
 
@@ -107,17 +113,17 @@ let q = SFFM.PlotSFM(Model = approxModel)
         #     marker = :none,
         # )
     end
-
+    q = plot!(windowsize=(600,600))
     titles = ["Phase 11" "Phase 10" "Phase 01" "Phase 00"]
     for sp in 1:4
         q = plot!(
             subplot = sp,
-            xlims = (-0.5,8),
+            xlims = (-0.5,5),
             title = titles[sp],
             xlabel = "x",
             ylabel = "Density / Probability",
         )
     end
     display(q)
-    # savefig(pwd()*"/examples/paperNumerics/dump/marginalStationaryDistX.png")
+    savefig(pwd()*"/examples/paperNumerics/dump/marginalStationaryDistX.png")
 end

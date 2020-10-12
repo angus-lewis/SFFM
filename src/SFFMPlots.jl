@@ -121,22 +121,20 @@ function PlotSFM!(p;
         p = Plots.plot!(
             # ylims = yLimValues,
             subplot = i,
-            tickfontsize = 7,
-            guidefontsize = 10,
-            titlefontsize = 12,
+            tickfontsize = 10,
+            guidefontsize = 12,
+            titlefontsize = 14,
         )
     end
     p = Plots.plot!(
         [],
-        subplot = Model.NPhases+1,
+        subplot = 2,
         label = label,
-        showaxis = false,
-        grid = false,
         seriestype = seriestype,
         markershape = marker,
         markercolor = color,
         color = color,
-        legendfontsize = 7,
+        legendfontsize = 10,
     )
 
     return p
@@ -206,7 +204,7 @@ function PlotSFM(;
     titles = false,
     jitter = 0,
 )
-    p = Plots.plot(layout = Plots.@layout([Plots.grid((Model.NPhases+1)÷2, 2) A{0.001w}]))
+    p = Plots.plot(layout = Plots.@layout(Plots.grid((Model.NPhases+1)÷2, 2)))
     if length(Dist.distribution) != 0
         p = SFFM.PlotSFM!(p;
             Model = Model,
