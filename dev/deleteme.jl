@@ -167,15 +167,27 @@ let
 end
 
 let
-    α = [0.5 0.2 0.3]
-    # C = [-1 1 0; 0 -2 2; 0 0 -3]
-    C = [-1 1 0; 1 -3 1; 1 1 -3]
+    # α = [1 0 0]
+    # C = [-2 2 0; 0 -3 3; 0 0 -1]
+    # C = [-1 1 0; 1 -3 1; 1 1 -3]
     # α = [ 0.539216  0.231871  0.228913]
     # C = [-1 0.7 0.2; 0.25 -pi 1; 1 1 -2]
     # C = [-1 0 0; -2/3 -1 1; 2/3 -1 -1]
-    # α = [3 -1 -1]#*exp(C)
-    α = α*exp(C)
-    α = α./sum(α)
+    # T = [1 -1 1; 1 1 -1; -1 1 1]
+    # C = T^-1*C*T
+    # α = [3 -1 -1]*T
+    λ = 1.94907
+    a2 = 0.224603
+    a3 = -0.589603
+    ω = 0.519765
+    α₁ = λ
+    α₂ = 0.5*(a2*(1+ω)-a3*(1-ω))/(1+ω^2)
+    α₃ = 0.5*(a2*(1-ω)-a3*(1+ω))/(1+ω^2)
+    C = [-λ 0 0; 0 -1 -ω; 0 ω -1]
+    α = [α₁ α₂ α₃]
+
+    # α = α*exp(C)
+    # α = α./sum(α)
     c = -sum(C,dims=2)
     D = c*α
     # E = eigen((-C^-1*D)')
@@ -200,7 +212,7 @@ let
     # cr = -sum(Cr,dims=2)
     cr = (α*Δinv ./ μ)'
 
-    idx = findfirst(abs.(cr).>sqrt(sqrt(eps())))[1]
+    # idx = findfirst(abs.(cr).>sqrt(sqrt(eps())))[1]
     # αr = Dr[idx,:]'./cr[idx]
     αr = μ*c'*Δ
     Dr = cr*αr
@@ -215,14 +227,15 @@ let
     b(t) = nb(t)./sum(nb(t))
     #plot(xlims=(-1.5,1.5),ylims=(-1.5,1.5))#,layout=(2,1))
     plot(xlabel="a₁(t)",ylabel="a₂(t)",zlabel="a₃(t)") # xlabel="t",
-    for n in 1:6
+    for n in 1:30
         e₁ = log(rand())/C[1,1]
         e₂ = log(rand())/C[2,2]
         e₃ = log(rand())/C[3,3]
         r = rand()
-        erlangrnd = e₁*(r.<(a(0)[1]+a(0)[2])) + e₂*(r.<a(0)[2]) + e₃
+        erlangrnd = e₁#*(r.<(a(0)[1]+a(0)[2])) + e₂*(r.<a(0)[2]) + e₃
         h = erlangrnd/9
         for t in range(0,erlangrnd,length=10)[2:end]
+            if n > 25
             if n%2==1
                 c = a(t)
                 d = a(t-h)
@@ -238,6 +251,7 @@ let
                 # display(plot!(totaltime.+[c[1];d[1]],[c[2];d[2]],label=false,color=:red,subplot=1))
                 # display(plot!(totaltime.+[c[1];d[1]],[c[3];d[3]],label=false,color=:red,subplot=2))
             end
+        end
         end
         if n%2==1
             temp = a(erlangrnd)

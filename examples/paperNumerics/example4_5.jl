@@ -1,9 +1,8 @@
-# include("../../src/SFFM.jl")
-# using LinearAlgebra, Plots, JLD2, GLM
-using GLM
+include("../../src/SFFM.jl")
+using LinearAlgebra, Plots, JLD2, GLM
 
-# ## define the model(s)
-# include("exampleModelDef.jl")
+## define the model(s)
+include("exampleModelDef.jl")
 
 ## load sims
 @load pwd()*"/examples/paperNumerics/dump/sims.jld2" sims
@@ -32,7 +31,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         # define the mesh for each iteration
         NBases = NBasesRange[n]
         Δ = Δs[d]
-        println("Mesh details; Δ = ", Δ, " NBases = ", NBases)
+        println("Mesh details; h = ", Δ, " NBases = ", NBases)
 
         # collect time and memory stats
         ~, times[d, n], mems[d, n], gctimes[d, n], alloc[d, n] = @timed begin
@@ -156,7 +155,7 @@ let p = plot()
             πnorms[:, n],
             xaxis = :log,
             yaxis = :log,
-            xlabel = "log(Δ)",
+            xlabel = "log(h)",
             ylabel = "log error",
             label = "N_k = " * string(NBasesRange[n]),
             legend = :outertopright,
@@ -168,7 +167,7 @@ let p = plot()
         )
     end
     display(p)
-    # savefig(pwd()*"/examples/paperNumerics/dump/piErrorVsDelta.png")
+    savefig(pwd()*"/examples/paperNumerics/dump/piErrorVsDelta.png")
 end
 
 let p = plot()
@@ -180,7 +179,7 @@ let p = plot()
             yaxis = :log,
             xlabel = "N_k",
             ylabel = "log error",
-            label = "Δ = " * string(Δs[d]),
+            label = "h = " * string(Δs[d]),
             legend = :outertopright,
             linestyle = types[d],
             seriestype = :line,
@@ -190,7 +189,7 @@ let p = plot()
         )
     end
     display(p)
-    # savefig(pwd()*"/examples/paperNumerics/dump/piErrorVsNBases.png")
+    savefig(pwd()*"/examples/paperNumerics/dump/piErrorVsNBases.png")
 end
 
 begin
@@ -231,7 +230,7 @@ for d = 1:6
     data = log.(πnorms[d,:])
     ind = .!isnan.(data)
     data = data[ind]
-    println("rate of convergence for Δ = ", Δs[d])
+    println("rate of convergence for h = ", Δs[d])
     display(
         lm([ones(length(NBasesRange[ind])) NBasesRange[ind]], data)
     )
@@ -252,7 +251,7 @@ let q = plot()
             Ψnorms[:, n],
             xaxis = :log,
             yaxis = :log,
-            xlabel = "Δ",
+            xlabel = "h",
             ylabel = "log error",
             label = "NBases = " * string(NBasesRange[n]),
             legend = :outertopright,
