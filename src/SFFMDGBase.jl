@@ -177,20 +177,21 @@ end
 """
 Constructs a block diagonal matrix from blocks
 
-    Mesh::NamedTuple{
-        (
-            :NBases,
-            :CellNodes,
-            :Fil,
-            :Δ,
-            :NIntervals,
-            :Nodes,
-            :TotalNBases,
-            :Basis,
-        ),
-    },
-    Blocks::Array{Float64,2},
-    Factors::Array,
+    MakeBlockDiagonalMatrix(;
+        Mesh::NamedTuple{
+            (
+                :NBases,
+                :CellNodes,
+                :Fil,
+                :Δ,
+                :NIntervals,
+                :Nodes,
+                :TotalNBases,
+                :Basis,
+            ),
+        },
+        Blocks::Array{Float64,2},
+        Factors::Array,
     )
 
 # Aguments
@@ -331,7 +332,7 @@ function MakeFluxMatrix(;
 end
 
 """
-Creates the Local and global mass, stiffness and flux matrices.
+Creates the Local and global mass, stiffness and flux matrices to compute `B`.
 
     MakeMatrices(;
         Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
@@ -375,7 +376,7 @@ Creates the Local and global mass, stiffness and flux matrices.
       - `:M::Array{Float64,2}`: `NBases×NBases` Local mass matrix
       - `:MInv::Array{Float64,2}`: the inverse of `Local.M`
       - `:V::NamedTuple`: as output from SFFM.vandermonde
- """
+"""
 function MakeMatrices(;
     Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     Mesh::NamedTuple{
@@ -458,7 +459,7 @@ function MakeMatrices(;
 end
 
 """
-Creates the DG approximation to the generator B.
+Creates the DG approximation to the generator `B`.
 
     MakeB(;
         Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
@@ -486,15 +487,15 @@ Creates the DG approximation to the generator B.
     to specify whether transform to probability coefficients.
 
 # Output
-- A tuple with fields .BDict, .B, .QBDidx
+- A tuple with fields `:BDict, :B, :QBDidx`
     - `:BDict::Dict{String,Array{Float64,2}}`: a dictionary storing Bᵢⱼˡᵐ with
-        keys string(i,j,ℓ,m), and values Bᵢⱼˡᵐ, i.e. .BDict["12+-"] = B₁₂⁺⁻
+        keys string(i,j,ℓ,m), and values Bᵢⱼˡᵐ, i.e. `B.BDict["12+-"]` = B₁₂⁺⁻
     - `:B::SparseArrays.SparseMatrixCSC{Float64,Int64}`:
         `Model.NPhases*Mesh.TotalNBases×Model.NPhases*Mesh.TotalNBases`, the
-        global approximation to B
+        global approximation to `B`
     - `:QBDidx::Array{Int64,1}`: `Model.NPhases*Mesh.TotalNBases×1` vector of
         integers such such that `:B[QBDidx,QBDidx]` puts all the blocks relating
-        to cell k next to each other
+        to cell `k` next to each other
 """
 function MakeB(;
     Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
@@ -642,7 +643,7 @@ function MakeB(;
 end
 
 """
-# Construct the DG approximation to the operator R.
+# Construct the DG approximation to the operator `R`.
 
     MakeR(;
         Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
@@ -666,6 +667,8 @@ end
 - `Mesh`: a mesh object from MakeMesh
 - `approxType::String`: (optional) either "interpolation" or
     "projection" (default).
+- `probTransform::Bool=true`: an (optional) specification for the lagrange basis
+    to specify whether transform to probability coefficients.
 
 # Output
 - a tuple with keys
@@ -690,6 +693,7 @@ function MakeR(;
             :TotalNBases,
             :Basis,
         ),
+    probTransform::Bool = true,
     },
     approxType::String = "projection",
 )
@@ -730,7 +734,11 @@ function MakeR(;
                 # representation. The second term V.V*V.V' is Minv. The last term
                 # LinearAlgebra.diagm(V.w)is a result of the conversion to probability
                 # / integral representation.
-                temp = LinearAlgebra.diagm(EvalR[Mesh.NBases*(n-1).+(1:Mesh.NBases)])*V.V*V.V'*LinearAlgebra.diagm(V.w)
+                if probTransform
+                    temp = LinearAlgebra.diagm(EvalR[Mesh.NBases*(n-1).+(1:Mesh.NBases)])*V.V*V.V'*LinearAlgebra.diagm(V.w)
+                elseif !probTransform
+                    temp = LinearAlgebra.diagm(EvalR[Mesh.NBases*(n-1).+(1:Mesh.NBases)])*V.V*V.V'
+                end
             end
         end
         R[Mesh.NBases*(n-1).+(1:Mesh.NBases).+N₋, Mesh.NBases*(n-1).+(1:Mesh.NBases).+N₋] = temp
@@ -771,7 +779,7 @@ function MakeR(;
 end
 
 """
-Construct the operator D(s).
+Construct the operator `D(s)` from `B, R`.
 
     MakeD(;
         R,
@@ -851,6 +859,7 @@ function MakeD(;
             end # end function
         end # end if ...
     end # end for ℓ ...
+    println("UPDATE: D(s) operator created with keys ", keys(DDict))
     return (DDict = DDict)
 end
 
@@ -915,7 +924,7 @@ function PsiFun(; s::Real = 0, D, MaxIters::Int = 1000, err::Float64 = 1e-8)
             string(maximum(abs.(OldPsi - Psi))),
         )
     end
-    println("UPDATE: Iterations for Ψ exited with flag: ", exitflag)
+    println("UPDATE: Iterations for Ψ(s=", s,") exited with flag: ", exitflag)
     return Psi
 end
 
@@ -972,7 +981,8 @@ Convert from a vector of coefficients for the DG system to a distribution.
             ),
         },
         Coeffs,
-        type::String = "probability"
+        type::String = "probability",
+        probTransform::Bool = true,
     )
 
 # Arguments
@@ -984,6 +994,8 @@ Convert from a vector of coefficients for the DG system to a distribution.
     ``P(X(t)∈ D_k, φ(t) = i)`` where ``D_k``is the kth cell, `"cumulative"` to
     return the CDF evaluated at cell edges, or `"density"` to return an
     approximation to the density ar at the Mesh.CellNodes.
+- `probTransform::Bool` a boolean value specifying whether to transform to a
+    probabilistic interpretation or not. Valid only for lagrange basis.
 
 # Output
 - a tuple with keys
@@ -1029,11 +1041,17 @@ function Coeffs2Dist(;
         ),
     },
     Coeffs::Array,
-    type::String = "probability"
+    type::String = "probability",
+    probTransform::Bool = true,
 )
     V = SFFM.vandermonde(NBases = Mesh.NBases)
     N₋ = sum(Model.C .<= 0)
     N₊ = sum(Model.C .>= 0)
+    if !probTransform
+        temp = reshape(Coeffs[N₋+1:end-N₊], Mesh.NBases, Mesh.NIntervals, Model.NPhases)
+        temp = V.w.*temp.*(Mesh.Δ./2.0)'
+        Coeffs = [Coeffs[1:N₋]; temp[:]; Coeffs[end-N₊+1:end]]
+    end
     if type == "density"
         xvals = Mesh.CellNodes
         if Mesh.Basis == "legendre"
@@ -1041,7 +1059,7 @@ function Coeffs2Dist(;
             for i in 1:Model.NPhases
                 yvals[:,:,i] = V.V * yvals[:,:,i]
             end
-            pm = [Coeffs[1:N₊]; Coeffs[end-N₊+1:end]]
+            pm = [Coeffs[1:N₋]; Coeffs[end-N₊+1:end]]
         elseif Mesh.Basis == "lagrange"
             yvals =
                 Coeffs[N₋+1:end-N₊] .* repeat(1.0 ./ V.w, Mesh.NIntervals * Model.NPhases) .*
@@ -1061,7 +1079,7 @@ function Coeffs2Dist(;
         end
         if Mesh.Basis == "legendre"
             yvals = (reshape(Coeffs[N₋+1:Mesh.NBases:end-N₊], 1, Mesh.NIntervals, Model.NPhases).*Mesh.Δ')./sqrt(2)
-            pm = [Coeffs[1:N₊]; Coeffs[end-N₊+1:end]]
+            pm = [Coeffs[1:N₋]; Coeffs[end-N₊+1:end]]
         elseif Mesh.Basis == "lagrange"
             yvals = sum(
                 reshape(Coeffs[N₋+1:end-N₊], Mesh.NBases, Mesh.NIntervals, Model.NPhases),
@@ -1077,7 +1095,7 @@ function Coeffs2Dist(;
         end
         if Mesh.Basis == "legendre"
             tempDist = (reshape(Coeffs[N₋+1:Mesh.NBases:end-N₊], 1, Mesh.NIntervals, Model.NPhases).*Mesh.Δ')./sqrt(2)
-            pm = [Coeffs[1:N₊]; Coeffs[end-N₊+1:end]]
+            pm = [Coeffs[1:N₋]; Coeffs[end-N₊+1:end]]
         elseif Mesh.Basis == "lagrange"
             tempDist = sum(
                 reshape(Coeffs[N₋+1:end-N₊], Mesh.NBases, Mesh.NIntervals, Model.NPhases),
@@ -1120,6 +1138,7 @@ coefficients.
             ),
         },
         Distn::NamedTuple{(:pm, :distribution, :x, :type)},
+        probTransform::Bool = true,
     )
 
 # Arguments
@@ -1145,6 +1164,14 @@ coefficients.
             containing the cell nodes at which the denisty is evaluated.
     - `type::String`: either `"probability"` or `"density"`. `:cumulative` is
         not possible.
+- `probTransform::Bool` a boolean value specifying whether to transform to a
+    probabilistic interpretation or not. Valid only for lagrange basis.
+
+# Output
+- `coeffs` a row vector of coefficient values of length
+    `TotalNBases*NPhases + N₋ + N₊` ordered according to LH point masses, RH
+    point masses, interior basis functions according to basis function, cell,
+    phase. Used to premultiply operators such as B from `MakeB()`
 """
 function Dist2Coeffs(;
     Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
@@ -1161,6 +1188,7 @@ function Dist2Coeffs(;
         ),
     },
     Distn::NamedTuple{(:pm, :distribution, :x, :type)},
+    probTransform::Bool = true,
 )
     V = SFFM.vandermonde(NBases = Mesh.NBases)
     theDistribution =
@@ -1186,6 +1214,9 @@ function Dist2Coeffs(;
         ]
     elseif Mesh.Basis == "lagrange"
         theDistribution .= Distn.distribution
+        if !probTransform
+            theDistribution = (1.0./V.w) .* theDistribution .* (2.0./Mesh.Δ')
+        end
         if Distn.type == "probability"
             # convert to probability coefficients by multiplying by the
             # weights in V.w/2

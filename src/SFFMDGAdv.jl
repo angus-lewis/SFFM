@@ -1,74 +1,99 @@
-function MakeMatrices2(;
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
-    Mesh::NamedTuple{
-        (
-            :NBases,
-            :CellNodes,
-            :Fil,
-            :Δ,
-            :NIntervals,
-            :Nodes,
-            :TotalNBases,
-            :Basis,
-        ),
-    },
-)
-    ## Construct local blocks
-    V = vandermonde(NBases = Mesh.NBases)
-    if Mesh.Basis == "legendre"
-        MLocal = Matrix{Float64}(LinearAlgebra.I(Mesh.NBases))
-        GLocal = V.inv * V.D
-        MInvLocal = Matrix{Float64}(LinearAlgebra.I(Mesh.NBases))
-        Phi = V.V[[1; end], :]
-    elseif Mesh.Basis == "lagrange"
-        MLocal = V.inv' * V.inv
-        GLocal = V.inv' * V.inv * (V.D * V.inv)
-        MInvLocal = V.V * V.V'
-        Phi = (V.inv*V.V)[[1; end], :]
-    end
-    Dw = (
-        DwInv = LinearAlgebra.I,
-        Dw = LinearAlgebra.I,
+# function MakeMatrices2(;
+#     Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+#     Mesh::NamedTuple{
+#         (
+#             :NBases,
+#             :CellNodes,
+#             :Fil,
+#             :Δ,
+#             :NIntervals,
+#             :Nodes,
+#             :TotalNBases,
+#             :Basis,
+#         ),
+#     },
+# )
+#     ## Construct local blocks
+#     V = vandermonde(NBases = Mesh.NBases)
+#     if Mesh.Basis == "legendre"
+#         MLocal = Matrix{Float64}(LinearAlgebra.I(Mesh.NBases))
+#         GLocal = V.inv * V.D
+#         MInvLocal = Matrix{Float64}(LinearAlgebra.I(Mesh.NBases))
+#         Phi = V.V[[1; end], :]
+#     elseif Mesh.Basis == "lagrange"
+#         MLocal = V.inv' * V.inv
+#         GLocal = V.inv' * V.inv * (V.D * V.inv)
+#         MInvLocal = V.V * V.V'
+#         Phi = (V.inv*V.V)[[1; end], :]
+#     end
+#     Dw = (
+#         DwInv = LinearAlgebra.I,
+#         Dw = LinearAlgebra.I,
+#     )
+#
+#     ## Assemble into global block diagonal matrices
+#     G = SFFM.MakeBlockDiagonalMatrix(
+#         Mesh = Mesh,
+#         Blocks = GLocal,
+#         Factors = ones(Mesh.NIntervals),
+#     )
+#     M = SFFM.MakeBlockDiagonalMatrix(Mesh = Mesh, Blocks = MLocal, Factors = Mesh.Δ * 0.5)
+#     MInv = SFFM.MakeBlockDiagonalMatrix(
+#         Mesh = Mesh,
+#         Blocks = MInvLocal,
+#         Factors = 2 ./ Mesh.Δ,
+#     )
+#     F = SFFM.MakeFluxMatrix(
+#         Mesh = Mesh,
+#         Phi = Phi,
+#         Dw = (Dw=LinearAlgebra.I,DwInv=LinearAlgebra.I),
+#         probTransform = false,
+#     )
+#
+#     ## Assemble the DG drift operator
+#     Q = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,Model.NPhases)
+#     for i = 1:Model.NPhases
+#         if Model.C[i] > 0
+#             Q[i] = Model.C[i] * (G + F["+"]) * MInv
+#         elseif Model.C[i] < 0
+#             Q[i] = Model.C[i] * (G + F["-"]) * MInv
+#         end
+#     end
+#
+#     Local = (G = GLocal, M = MLocal, MInv = MInvLocal, V = V, Phi = Phi, Dw = Dw)
+#     Global = (G = G, M = M, MInv = MInv, F = F, Q = Q)
+#     out = (Local = Local, Global = Global)
+#     # println("UPDATE: Matrices object created with keys ", keys(out))
+#     # println("UPDATE:    Matrices[:",keys(out)[1],"] object created with keys ", keys(out[1]))
+#     # println("UPDATE:    Matrices[:",keys(out)[2],"] object created with keys ", keys(out[2]))
+#     return out
+# end
+#
+"""
+Constructs a block diagonal matrix from blocks
+
+    MakeBlockDiagonalMatrixR(;
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        Mesh::NamedTuple{
+            (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
+        },
+        Blocks,
+        Factors::Array,
     )
 
-    ## Assemble into global block diagonal matrices
-    G = SFFM.MakeBlockDiagonalMatrix(
-        Mesh = Mesh,
-        Blocks = GLocal,
-        Factors = ones(Mesh.NIntervals),
-    )
-    M = SFFM.MakeBlockDiagonalMatrix(Mesh = Mesh, Blocks = MLocal, Factors = Mesh.Δ * 0.5)
-    MInv = SFFM.MakeBlockDiagonalMatrix(
-        Mesh = Mesh,
-        Blocks = MInvLocal,
-        Factors = 2 ./ Mesh.Δ,
-    )
-    F = SFFM.MakeFluxMatrix(
-        Mesh = Mesh,
-        Phi = Phi,
-        Dw = (Dw=LinearAlgebra.I,DwInv=LinearAlgebra.I),
-        probTransform = false,
-    )
+# Aguments
+- `Model`: A tuple from `MakeModel()`
+- `Mesh`: A tuple from `MakeMesh()`
+- `Blocks(x::Array{Float64}, i::Int)`: a function wich returns a
+    `Mesh.NBases×Mesh.NBases` array to put along the diagonal. The input
+    argument `x` is a column vector of corresponding to the nodes in each cell,
+    i.e. `Mesh.CellNodes[:,n]`. `i` denotes the phase.
+- `Factors::Array{<:Real,1}`: a `Mesh.NIntervals×1` vector of factors which multiply blocks
 
-    ## Assemble the DG drift operator
-    Q = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,Model.NPhases)
-    for i = 1:Model.NPhases
-        if Model.C[i] > 0
-            Q[i] = Model.C[i] * (G + F["+"]) * MInv
-        elseif Model.C[i] < 0
-            Q[i] = Model.C[i] * (G + F["-"]) * MInv
-        end
-    end
-
-    Local = (G = GLocal, M = MLocal, MInv = MInvLocal, V = V, Phi = Phi, Dw = Dw)
-    Global = (G = G, M = M, MInv = MInv, F = F, Q = Q)
-    out = (Local = Local, Global = Global)
-    # println("UPDATE: Matrices object created with keys ", keys(out))
-    # println("UPDATE:    Matrices[:",keys(out)[1],"] object created with keys ", keys(out[1]))
-    # println("UPDATE:    Matrices[:",keys(out)[2],"] object created with keys ", keys(out[2]))
-    return out
-end
-
+# Output
+- `BlockMatrix::Array{Float64,2}`: `Mesh.TotalNBases×Mesh.TotalNBases` the
+        block matrix
+"""
 function MakeBlockDiagonalMatrixR(;
     Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     Mesh::NamedTuple{
@@ -77,17 +102,6 @@ function MakeBlockDiagonalMatrixR(;
     Blocks,
     Factors::Array,
 )
-    # MakeBlockDiagonalMatrix makes a matrix from diagonal block elements
-    # inputs:
-    # Model - A Model tuple from MakeModel
-    # Mesh - A tuple from MakeMesh
-    # Blocks - Mesh.NBases×Mesh.NBases Array{Float64}, blocks to put along the
-    #           diagonal
-    # Factors - Mesh.NIntervals×1 Array, factors which multiply blocks
-    # output:
-    # BlockMatrix - Mesh.TotalNBases×Mesh.TotalNBases Array{Float64,2}, the
-    #             block matrix
-
     BlockMatrix = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,Model.NPhases)
     for i in 1:Model.NPhases
         BlockMatrix[i] = SparseArrays.spzeros(Float64, Mesh.TotalNBases, Mesh.TotalNBases)
@@ -99,6 +113,29 @@ function MakeBlockDiagonalMatrixR(;
     return (BlockMatrix = BlockMatrix)
 end
 
+"""
+Constructs the flux matrices for DG
+
+    MakeFluxMatrixR(;
+        Mesh::NamedTuple{
+            (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
+        },
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        Phi,
+    )
+
+# Arguments
+- `Mesh`: a Mesh tuple from MakeMesh
+- `Model`: A tuple from `MakeModel()`
+- `Phi::Array{Float64,2}`: where `Phi[1,:]` and `Phi[1,:]` are the basis
+    function evaluated at the left-hand and right-hand edge of a cell,
+    respectively
+
+# Output
+- `F::Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,Model.NPhases)`:
+    an array with index `i ∈ 1:Model.NPhases`, of sparse arrays which are
+    `TotalNBases×TotalNBases` flux matrices for phase `i`.
+"""
 function MakeFluxMatrixR(;
     Mesh::NamedTuple{
         (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
@@ -106,14 +143,6 @@ function MakeFluxMatrixR(;
     Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     Phi,
 )
-    # MakeFluxMatrix creates the global block tridiagonal flux matrix for the
-    # lagrange basis
-    # inputs:
-    # Mesh - a Mesh tuple from MakeMesh
-    # Model - a Model tuple from MakeModel
-    # outputs:
-    # F - TotalNBases×TotalNBases×NPhases Array{Float64,3}, global flux matrix
-
     ## Create the blocks
     PosDiagBlock = -Phi[end, :] * Phi[end, :]'
     NegDiagBlock = Phi[1, :] * Phi[1, :]'
@@ -155,33 +184,51 @@ function MakeFluxMatrixR(;
     return (F = F)
 end
 
+"""
+Creates the Local and global mass, stiffness and flux matrices to compute `D(s)`
+directly.
+
+    MakeMatricesR(;
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        Mesh::NamedTuple{
+            (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
+        },
+    )
+
+# Arguments
+- `Model`: A model tuple from MakeModel
+- `Mesh`: A mesh tuple from MakeMesh
+
+# Output
+- A tuple of tuples
+    - `:Global`: a tuple with fields
+      - `:G::Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}`:
+            a `NPhases` length array containing `TotalNBases×TotalNBases`
+            dimensional global stiffness matrices
+      - `:M::Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}`:
+            a `NPhases` length array containing `TotalNBases×TotalNBases`
+            dimensional global mass matrices
+      - `:MInv::Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}`:
+            a `NPhases` length array containing `TotalNBases×TotalNBases`
+            dimensional matrices, the inverse of `Global.M`
+      - `:F::Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}`:
+            a `NPhases` length array containing `TotalNBases×TotalNBases`
+            dimensional global flux matrices
+      - `:Q::Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}`:
+            a `NPhases` length array containing `TotalNBases×TotalNBases`
+            dimensional global DG drift operator
+    - `:Local`: a tuple with fields
+      - `:G::Array{Float64,2}`: `NBases×NBases` Local stiffness matrix
+      - `:M::Array{Float64,2}`: `NBases×NBases` Local mass matrix
+      - `:MInv::Array{Float64,2}`: the inverse of `Local.M`
+      - `:V::NamedTuple`: as output from SFFM.vandermonde
+ """
 function MakeMatricesR(;
     Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
     Mesh::NamedTuple{
         (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
     },
 )
-    # Creates the Local and global mass, stiffness and flux
-    # matrices.
-    # inputs:
-    # Model - A model tuple from MakeModel
-    # Mesh - A mesh tuple from MakeMesh
-    # Basis - A string specifying whether to use the lagrange or legendre basis
-    #         representations
-    # outputs: A tuple of tuples with fields Local and Global
-    # Global - A tuple with fields
-    #   .G - TotalNBases×TotalNBases Array{Float64}, global stiffness matrix
-    #   .M - TotalNBases×TotalNBases Array{Float64}, global mass matrix
-    #   .MInv - the inverse of Global.M
-    #   .F - TotalNBases×TotalNBases×NPhases Array{Float64,3} global flux matrix
-    #   .Q - TotalNBases×TotalNBases×NPhases Array{Float64}, global DG flux
-    #         operator
-    # Local - A tuple with fields
-    #   .G - NBases×NBases Array{Float64}, Local stiffness matrix
-    #   .M - NBases×NBases Array{Float64}, Local mass matrix
-    #   .MInv - the inverse of Local.M
-    #   .V - tuple used to make M, G, Minv, as output from SFFM.vandermonde
-
     ## Construct blocks
     V = vandermonde(NBases = Mesh.NBases)
     if Mesh.Basis == "legendre"
@@ -259,12 +306,44 @@ function MakeMatricesR(;
 
     Local = (G = GLocal, M = MLocal, MInv = MInvLocal, V = V, Phi = Phi)
     Global = (G = G, M = M, MInv = MInv, F = F, Q = Q)
-    println("Matrices.Fields with Fields (.Local, .Global)")
-    println("Matrices.Local.Fields with Fields (.G, .M, .MInv, .V)")
-    println("Matrices.Global.Fields with Fields (.G, .M, .MInv, F, .Q)")
-    return (Local = Local, Global = Global)
+    out = (Local = Local, Global = Global)
+    println("UPDATE: MatricesR object created with keys ", keys(out))
+    println("UPDATE:    MatricesR[:",keys(out)[1],"] object created with keys ", keys(out[1]))
+    println("UPDATE:    MatricesR[:",keys(out)[2],"] object created with keys ", keys(out[2]))
+    return out
 end
 
+"""
+Construct the operator `D(s)` directly.
+
+    MakeDR(;
+        Matrices,
+        MatricesR,
+        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        Mesh::NamedTuple{
+            (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
+        },
+        B,
+    )
+
+# Arguments
+- `Matrices`: a tuple as output from
+    `Matrices = SFFM.MakeMatrices(Model=Model,Mesh=Mesh,probTransform=false)`
+    note, must have `probTransform=false`.
+- `MatricesR`: a tuple as output from
+    `MatricesR = SFFM.MakeMatricesR(Model=approxModel,Mesh=Mesh)`
+- `Model`: a model object as constructed by `MakeModel`
+- `Mesh`: a mesh object as constructed by `MakeMesh`
+
+# Output
+- a tuple with keys `:DDict` and `:DR`
+    - `DDict::Dict{String,Function(s::Real)}`: a dictionary of functions. Keys are
+      of the for `"ℓm"` where `ℓ,m∈{+,-}`. Values are functions with one argument.
+      Usage is along the lines of `D["+-"](s=1)`.
+    - `DR`: a function which evaluates `D(s)`,
+      Usage is along the lines of `DR(s=1)`. Returns an array structured as
+      `D = [D["++"](s=1) D["+-"](s=1); D["-+"](s=1) D["--"](s=1)]`.
+"""
 function MakeDR(;
     Matrices,
     MatricesR,
@@ -287,9 +366,6 @@ function MakeDR(;
         MR[idx, idx] = MatricesR.Global.M[i]
         Minv[idx, idx] = Matrices.Global.MInv
         FGR[idx, idx] = MatricesR.Global.Q[i] * Matrices.Global.MInv
-            # (MatricesR.Global.F[i] + MatricesR.Global.G[i]) *
-            # Model.C[i] *
-            # Minv[idx, idx]
     end
 
     # Interior behaviour
@@ -393,5 +469,9 @@ function MakeDR(;
             DR(s=s)[FlBases, FmBases]
         end # end function
     end # end for ℓ, m ...
-    return (DDict = DDict, DR = DR)
+    out = (DDict = DDict, DR = DR)
+    println("UPDATE: D(s) operator created with keys ", keys(out))
+    println("UPDATE:    DDict[key](s) operator created with keys ", keys(DDict))
+    println("UPDATE:    DR(s) operator created (a matrix)")
+    return out
 end
