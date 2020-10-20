@@ -1,5 +1,6 @@
 Efficient implementation of DGAdv
 Implement DGBase lagrange without probability transform
-Implement Dist2Coeffs for lagrange without probability transform
-Document DGAdv code
+#DONE Implement Dist2Coeffs for lagrange without probability transform
+#DONE Document DGAdv code
 Compare DGAdv and Base
+Clean up SFFMDGpi code normalisation conditions, document

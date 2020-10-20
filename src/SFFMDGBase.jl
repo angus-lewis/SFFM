@@ -660,6 +660,7 @@ end
             ),
         },
         approxType::String = "projection",
+        probTransform::Bool = true,
     )
 
 # Arguments
@@ -693,9 +694,9 @@ function MakeR(;
             :TotalNBases,
             :Basis,
         ),
-    probTransform::Bool = true,
     },
     approxType::String = "projection",
+    probTransform::Bool = true,
 )
     V = SFFM.vandermonde(NBases=Mesh.NBases)
 
@@ -737,7 +738,7 @@ function MakeR(;
                 if probTransform
                     temp = LinearAlgebra.diagm(EvalR[Mesh.NBases*(n-1).+(1:Mesh.NBases)])*V.V*V.V'*LinearAlgebra.diagm(V.w)
                 elseif !probTransform
-                    temp = LinearAlgebra.diagm(EvalR[Mesh.NBases*(n-1).+(1:Mesh.NBases)])*V.V*V.V'
+                    temp = LinearAlgebra.diagm(V.w)*LinearAlgebra.diagm(EvalR[Mesh.NBases*(n-1).+(1:Mesh.NBases)])*V.V*V.V'
                 end
             end
         end

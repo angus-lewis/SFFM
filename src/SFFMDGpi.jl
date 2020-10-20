@@ -18,6 +18,9 @@ NOTE: IMPLEMENTED FOR LAGRANGE BASIS ONLY
 function MakeXi(;
     B::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
     Ψ::Array{Float64,2},
+    probTransform::Bool = true,
+    Mesh=1,
+    Model=1,
 )
     # BBullet = [B["--"] B["-0"]; B["0-"] B["00"]]
     # invB = inv(Matrix(Bbullet))
@@ -35,8 +38,26 @@ function MakeXi(;
     A = -(invBmm*B["-+"]*Ψ + invBm0*B["0+"]*Ψ + LinearAlgebra.I)
     b = zeros(1,size(B["--"],1))
 
-    A[:,1] .= 1.0 # normalisation conditions
-    b[1] = 1.0 # normalisation conditions
+    if probTransform
+        A[:,1] .= 1.0 # normalisation conditions
+        b[1] = 1.0 # normalisation conditions
+    elseif !probTransform
+        idx₋ = [Mesh.Fil["p-"]; Mesh.Fil["-"]; Mesh.Fil["q-"]]
+        if Mesh.NBases>1
+            w =
+                2.0 ./ (
+                    Mesh.NBases *
+                    (Mesh.NBases - 1) *
+                    Jacobi.legendre.(Jacobi.zglj(Mesh.NBases, 0, 0), Mesh.NBases - 1) .^ 2
+                )
+        else
+            w = [2]
+        end
+        A[:,1] = [ones(sum(Mesh.Fil["p-"]));
+        repeat(w, sum(Mesh.Fil["-"])).*repeat(repeat(Mesh.Δ./2,Model.NPhases,1)[Mesh.Fil["-"]]', Mesh.NBases, 1)[:];
+        ones(sum(Mesh.Fil["q-"]))]# normalisation conditions
+        b[1] = 1.0 # normalisation conditions
+    end
 
     ξ = b/A
 
@@ -81,6 +102,8 @@ function MakeLimitDistMatrices(;
     Ψ::Array{<:Real},
     ξ::Array{<:Real},
     Mesh,
+    probTransform::Bool = true,
+    Model=1,
 )
     B00inv = inv(Matrix(B["00"]))
     invBmm = inv(B["--"] - B["-0"]*B00inv*B["0-"])
@@ -98,7 +121,32 @@ function MakeLimitDistMatrices(;
     αintegralPibullet = ((αp * BBulletPlus) / -K) * [R["+"] Ψ*R["-"]]
     αintegralPi0 = -αintegralPibullet * [B["+0"]; B["-0"]] * B00inv
 
-    α = sum(αintegralPibullet) + sum(αintegralPi0) + sum(αp)
+    if probTransform
+        α = sum(αintegralPibullet) + sum(αintegralPi0) + sum(αp)
+    elseif !probTransform
+        if Mesh.NBases>1
+            w = 2.0 ./ (
+                    Mesh.NBases *
+                    (Mesh.NBases - 1) *
+                    Jacobi.legendre.(Jacobi.zglj(Mesh.NBases, 0, 0), Mesh.NBases - 1) .^ 2
+                )
+        else
+            w = [2]
+        end
+        idx₊ = Mesh.Fil["+"]
+        idx₋ = Mesh.Fil["-"]
+        idx₀ = Mesh.Fil["0"]
+        a₋ = [ones(sum(Mesh.Fil["p-"])); repeat(w, sum(Mesh.Fil["-"])).*(repeat(repeat(Mesh.Δ./2,Model.NPhases,1)[idx₋]', Mesh.NBases, 1)[:]); ones(sum(Mesh.Fil["q-"]))]
+        a₊ = [ones(sum(Mesh.Fil["p+"])); repeat(w, sum(Mesh.Fil["+"])).*(repeat(repeat(Mesh.Δ./2,Model.NPhases,1)[idx₊]', Mesh.NBases, 1)[:]); ones(sum(Mesh.Fil["q+"]))]
+        a₀ = [ones(sum(Mesh.Fil["p0"])); repeat(w, sum(Mesh.Fil["0"])).*(repeat(repeat(Mesh.Δ./2,Model.NPhases,1)[idx₀]', Mesh.NBases, 1)[:]); ones(sum(Mesh.Fil["q0"]))]
+        # display(a₋)
+        # display(a₊)
+        # display(a₀)
+        # display(αintegralPibullet)
+        # display(αintegralPi0)
+        # display(αp)
+        α = (αintegralPibullet*[a₊; a₋]) + (αintegralPi0*a₀) + (αp*[a₋;a₀])
+    end
 
     p = αp ./ α
     integralPibullet = αintegralPibullet ./ α
