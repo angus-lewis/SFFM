@@ -1,36 +1,47 @@
 # using LinearAlgebra, Plots, JSON
 # include("../src/SFFM.jl")
 
-CMEParams = Dict()
+tempCMEParams = Dict()
 open("dev/iltcme.json", "r") do f
-    global CMEParams
-    CMEParams=JSON.parse(f)  # parse and transform data
+    global tempCMEParams
+    tempCMEParams=JSON.parse(f)  # parse and transform data
 end
+CMEParams = Dict()
+for n in keys(tempCMEParams)
+    CMEParams[2*tempCMEParams[n]["n"]+1] = tempCMEParams[n]
+end
+CMEParams[1] = Dict(
+  "n"       => 0,
+  "c"       => 2.63479,
+  "b"       => Any[],
+  "mu2"     => 6.11794,
+  "a"       => Any[],
+  "omega"   => 0,
+  "phi"     => 3.47863,
+  "mu1"     => 2.25709,
+  "cv2"     => 0.200902,
+  "optim"   => "full",
+  "lognorm" => -1.66195,
+)
 
 function MakeME(params; mean = 1)
-    n = params["n"]
-    if mod(n,2)==0
-        display("[!!!ERROR!!!] n must be odd")
-    end
-    α = zeros(1,n)
+    N = 2*params["n"]+1
+    α = zeros(1,N)
     α[1] = params["c"]
     a = params["a"]
     b = params["b"]
     ω =  params["omega"]
-    for k in 2:n
+    for k in 1:params["n"]
         kω = k*ω
-        if mod(k,2)==0
-            α[k] = (1/2)*( a[k]*(1+kω) - b[k]*(1-kω) )/(1+kω^2)
-        else
-            α[k] = (1/2)*( a[k]*(1-kω) + b[k]*(1+kω) )/(1+kω^2)
-        end
+        α[2*k] = (1/2)*( a[k]*(1+kω) - b[k]*(1-kω) )/(1+kω^2)
+        α[2*k+1] = (1/2)*( a[k]*(1-kω) + b[k]*(1+kω) )/(1+kω^2)
     end
     α = α./sum(α)
-    A = zeros(n,n)
+    A = zeros(N,N)
     A[1,1] = -1
-    for k in 2:2:n
+    for k in 1:params["n"]
         kω = k*ω
-        idx = k:(k+1)
+        idx = 2*k:(2*k+1)
         A[idx,idx] = [-1 -kω; kω -1]
     end
     A = A.*sum(-α*A^-1)./mean
@@ -95,8 +106,8 @@ NSim = 100_000
 sims = SFFM.SimSFM(Model=Model,StoppingTime=τ,InitCondition=(φ=2*ones(Int,NSim),X=zeros(NSim)))
 
 let
-    vecNBases = [1,3,5,7,11,15,21]#,29]
-    vecΔ = [5 2.5 1.25 1.25/2]# 1.25/4]
+    vecNBases = [1,3,5,7,11,15,21,29]
+    vecΔ = [5 2.5 1.25 1.25/2 1.25/4]
     errfwdPH = vecNBases
     errfwdME = vecNBases
     errDG = vecNBases
@@ -207,15 +218,15 @@ let
         errfwdPH = [errfwdPH globalerrfwdPH]
         errDG = [errDG globalerrDG]
         errfwdME = [errfwdME globalerrfwdME]
-        plot!(vecNBases,log.(globalerrfwdPH),label=string(Δ),colour=c)
-        plot!(vecNBases,log.(globalerrfwdME),label=false,linestyle=:dot,colour=c,linewidth=4)
-        plot!(vecNBases,log.(globalerrDG),label=false,linestyle=:dash,color=c)
+        plot!(vecNBases,log.(globalerrfwdPH),label=false,linestyle=:dot,colour=c,linewidth=2)
+        plot!(vecNBases,log.(globalerrfwdME),label=false,linestyle=:dash,colour=c)
+        plot!(vecNBases,log.(globalerrDG),label=string(Δ),color=c)
         plot!(legend=:bottomleft,xlabel="Order",ylabel="log(error)",legendtitle="Δ")
-        display(plot!(title="-- PH,  solid DG"))
+        display(plot!(title="... PH,  -- ME,  Solid DG"))
     end
-    plot(log.(vecΔ)[:], log.(errfwdPH[:,2:end]'),colour=[1 2 3 4 5],label=vecNBases')
-    plot!(log.(vecΔ)[:], log.(errfwdME[:,2:end]'),colour=[1 2 3 4 5],linestyle=:dot,label=false)
-    plot!(log.(vecΔ)[:], log.(errDG[:,2:end]'),linestyle=:dash,colour=[1 2 3 4 5],label=false)
+    plot(log.(vecΔ)[:], log.(errfwdPH[:,2:end]'),colour=[1 2 3 4 5],linestyle=:dot,label=false,linewidth=2)
+    plot!(log.(vecΔ)[:], log.(errfwdME[:,2:end]'),colour=[1 2 3 4 5],linestyle=:dash,label=false)
+    plot!(log.(vecΔ)[:], log.(errDG[:,2:end]'),colour=[1 2 3 4 5],label=vecNBases')
     plot!(legend=:bottomright,xlabel="log(Δ)",ylabel="log(error)",legendtitle="Order")
-    plot!(title="-- PH,  solid DG")
+    plot!(title="... PH,  -- ME,  Solid DG")
 end
