@@ -54,8 +54,8 @@ Construct a SFFM model object.
 )
 """
 function MakeModel(;
-    T::Array{Float64,2},
-    C::Array{Float64,1},
+    T::Array{<:Real,2},
+    C::Array{<:Real,1},
     r::NamedTuple{(:r, :R)},
     Bounds::Array{<:Real,2} = [-Inf Inf; -Inf Inf],
 )

@@ -4,3 +4,4 @@ Implement DGBase lagrange without probability transform
 #DONE Document DGAdv code
 Compare DGAdv and Base
 Clean up SFFMDGpi code normalisation conditions, document
+Add examples to all documentations

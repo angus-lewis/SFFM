@@ -38,7 +38,7 @@ TBC
 """
 function MakeMesh(;
     Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
-    Nodes::Array{Float64,1},
+    Nodes::Array{<:Real,1},
     NBases::Int,
     Fil::Dict{String,BitArray{1}}=Dict{String,BitArray{1}}(),
     Basis::String = "legendre",
