@@ -12,16 +12,16 @@ for n in keys(tempCMEParams)
 end
 CMEParams[1] = Dict(
   "n"       => 0,
-  "c"       => 2.63479,
+  "c"       => 1,
   "b"       => Any[],
-  "mu2"     => 6.11794,
+  "mu2"     => [],
   "a"       => Any[],
   "omega"   => 0,
-  "phi"     => 3.47863,
-  "mu1"     => 2.25709,
-  "cv2"     => 0.200902,
+  "phi"     => [],
+  "mu1"     => [],
+  "cv2"     => [],
   "optim"   => "full",
-  "lognorm" => -1.66195,
+  "lognorm" => [],
 )
 
 function MakeME(params; mean = 1)
@@ -59,7 +59,7 @@ N₊ = sum(C.>=0)
 NPhases = length(C)
 
 # construct global approximation
-function MakeGlobalApprox(;NCells = 3,αup,Qup,αdown,Qdown,T,C)
+function MakeGlobalApprox(;NCells = 3,αup,Qup,αdown,Qdown,T,C,bkwd=false)
     N₋ = sum(C.<=0)
     N₊ = sum(C.>=0)
     NPhases = length(C)
@@ -90,13 +90,25 @@ function MakeGlobalApprox(;NCells = 3,αup,Qup,αdown,Qdown,T,C)
 
     inLower = [kron(diagm(abs.(C).*(C.<0)),qdown)[:,C.<0]; zeros((NCells-1)*NPhases*NBases,N₋)]
     outLower = [kron((C.>0)',kron(T₋₊,αup)) zeros(N₋,N₊+(NCells-1)*NPhases*NBases)]
-    inUpper = [zeros((NCells-1)*NPhases*NBases,N₊);kron(diagm(abs.(C).*(C.>0)),qdown)[:,C.>0]]
+    inUpper = [zeros((NCells-1)*NPhases*NBases,N₊);kron(diagm(abs.(C).*(C.>0)),qup)[:,C.>0]]
     outUpper = [zeros(N₊,N₋+(NCells-1)*NPhases*NBases) kron((C.<0)',kron(T₊₋,αdown))]
-    B = [
-        T₋₋ outLower;
-        inLower kron(I(NCells),kron(T,I(NBases)))+Q inUpper;
-        outUpper T₊₊;
-    ]
+    if bkwd
+        idx = [1; [3:2:NBases 2:2:NBases]'[:]]
+        Tdiag = diagm(diag(T))
+        Toff = T-diagm(diag(T))
+        I2 = I(NBases)[:,idx]
+        B = [
+            T₋₋ outLower;
+            inLower kron(I(NCells),kron(Tdiag,I(NBases)))+kron(I(NCells),kron(Toff,I2))+Q inUpper;
+            outUpper T₊₊;
+        ]
+    else
+        B = [
+            T₋₋ outLower;
+            inLower kron(I(NCells),kron(T,I(NBases)))+Q inUpper;
+            outUpper T₊₊;
+        ]
+    end
     return Q, B
 end
 
@@ -106,18 +118,20 @@ NSim = 100_000
 sims = SFFM.SimSFM(Model=Model,StoppingTime=τ,InitCondition=(φ=2*ones(Int,NSim),X=zeros(NSim)))
 
 let
-    vecNBases = [1,3,5,7,11,15,21,29]
+    vecNBases = [1,3,5,7,11,15,21]#,29]
     vecΔ = [5 2.5 1.25 1.25/2 1.25/4]
-    errfwdPH = vecNBases
-    errfwdME = vecNBases
+    errPH = vecNBases
+    errME = vecNBases
+    errbkwdME = vecNBases
     errDG = vecNBases
     plot()
     c=0
     for Δ in vecΔ
         c+=1
         Nodes = collect(0:Δ:10)
-        globalerrfwdPH = []
-        globalerrfwdME = []
+        globalerrPH = []
+        globalerrME = []
+        globalerrbkwdME = []
         globalerrDG = []
         for NBases in vecNBases
             Mesh = SFFM.MakeMesh(Model=Model,NBases=NBases,Nodes=Nodes,Basis="lagrange")
@@ -162,6 +176,39 @@ let
                 C = C,
             )
 
+            # πME = -αupME*QupME^-1
+            # μ = sum(πME)
+            # πME = πME./μ
+            # P = diagm(πME[:])
+            # if any(abs.(πME).<1e-8)
+            #     display(" ")
+            #     display("!!!!!!!!")
+            #     display("!!!!!!!!")
+            #     display("!!!!!!!!")
+            #     display(" ")
+            # end
+            # qupME = -sum(QupME,dims=2)
+            # αdownMEbkwd = qupME'*P*μ
+            # QdownMEbkwd = P^-1*QupME'*P
+
+            αdownMEbkwd = αupME#[αupME[1]; [αupME[3:2:end] αupME[2:2:end]]'[:]]'
+            QdownMEbkwd = QupME'.*sum(-αdownMEbkwd*QupME'^-1)
+
+            display(sum(-αdownMEbkwd*QdownMEbkwd^-1))
+            display(sum(αdownMEbkwd))
+            display(sum(-αup*Qup^-1))
+            display(sum(αup))
+            QMEbkwd, BMEbkwd = MakeGlobalApprox(;
+                NCells = NCells,
+                αup = αupME,
+                Qup = QupME,
+                αdown = αdownMEbkwd,
+                Qdown = QdownMEbkwd,
+                T = T,
+                C = C,
+                bkwd = false,
+            )
+
             DGMesh = SFFM.MakeMesh(Model=Model,NBases=1,Nodes=collect(Nodes[1]:Δ/NBases:Nodes[end]),Basis="lagrange")
             All = SFFM.MakeAll(Model=Model,Mesh=DGMesh)
 
@@ -179,53 +226,66 @@ let
             pmME_t = distME_t[[1:N₋;(end-N₊+1):end]]
             distME_t = reshape(distME_t[N₋+1:end-N₊],NBases,NPhases,NCells)
 
+            distMEbkwd_t = initDist*exp(BMEbkwd*t)#SFFM.EulerDG(D=BME,y=t,x0=initDist)
+            pmMEbkwd_t = distMEbkwd_t[[1:N₋;(end-N₊+1):end]]
+            distMEbkwd_t = reshape(distMEbkwd_t[N₋+1:end-N₊],NBases,NPhases,NCells)
+
             # plot(layout = (NPhases,1))
-            localerrfwdPH = sum(abs.(pm_t-simDist.pm))
-            localerrfwdME = sum(abs.(pmME_t-simDist.pm))
+            localerrPH = sum(abs.(pm_t-simDist.pm))
+            localerrME = sum(abs.(pmME_t-simDist.pm))
+            localerrbkwdME = sum(abs.(pmMEbkwd_t-simDist.pm))
             localerrDG = sum(abs.(DGdist_t.pm-simDist.pm))
             for n in 1:NCells
                 x = simDist.x[n]
                 for i in 1:NPhases
                     if n==1
-                        label1 = "fwdPH"
+                        label1 = "PH"
                         label2 = "DG"
-                        label3 = "fwdME"
+                        label3 = "ME"
+                        label4 = "bkwdME"
                     else
                         label1 = false
                         label2 = false
                         label3 = false
+                        label4 = false
                     end
                     yvalsPH = [sum(dist_t[:,i,n])]
                     yvalsDG = [sum(DGdist_t.distribution[:,(1:NBases).+NBases*(n-1),i])]
                     yvalsME = [sum(distME_t[:,i,n])]
+                    yvalsbkwdME = [sum(distMEbkwd_t[:,i,n])]
                     # scatter!([x],yvalsPH,label=label1,subplot=i,color=:red,markershape=:x)
                     # scatter!([x],yvalsDG,label=label2,subplot=i,color=:blue,markershape=:rtriangle)
                     # scatter!([x],yvalsME,label=label3,subplot=i,color=:black,markershape=:ltriangle)
-                    localerrfwdPH += abs(sum(yvalsPH-simDist.distribution[:,n,i]))
+                    # scatter!([x],yvalsbkwdME,label=label4,subplot=i,color=:black,markershape=:utriangle)
+                    localerrPH += abs(sum(yvalsPH-simDist.distribution[:,n,i]))
                     localerrDG += abs(sum(yvalsDG-simDist.distribution[:,n,i]))
-                    localerrfwdME += abs(sum(yvalsME-simDist.distribution[:,n,i]))
+                    localerrME += abs(sum(yvalsME-simDist.distribution[:,n,i]))
+                    localerrbkwdME += abs(sum(yvalsbkwdME-simDist.distribution[:,n,i]))
                 end
             end
-            push!(globalerrfwdPH,localerrfwdPH)
+            push!(globalerrPH,localerrPH)
             push!(globalerrDG,localerrDG)
-            push!(globalerrfwdME,localerrfwdME)
-            # plot!()
+            push!(globalerrME,localerrME)
+            push!(globalerrbkwdME,localerrbkwdME)
             # for i in 1:NPhases
             #     scatter!(simDist.x,simDist.distribution[:,:,i][:],subplot=i,label="sim")
             # end
             # display(plot!())
         end
-        errfwdPH = [errfwdPH globalerrfwdPH]
+        errPH = [errPH globalerrPH]
         errDG = [errDG globalerrDG]
-        errfwdME = [errfwdME globalerrfwdME]
-        plot!(vecNBases,log.(globalerrfwdPH),label=false,linestyle=:dot,colour=c,linewidth=2)
-        plot!(vecNBases,log.(globalerrfwdME),label=false,linestyle=:dash,colour=c)
+        errME = [errME globalerrME]
+        errbkwdME = [errbkwdME globalerrbkwdME]
+        plot!(vecNBases,log.(globalerrPH),label=false,linestyle=:dot,colour=c,linewidth=2)
+        plot!(vecNBases,log.(globalerrME),label=false,linestyle=:dash,colour=c)
+        plot!(vecNBases,log.(globalerrbkwdME),label=false,linestyle=:dashdot,colour=c)
         plot!(vecNBases,log.(globalerrDG),label=string(Δ),color=c)
         plot!(legend=:bottomleft,xlabel="Order",ylabel="log(error)",legendtitle="Δ")
         display(plot!(title="... PH,  -- ME,  Solid DG"))
     end
-    plot(log.(vecΔ)[:], log.(errfwdPH[:,2:end]'),colour=[1 2 3 4 5],linestyle=:dot,label=false,linewidth=2)
-    plot!(log.(vecΔ)[:], log.(errfwdME[:,2:end]'),colour=[1 2 3 4 5],linestyle=:dash,label=false)
+    plot(log.(vecΔ)[:], log.(errPH[:,2:end]'),colour=[1 2 3 4 5],linestyle=:dot,label=false,linewidth=2)
+    plot!(log.(vecΔ)[:], log.(errME[:,2:end]'),colour=[1 2 3 4 5],linestyle=:dash,label=false)
+    plot!(log.(vecΔ)[:], log.(errbkwdME[:,2:end]'),colour=[1 2 3 4 5],linestyle=:dashdot,label=false)
     plot!(log.(vecΔ)[:], log.(errDG[:,2:end]'),colour=[1 2 3 4 5],label=vecNBases')
     plot!(legend=:bottomright,xlabel="log(Δ)",ylabel="log(error)",legendtitle="Order")
     plot!(title="... PH,  -- ME,  Solid DG")
