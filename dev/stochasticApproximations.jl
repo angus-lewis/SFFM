@@ -96,7 +96,10 @@ function MakeGlobalApprox(;NCells = 3,αup,Qup,αdown,Qdown,T,C,bkwd=false)
         idx = [1; [3:2:NBases 2:2:NBases]'[:]]
         Tdiag = diagm(diag(T))
         Toff = T-diagm(diag(T))
-        I2 = I(NBases)[:,idx]
+        # πME = -αup*Qup^-1
+        # μ = sum(πME)
+        # πME = πME
+        I2 = I(NBases)[:,idx]#diagm(πME[:])#
         B = [
             T₋₋ outLower;
             inLower kron(I(NCells),kron(Tdiag,I(NBases)))+kron(I(NCells),kron(Toff,I2))+Q inUpper;
@@ -119,7 +122,7 @@ sims = SFFM.SimSFM(Model=Model,StoppingTime=τ,InitCondition=(φ=2*ones(Int,NSim
 
 let
     vecNBases = [1,3,5,7,11,15,21]#,29]
-    vecΔ = [5 2.5 1.25 1.25/2 1.25/4]
+    vecΔ = [2.5 1.25 1.25/2]#[5 2.5 1.25 1.25/2 1.25/4]
     errPH = vecNBases
     errME = vecNBases
     errbkwdME = vecNBases
@@ -191,8 +194,8 @@ let
             # αdownMEbkwd = qupME'*P*μ
             # QdownMEbkwd = P^-1*QupME'*P
 
-            αdownMEbkwd = αupME#[αupME[1]; [αupME[3:2:end] αupME[2:2:end]]'[:]]'
-            QdownMEbkwd = QupME'.*sum(-αdownMEbkwd*QupME'^-1)
+            αdownMEbkwd = [αupME[1]; [αupME[3:2:end] αupME[2:2:end]]'[:]]'
+            QdownMEbkwd = QupME'#.*sum(-αdownMEbkwd*QupME'^-1)./Δ
 
             display(sum(-αdownMEbkwd*QdownMEbkwd^-1))
             display(sum(αdownMEbkwd))
@@ -290,3 +293,16 @@ let
     plot!(legend=:bottomright,xlabel="log(Δ)",ylabel="log(error)",legendtitle="Order")
     plot!(title="... PH,  -- ME,  Solid DG")
 end
+
+
+Q = QupME
+q = sum(Q,dims=2)
+α = αupME
+
+F = -q*q'
+
+# cC = -c(F+G)
+# C = -F-G
+# -(C+F) = G
+
+display(eigen((Q+F)))
