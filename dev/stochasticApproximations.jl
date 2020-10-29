@@ -1,5 +1,5 @@
-# using LinearAlgebra, Plots, JSON
-# include("../src/SFFM.jl")
+using LinearAlgebra, Plots, JSON
+include("../src/SFFM.jl")
 
 tempCMEParams = Dict()
 open("dev/iltcme.json", "r") do f
