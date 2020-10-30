@@ -195,3 +195,7 @@ Spread = (α = α₁, Q = S₁)
 plot(t,density(t,Coxian))
 plot!(t,density(t,Spreadbkwd))
 plot!(t,density(t,Spread))
+
+MEα₁ = [CME.α*S^-1/(sum(CME.α*S^-1)) 0*CME.α]
+MES₁ = [CME.Q -CME.Q; 0*CME.Q CME.Q]
+MEs₁ = sum(-MES₁,dims=1)
