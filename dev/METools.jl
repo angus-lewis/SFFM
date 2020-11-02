@@ -1,3 +1,5 @@
+using JSON, LinearAlgebra
+
 tempCMEParams = Dict()
 open("dev/iltcme.json", "r") do f
     global tempCMEParams

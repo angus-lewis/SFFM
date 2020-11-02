@@ -340,3 +340,44 @@ let
     # plot!(legend=:bottomright,xlabel="log(Δ)",ylabel="log(error)",legendtitle="Order")
     # plot!(title="... PH,  -- Coxian,  -. bkwd Coxian, Solid DG")
 end
+
+
+ME = MakeME(CMEParams[3])
+a = CMEParams[3]["a"]
+b = CMEParams[3]["b"]
+c = CMEParams[3]["c"]
+omega = CMEParams[3]["omega"]
+kω = 1*omega
+Minv = [2*c*(1+kω^2) 0 0; 0 -b a; 0 a b]./(2*(1+kω^2))
+α, Q, q = MakeME(CMEParams[3], mean=CMEParams[3]["mu1"])
+println([q[1];q[3];q[2]]'*Minv)
+println(α)
+
+M = Minv^-1
+
+Fkkp1 = q*α*M
+display(Fkkp1)
+Fkkplus = -q*q'
+display(Fkkplus)
+display(-Q*M) # = (F+G)
+G = -Fkkplus-Q*M
+display(G) # G = -F + Q*M
+display(M)
+
+# check -(F+G)M⁻¹=Q
+display(Q)
+display(-(Fkkplus+G)*Minv)
+
+# phi at RHS
+display(q')
+# phi at LHS
+display(α*M)
+# inner products
+display(M)
+
+# for negative phases
+Fkkminus = (α*M)'*(α*M)
+display(Fminus)
+Q̃ = (G+Fkkminus)*Minv
+display(Q̃)
+display(eigen(Q̃).values)
