@@ -62,68 +62,12 @@ NPhases = length(C)
 NBases = 3
 order = NBases
 
-αErlang = zeros(1,NBases) # inital distribution
-αErlang[1] = 1
-λ = NBases/Δ
-QErlang = zeros(NBases,NBases)
-QErlang = QErlang + diagm(0=>repeat(-[λ],NBases), 1=>repeat([λ],NBases-1))
-Erlang = (α = αErlang, Q = QErlang)
+Erlang = MakeErlang(order,mean=Δ)
 
-αCoxian = zeros(1,NBases) # inital distribution
-αCoxian[1] = 1
-λ = NBases/Δ
-αCoxian = αCoxian
-QCoxian = zeros(NBases,NBases)
-p = 1#0.95#1-0.5/NBases
-d = [repeat(-[0.5*λ],NBases÷2);repeat(-[2*λ],NBases-(NBases÷2))]
-QCoxian = QCoxian + diagm(0=>d, 1=>-p*d[1:end-1])
-QCoxian = QCoxian.*sum(-αCoxian*QCoxian^-1)./Δ
-Coxian = (α = αCoxian, Q = QCoxian)
+Coxian = MakeSomeCoxian(order,mean=Δ)
 
-πCox = -αCoxian*QCoxian^-1
-μ = sum(πCox)
-πCox = πCox./μ
-Coxian = (α = αCoxian, Q = QCoxian, π = πCox)
-P = diagm(πCox[:])
-if any(abs.(πCox).<1e-4)
-    display(" ")
-    display("!!!!!!!!")
-    display("!!!!!!!!")
-    display("!!!!!!!!")
-    display(" ")
-end
-qCoxian = -sum(QCoxian,dims=2)
-αCoxianbkwd = qCoxian'*P*μ
-QCoxianbkwd = P^-1*QCoxian'*P
-QCoxianbkwd = QCoxianbkwd.*sum(-αCoxianbkwd*QCoxianbkwd^-1)./Δ
-Coxianbkwd = (α = αCoxianbkwd, Q = QCoxianbkwd)
+Coxianbkwd = reversal(Coxian)
 
-orbit(t,ME) = begin
-    orbits = zeros(length(t),NBases)
-    for i in 1:length(t)
-        num = ME.α*exp(ME.Q*t[i])
-        denom = sum(num)
-        orbits[i,:] = num./denom
-    end
-    return orbits
-end
-density(t,ME) = begin
-    pdf = zeros(length(t),1)
-    for i in 1:length(t)
-        num = ME.α*exp(ME.Q*t[i])*sum(-ME.Q,dims=2)
-        pdf[i] = sum(num)
-    end
-    return pdf
-end
-intensity(t,ME) = begin
-    intensity = zeros(length(t),1)
-    for i in 1:length(t)
-        num = ME.α*exp(ME.Q*t[i])
-        denom = sum(num)
-        intensity[i] = sum(num*sum(-ME.Q,dims=2))/denom
-    end
-    return intensity
-end
 
 t = 0:0.01:4
 orbitCoxian = orbit(t,Coxian)
@@ -190,7 +134,6 @@ S₁ = [diagm(vecρ₁[:])^-1*S*diagm(vecρ₁[:]) diagm(vecρ₁[:])^-1;
         zeros(order,order) S]
 Spread = (α = α₁, Q = S₁)
 
-πCoxian = (α = Coxian.π, Q = Coxian.Q)
 
 plot(t,density(t,Coxian))
 plot!(t,density(t,Spreadbkwd))
