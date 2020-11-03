@@ -1,6 +1,6 @@
 # using LinearAlgebra, Plots, JSON
 # include("../src/SFFM.jl")
-include("METools.jl")
+# include("METools.jl")
 
 # define SFM
 T = [-2.0 2.0; 1.0 -1.0]#[-2.0 2.0 0; 1.0 -2.0 1; 1 1 -2]
@@ -326,7 +326,7 @@ let
         plot!(vecNBases,log.(globalerrDG),label="DG "*string(Δ),color=c,linestyle=:dash)
         plot!(vecNBases,log.(globalerrCoxian),label="Coxian "*string(Δ),linestyle=:solid,colour=c+1)
         plot!(vecNBases,log.(globalerrbkwdCoxian),label="Cox. w rev. "*string(Δ),linestyle=:dash,colour=c+1)
-        plot!(vecNBases,log.(globalerrSomePH),label="PH"*string(Δ),linestyle=:solid,colour=c+2)
+        plot!(vecNBases,log.(globalerrSomePH),label="PH "*string(Δ),linestyle=:solid,colour=c+2)
         plot!(vecNBases,log.(globalerrSomePHBkwd),label="PH. w rev. "*string(Δ),linestyle=:dash,colour=c+2)
         plot!(legend=:outerright,xlabel="Order",ylabel="log(error)",legendtitle="Δ")
         display(plot!(title="... PH,  -- Coxian,  -. bkwd Coxian,  Solid DG"))
@@ -349,8 +349,10 @@ c = CMEParams[3]["c"]
 omega = CMEParams[3]["omega"]
 kω = 1*omega
 Minv = [2*c*(1+kω^2) 0 0; 0 -b a; 0 a b]./(2*(1+kω^2))
+# Minv = [2*c*(1+kω^2) 0 0; 0 -a b; 0 -b -a]./(2*(1+kω^2))
 α, Q, q = MakeME(CMEParams[3], mean=CMEParams[3]["mu1"])
 println([q[1];q[3];q[2]]'*Minv)
+println([q[1];-q[2];-q[3]]'*Minv)
 println(α)
 
 M = Minv^-1
@@ -377,7 +379,7 @@ display(M)
 
 # for negative phases
 Fkkminus = (α*M)'*(α*M)
-display(Fminus)
+display(Fkkminus)
 Q̃ = (G+Fkkminus)*Minv
 display(Q̃)
 display(eigen(Q̃).values)
