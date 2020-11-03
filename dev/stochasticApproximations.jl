@@ -1,6 +1,6 @@
-# using LinearAlgebra, Plots, JSON
-# include("../src/SFFM.jl")
-# include("METools.jl")
+using LinearAlgebra, Plots, JSON
+include("../src/SFFM.jl")
+include("METools.jl")
 
 # define SFM
 T = [-2.0 2.0; 1.0 -1.0]#[-2.0 2.0 0; 1.0 -2.0 1; 1 1 -2]
@@ -352,7 +352,7 @@ Minv = [2*c*(1+kω^2) 0 0; 0 -b a; 0 a b]./(2*(1+kω^2))
 # Minv = [2*c*(1+kω^2) 0 0; 0 -a b; 0 -b -a]./(2*(1+kω^2))
 α, Q, q = MakeME(CMEParams[3], mean=CMEParams[3]["mu1"])
 println([q[1];q[3];q[2]]'*Minv)
-println([q[1];-q[2];-q[3]]'*Minv)
+# println([q[1];-q[2];-q[3]]'*Minv)
 println(α)
 
 M = Minv^-1
