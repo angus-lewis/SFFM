@@ -264,3 +264,23 @@ intensity(t,ME) = begin
     end
     return intensity
 end
+
+function orbit_zero(ME, target)
+    err = 10
+    a = 1
+    b = 1.3
+    c = (b+a)/2
+    while err>sqrt(eps())
+        Aa = orbit(a,ME)[1]
+        Ab = orbit(b,ME)[1]
+        Ac = orbit(c,ME)[1]
+        if (sign(sum(Aa - target[1])) * sign(sum(Ac - target[1]))) < 0
+            b = c
+        else
+            a = c
+        end
+        err = sum(abs.(Ac - target[1]))
+        c = (a+b)/2
+    end
+    return c
+end
