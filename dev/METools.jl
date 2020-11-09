@@ -45,7 +45,7 @@ function MakeME(params; mean = 1)
     end
     Q = Q.*sum(-α*Q^-1)./mean
     q = -sum(Q,dims=2)
-    return (α,Q,q)
+    return (α = α, Q = Q, q = q)
 end
 
 function MakeErlang(order; mean = 1)
@@ -138,10 +138,30 @@ function reversal(PH)
     α = q'*P*μ
     Q = P^-1*Q'*P
     Q = Q.*sum(-α*Q^-1)./μ
+    q = -sum(Q,dims=2)
     return (α = α, Q = Q, q = q, π = πPH)
 end
 
-function MakeGlobalApprox(;NCells = 3,up, down,T,C,bkwd=false)
+function jumpMatrixD(PH)
+    α, Q = PH
+    πPH = -α*Q^-1
+    μ = sum(πPH)
+    πPH = πPH./μ
+    U = zeros(size(Q))
+    V = zeros(size(Q))
+    for c in 1:size(Q,2)
+        U[:,c] = Q^(c-1)*πPH'
+        V[:,c] = Q'^(c-1)*ones(size(πPH'))
+    end
+    D = V*U^-1
+    display(πPH)
+    D = D.*πPH[:]'
+    return (D)
+end
+
+1
+
+function MakeGlobalApprox(;NCells = 3,up, down,T,C,bkwd=false,D=[])
     αup,Qup = up
     αdown,Qdown = down
     N₋ = sum(C.<=0)
@@ -190,13 +210,21 @@ function MakeGlobalApprox(;NCells = 3,up, down,T,C,bkwd=false)
         # idx = [1; [3:2:NBases 2:2:NBases]'[:]]
         Tdiag = diagm(diag(T))
         Toff = T-diagm(diag(T))
+        T₊₋ = T.*((C.>0)*(C.<0)')
+        T₋₊ = T.*((C.<0)*(C.>0)')
+        Tchange = T₊₋ + T₋₊
+        Tnochange = T-Tchange
         # πME = -αup*Qup^-1
         # μ = sum(πME)
         # πME = πME./μ
-        I2 = I(NBases)[:,idx]#diagm(πME[:])#repeat(πME,length(πME),1)#
+        I2 = I(NBases)#[:,idx]#diagm(πME[:])#repeat(πME,length(πME),1)#
         B = [
             T₋₋ outLower;
-            inLower kron(I(NCells),kron(Tdiag,I(NBases)))+kron(I(NCells),kron(Toff,I2))+Q inUpper;
+            inLower (#kron(I(NCells),kron(Tdiag,I(NBases)))
+                +kron(I(NCells),kron(Tnochange,I2))
+                +kron(I(NCells),kron(T₋₊,D^-1))
+                +kron(I(NCells),kron(T₊₋,D))
+                +Q) inUpper;
             outUpper T₊₊;
         ]
     else

@@ -1,53 +1,6 @@
-# using LinearAlgebra, Plots, JSON
-# include("../src/SFFM.jl")
-
-tempCMEParams = Dict()
-open("dev/iltcme.json", "r") do f
-    global tempCMEParams
-    tempCMEParams=JSON.parse(f)  # parse and transform data
-end
-CMEParams = Dict()
-for n in keys(tempCMEParams)
-    CMEParams[2*tempCMEParams[n]["n"]+1] = tempCMEParams[n]
-end
-CMEParams[1] = Dict(
-  "n"       => 0,
-  "c"       => 1,
-  "b"       => Any[],
-  "mu2"     => [],
-  "a"       => Any[],
-  "omega"   => 0,
-  "phi"     => [],
-  "mu1"     => [],
-  "cv2"     => [],
-  "optim"   => "full",
-  "lognorm" => [],
-)
-
-function MakeME(params; mean = 1)
-    N = 2*params["n"]+1
-    α = zeros(1,N)
-    α[1] = params["c"]
-    a = params["a"]
-    b = params["b"]
-    ω =  params["omega"]
-    for k in 1:params["n"]
-        kω = k*ω
-        α[2*k] = (1/2)*( a[k]*(1+kω) - b[k]*(1-kω) )/(1+kω^2)
-        α[2*k+1] = (1/2)*( a[k]*(1-kω) + b[k]*(1+kω) )/(1+kω^2)
-    end
-    α = α./sum(α)
-    A = zeros(N,N)
-    A[1,1] = -1
-    for k in 1:params["n"]
-        kω = k*ω
-        idx = 2*k:(2*k+1)
-        A[idx,idx] = [-1 -kω; kω -1]
-    end
-    A = A.*sum(-α*A^-1)./mean
-    a = -sum(A,dims=2)
-    return (α,A,a)
-end
+using LinearAlgebra, Plots, JSON
+include("../src/SFFM.jl")
+include("METools.jl")
 
 # define SFM
 T = [-2.0 2.0; 1.0 -1.0]
