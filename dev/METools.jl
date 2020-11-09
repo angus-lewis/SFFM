@@ -103,21 +103,21 @@ function MakeSomePH(order; mean = 1)
     # Q = Q.*sum(-α*Q^-1)./mean
     # q = -sum(Q,dims=2)
 
-    # α = zeros(order)' # inital distribution
-    # α[1] = 1
-    # Q = repeat(1:order,1,order)
-    # Q = Q - diagm(diag(Q))
-    # Q = Q - diagm(sum(Q,dims=2)[:]) - diagm([zeros(order-1);1])
-    # Q = Q.*sum(-α*Q^-1)./mean
-    # q = -sum(Q,dims=2)
-
     α = zeros(order)' # inital distribution
     α[1] = 1
-    Q = repeat(ones(order),1,order)
+    Q = repeat(1:order,1,order)
     Q = Q - diagm(diag(Q))
     Q = Q - diagm(sum(Q,dims=2)[:]) - diagm([zeros(order-1);1])
     Q = Q.*sum(-α*Q^-1)./mean
     q = -sum(Q,dims=2)
+
+    # α = zeros(order)' # inital distribution
+    # α[1] = 1
+    # Q = repeat(ones(order),1,order)
+    # Q = Q - diagm(diag(Q))
+    # Q = Q - diagm(sum(Q,dims=2)[:]) - diagm([zeros(order-1);1])
+    # Q = Q.*sum(-α*Q^-1)./mean
+    # q = -sum(Q,dims=2)
     return (α = α, Q = Q, q = q)
 end
 
