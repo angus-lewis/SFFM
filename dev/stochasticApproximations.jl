@@ -193,7 +193,7 @@ let
                 C = C,
             )
 
-            Coxian = MakeSomeCoxian(NBases, mean = Δ)
+            Coxian = MakeME(CMEParams[NBases], mean = Δ)#MakeSomeCoxian(NBases, mean = Δ)#
 
             QCoxian, BCoxian = MakeGlobalApprox(;
                 NCells = NCells,
@@ -213,7 +213,7 @@ let
                 C = C,
             )
 
-            SomePH = MakeSomeCoxian(NBases, mean = Δ)#MakeSomePH(NBases, mean = Δ)
+            SomePH = Coxian#MakeSomeCoxian(NBases, mean = Δ)#MakeSomePH(NBases, mean = Δ)
 
             QSomePH, BSomePH = MakeGlobalApprox(;
                 NCells = NCells,
@@ -326,8 +326,8 @@ let
         errSomePHBkwd = [errSomePHBkwd globalerrSomePHBkwd]
         plot!(vecNBases,log.(globalerrPH),label="Erlang "*string(Δ),colour=c)
         plot!(vecNBases,log.(globalerrDG),label="DG "*string(Δ),color=c,linestyle=:dash)
-        plot!(vecNBases,log.(globalerrCoxian),label="Coxian "*string(Δ),linestyle=:solid,colour=c+1)
-        plot!(vecNBases,log.(globalerrbkwdCoxian),label="Cox. w rev. "*string(Δ),linestyle=:dash,colour=c+1)
+        plot!(vecNBases,log.(globalerrCoxian),label="Coxian "*string(Δ),linestyle=:solid,colour=c+1,markershape=:+)
+        plot!(vecNBases,log.(globalerrbkwdCoxian),label="Cox. w rev. "*string(Δ),linestyle=:dash,colour=c+1,markershape=:+)
         plot!(vecNBases,log.(globalerrSomePH),label="PH "*string(Δ),linestyle=:solid,colour=c+2)
         plot!(vecNBases,log.(globalerrSomePHBkwd),label="PH. w rev. "*string(Δ),linestyle=:dash,colour=c+2)
         plot!(legend=:outerright,xlabel="Order",ylabel="log(error)",legendtitle="Δ")
@@ -385,3 +385,13 @@ display(Fkkminus)
 Q̃ = (G+Fkkminus)*Minv
 display(Q̃)
 display(eigen(Q̃).values)
+
+
+Mesh = SFFM.MakeMesh(
+    Model = Model,
+    Nodes = collect(0:1:10),
+    NBases = 4,
+    Basis = "lagrange",
+)
+
+Mat = SFFM.MakeMatrices(Mesh=Mesh,Model=Model)

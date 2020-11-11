@@ -150,12 +150,14 @@ function jumpMatrixD(PH)
     U = zeros(size(Q))
     V = zeros(size(Q))
     for c in 1:size(Q,2)
-        U[:,c] = Q^(c-1)*πPH'
-        V[:,c] = Q'^(c-1)*ones(size(πPH'))
+        U[:,c] = Q^(c-1)*ones(size(πPH'))
+        V[:,c] = Q'^(c-1)*πPH'
     end
     D = V*U^-1
-    display(πPH)
-    D = D.*πPH[:]'
+    # display(D*Q*D^-1)
+    D = diagm(πPH[:])^-1*D
+    # display(D*Q*D^-1)
+    # display(reversal(PH).Q)
     return (D)
 end
 
@@ -238,11 +240,15 @@ function MakeGlobalApprox(;NCells = 3,up, down,T,C,bkwd=false,D=[])
     return Q, B
 end
 
-orbit(t,ME) = begin
+orbit(t,ME; norm = 1) = begin
     orbits = zeros(length(t),NBases)
     for i in 1:length(t)
         num = ME.α*exp(ME.Q*t[i])
-        denom = sum(num)
+        if norm == 1
+            denom = sum(num)
+        else
+            denom = exp(ME.Q[1,1]*t[i])#sum(num)
+        end
         orbits[i,:] = num./denom
     end
     return orbits
