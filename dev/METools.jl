@@ -62,7 +62,7 @@ function MakeSomeCoxian(order; mean = 1)
     α = zeros(1,order) # inital distribution
     α[1] = 1
     λ = order/mean
-    p = 0.95#1-0.5/NBases
+    p = 1#1-0.5/NBases
     d = [repeat(-[0.5*λ],order÷2);repeat(-[2*λ],order-(order÷2))]
     Q = diagm(0=>d, 1=>-p*d[1:end-1])
     Q = Q.*sum(-α*Q^-1)./mean
@@ -71,13 +71,13 @@ function MakeSomeCoxian(order; mean = 1)
 end
 
 function MakeSomePH(order; mean = 1)
-    # α = collect(1:order)' # inital distribution
-    # α = α./sum(α)
-    # Q = repeat(1:order,1,order)
-    # Q = Q - diagm(diag(Q))
-    # Q = Q - diagm(sum(Q,dims=2)[:]) - diagm(order:-1:1)
-    # Q = Q.*sum(-α*Q^-1)./mean
-    # q = -sum(Q,dims=2)
+    α = collect(1:order)' # inital distribution
+    α = α./sum(α)
+    Q = repeat(1:order,1,order)
+    Q = Q - diagm(diag(Q))
+    Q = Q - diagm(sum(Q,dims=2)[:]) - diagm(order:-1:1)
+    Q = Q.*sum(-α*Q^-1)./mean
+    q = -sum(Q,dims=2)
 
     # α = collect(1:order)' # inital distribution
     # α = α./sum(α)
@@ -103,13 +103,13 @@ function MakeSomePH(order; mean = 1)
     # Q = Q.*sum(-α*Q^-1)./mean
     # q = -sum(Q,dims=2)
 
-    α = zeros(order)' # inital distribution
-    α[1] = 1
-    Q = repeat(1:order,1,order)
-    Q = Q - diagm(diag(Q))
-    Q = Q - diagm(sum(Q,dims=2)[:]) - diagm([zeros(order-1);1])
-    Q = Q.*sum(-α*Q^-1)./mean
-    q = -sum(Q,dims=2)
+    # α = zeros(order)' # inital distribution
+    # α[1] = 1
+    # Q = repeat(1:order,1,order)
+    # Q = Q - diagm(diag(Q))
+    # Q = Q - diagm(sum(Q,dims=2)[:]) - diagm([zeros(order-1);1])
+    # Q = Q.*sum(-α*Q^-1)./mean
+    # q = -sum(Q,dims=2)
 
     # α = zeros(order)' # inital distribution
     # α[1] = 1
@@ -163,7 +163,7 @@ end
 
 1
 
-function MakeGlobalApprox(;NCells = 3,up, down,T,C,bkwd=false,D=[])
+function MakeGlobalApprox(;NCells = 3,up, down,T,C,bkwd=false,D=[],plusI = false)
     αup,Qup = up
     αdown,Qdown = down
     N₋ = sum(C.<=0)
@@ -220,15 +220,42 @@ function MakeGlobalApprox(;NCells = 3,up, down,T,C,bkwd=false,D=[])
         # μ = sum(πME)
         # πME = πME./μ
         I2 = I(NBases)#[:,idx]#diagm(πME[:])#repeat(πME,length(πME),1)#
+        D = zeros(size(Q))
+        for c in 1:NCells, i in 1:length(C), j in 1:length(C)
+            idxi = ((i-1)*NBases) .+ (1:NBases) .+ ((c-1)*NBases*NPhases)
+            idxj = ((j-1)*NBases) .+ (1:NBases) .+ ((c-1)*NBases*NPhases)
+            if i!=j
+                if C[i]>0 && C[j]<0
+                    # display(Qup+T[i,i]*I(NBases)*plusI)
+                    # display(Qup)
+                    πtemp = -αup*(abs(C[i])*Qup-T[i,i]*I(NBases)*plusI)^-1
+                    πtemp = πtemp./sum(πtemp)
+                    D[idxi,idxj] = T[i,j].*repeat(πtemp,NBases,1)
+                elseif C[i]<0 && C[j]>0
+                    πtemp = -αdown*(abs(C[i])*Qdown-T[i,i]*I(NBases)*plusI)^-1
+                    πtemp = πtemp./sum(πtemp)
+                    D[idxi,idxj] = T[i,j].*repeat(πtemp,NBases,1)
+                else
+                    D[idxi,idxj] = T[i,j].*I(NBases)
+                end
+            else
+                D[idxi,idxj] = T[i,i].*I(NBases)
+            end
+        end
         B = [
             T₋₋ outLower;
-            inLower (#kron(I(NCells),kron(Tdiag,I(NBases)))
-                +kron(I(NCells),kron(Tnochange,I2))
-                +kron(I(NCells),kron(T₋₊,D^-1))
-                +kron(I(NCells),kron(T₊₋,D))
-                +Q) inUpper;
+            inLower D+Q inUpper;
             outUpper T₊₊;
         ]
+        # B = [
+        #     T₋₋ outLower;
+        #     inLower (#kron(I(NCells),kron(Tdiag,I(NBases)))
+        #         +kron(I(NCells),kron(Tnochange,I2))
+        #         +kron(I(NCells),kron(T₋₊,D^-1))
+        #         +kron(I(NCells),kron(T₊₋,D))
+        #         +Q) inUpper;
+        #     outUpper T₊₊;
+        # ]
     else
         B = [
             T₋₋ outLower;
