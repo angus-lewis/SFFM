@@ -1,5 +1,5 @@
-using LinearAlgebra, Plots, JSON
-include("../src/SFFM.jl")
+# using LinearAlgebra, Plots, JSON
+# include("../src/SFFM.jl")
 include("METools.jl")
 
 # define SFM
@@ -18,15 +18,15 @@ t = 4.0
 NSim = 100_000
 sims = SFFM.SimSFM(Model=Model,StoppingTime=τ,InitCondition=(φ=2*ones(Int,NSim),X=zeros(NSim)))
 
+p = plot()
+vecΔ =  1#[5 2.5 1.25 1.25/2]
 let
     vecNBases = [1,3,5,7,11,15,21]#,29]
-    vecΔ =  1.25/2#[5 2.5 1.25 1.25/2]
     errPH = vecNBases
     errME = vecNBases
     errbkwdME = vecNBases
     errπME = vecNBases
     errDG = vecNBases
-    p = plot()
     c=0
     for Δ in vecΔ
         c+=1
@@ -182,7 +182,7 @@ let
     # plot!(legend=:bottomright,xlabel="log(Δ)",ylabel="log(error)",legendtitle="Order")
     # plot!(title="... PH,  -- ME,  -. pois ME, Solid DG")
 end
-
+Δ = vecΔ
 
 #
 # let
@@ -372,27 +372,27 @@ end
 # end
 
 #
-ME = MakeME(CMEParams[3],mean=2)#MakeSomeCoxian(21)#
-~,~,πME = reversal(ME)
-γ = -1
-S = ME.Q-γ*I
-α = ME.α*(-S^-1)
-α = α./sum(α)
-MEpois = (α = α, Q = S)
-MEmix = (α = α, Q = ME.Q)
-αwhat = -ME.α*(ME.Q+γ*I)^-1
-αwhat = αwhat./sum(αwhat)
-MEwhat = (α = αwhat, Q = ME.Q)
-# A = sylvester(ME.Q,-ME.Q,γ*Matrix{Float64}(I(NBases)))
-t = 0:0.1:4
-densityME = density(t,ME)
-densityMEpois = density(t,MEpois)
-# densityMEmix = density(t,MEmix)
-densityMEwhat = density(t,MEwhat)
-plot(t,densityME)
-plot!(t,densityMEpois)
-# plot!(t,densityMEmix)
-plot!(t,densityMEwhat)
+# ME = MakeME(CMEParams[3],mean=2)#MakeSomeCoxian(21)#
+# ~,~,πME = reversal(ME)
+# γ = -1
+# S = ME.Q-γ*I
+# α = ME.α*(-S^-1)
+# α = α./sum(α)
+# MEpois = (α = α, Q = S)
+# MEmix = (α = α, Q = ME.Q)
+# αwhat = -ME.α*(ME.Q+γ*I)^-1
+# αwhat = αwhat./sum(αwhat)
+# MEwhat = (α = αwhat, Q = ME.Q)
+# # A = sylvester(ME.Q,-ME.Q,γ*Matrix{Float64}(I(NBases)))
+# t = 0:0.1:4
+# densityME = density(t,ME)
+# densityMEpois = density(t,MEpois)
+# # densityMEmix = density(t,MEmix)
+# densityMEwhat = density(t,MEwhat)
+# plot(t,densityME)
+# plot!(t,densityMEpois)
+# # plot!(t,densityMEmix)
+# plot!(t,densityMEwhat)
 1
 # a = CMEParams[3]["a"]
 # b = CMEParams[3]["b"]

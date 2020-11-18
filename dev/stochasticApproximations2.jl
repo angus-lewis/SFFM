@@ -2,19 +2,22 @@
 # include("../src/SFFM.jl")
 include("METools.jl")
 
-# define SFM
-T = [-2.0 2.0; 1.0 -1.0]#[-2.0 2.0 0; 1.0 -2.0 1; 1 1 -2]
-C = [1.0; -1.0]#; -1]
-fn(x) = [ones(size(x)) ones(size(x))]# ones(size(x))]
-Model = SFFM.MakeModel(;T=T,C=C,r=(r=fn,R=fn),Bounds=[0 10;-Inf Inf])
-N₋ = sum(C.<=0)
-N₊ = sum(C.>=0)
-NPhases = length(C)
+include("stochasticApproximations.jl")
+p = plot!()
 
-t = 4.0
-τ = SFFM.FixedTime(T=t)
-NSim = 100_000
-sims = SFFM.SimSFM(Model=Model,StoppingTime=τ,InitCondition=(φ=2*ones(Int,NSim),X=zeros(NSim)))
+# # define SFM
+# T = [-2.0 2.0; 1.0 -1.0]#[-2.0 2.0 0; 1.0 -2.0 1; 1 1 -2]
+# C = [1.0; -2.0]#; -1]
+# fn(x) = [ones(size(x)) ones(size(x))]# ones(size(x))]
+# Model = SFFM.MakeModel(;T=T,C=C,r=(r=fn,R=fn),Bounds=[0 10;-Inf Inf])
+# N₋ = sum(C.<=0)
+# N₊ = sum(C.>=0)
+# NPhases = length(C)
+#
+# t = 4.0
+# τ = SFFM.FixedTime(T=t)
+# NSim = 100_000
+# sims = SFFM.SimSFM(Model=Model,StoppingTime=τ,InitCondition=(φ=2*ones(Int,NSim),X=zeros(NSim)))
 
 function MakeGlobalApprox(;NCells = 3,up, down,T,C,bkwd=false,D=[],NCounters=2)
     αup,Qup = up
@@ -111,7 +114,7 @@ function MakeGlobalApprox(;NCells = 3,up, down,T,C,bkwd=false,D=[],NCounters=2)
                     D[idxi,idxj] = T[i,j].*repeat(πtemp,NBases,1)
                 else
                     πtemp = αup
-                    D[idxi,idxj.-NBases] = T[i,j].*repeat(πtemp,NBases,1)
+                    D[idxi,idxj] = T[i,j].*repeat(πtemp,NBases,1)
                 end
             elseif C[i]<0 && C[j]>0
                 if n < NCounters
@@ -120,7 +123,7 @@ function MakeGlobalApprox(;NCells = 3,up, down,T,C,bkwd=false,D=[],NCounters=2)
                     D[idxi,idxj] = T[i,j].*repeat(πtemp,NBases,1)
                 else
                     πtemp = αdown
-                    D[idxi,idxj.-NBases] = T[i,j].*repeat(πtemp,NBases,1)
+                    D[idxi,idxj] = T[i,j].*repeat(πtemp,NBases,1)
                 end
             else
                 D[idxi,idxj] = T[i,j].*I(NBases)
@@ -141,17 +144,14 @@ function MakeGlobalApprox(;NCells = 3,up, down,T,C,bkwd=false,D=[],NCounters=2)
     return Q, B
 end
 
-
-p = plot()
 for NCounters in 2:2
     globalerrME = []
     globalerrDG = []
-    for NBases in 1:2:5
-        Δ = 1
+    for NBases in 1:2:21
         # NBases = 2
         Nodes = collect(0:Δ:10)
         NCells = length(Nodes)-1
-        Erlang = MakeErlang(NBases,mean=Δ)#MakeME(CMEParams[NBases], mean = Δ)
+        Erlang = MakeME(CMEParams[NBases], mean = Δ)#MakeErlang(NBases,mean=Δ)#
         display(Erlang.Q)
         Q, B = MakeGlobalApprox(
             NCells = NCells,
@@ -185,7 +185,7 @@ for NCounters in 2:2
         localerrME = sum(abs.(pm_t-simDist.pm))
         localerrDG = sum(abs.(DGdist_t.pm-simDist.pm))
 
-        q = plot(layout = (2,1))
+        # q = plot(layout = (2,1))
         for n in 1:NCells
             x = simDist.x[n]
             for i in 1:NPhases
@@ -198,13 +198,13 @@ for NCounters in 2:2
                 end
                 yvalsME = [sum(dist_t[i,1,n])]
                 yvalsDG = [sum(DGdist_t.distribution[:,(1:NBases).+NBases*(n-1),i])]
-                scatter!([x],yvalsDG,label=label1,subplot=i,color=:blue,markershape=:rtriangle)
-                scatter!([x],yvalsME,label=label2,subplot=i,color=:black,markershape=:ltriangle)
+                # scatter!([x],yvalsDG,label=label1,subplot=i,color=:blue,markershape=:rtriangle)
+                # scatter!([x],yvalsME,label=label2,subplot=i,color=:black,markershape=:ltriangle)
                 localerrME += abs(sum(yvalsME-simDist.distribution[:,n,i]))
                 localerrDG += abs(sum(yvalsDG-simDist.distribution[:,n,i]))
             end
         end
-        display(q)
+        # display(q)
         push!(globalerrME,localerrME)
         push!(globalerrDG,localerrDG)
         # for i in 1:NPhases
@@ -212,7 +212,7 @@ for NCounters in 2:2
         # end
         # display(plot!())
     end
-    plot!(p,1:2:5,log.(globalerrME),label=string(NCounters),linestyle=:dash,colour=1+NCounters)
-    plot!(p,1:2:5,log.(globalerrDG),label=false,linestyle=:solid,colour=1)
+    plot!(p,1:2:21,log.(globalerrME),label=false,linestyle=:dash,colour=1+NCounters)
+    plot!(p,1:2:21,log.(globalerrDG),label=false,linestyle=:solid,colour=3)
     display(p)
 end
