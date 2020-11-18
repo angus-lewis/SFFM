@@ -1,5 +1,5 @@
-# using LinearAlgebra, Plots, JSON
-# include("../src/SFFM.jl")
+using LinearAlgebra, Plots, JSON
+include("../src/SFFM.jl")
 include("METools.jl")
 
 # define SFM
@@ -372,9 +372,9 @@ end
 # end
 
 #
-ME = MakeME(CMEParams[101],mean=2)#MakeSomeCoxian(21)#
+ME = MakeME(CMEParams[3],mean=2)#MakeSomeCoxian(21)#
 ~,~,πME = reversal(ME)
-γ = 1
+γ = -1
 S = ME.Q-γ*I
 α = ME.α*(-S^-1)
 α = α./sum(α)

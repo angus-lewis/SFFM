@@ -161,8 +161,6 @@ function jumpMatrixD(PH)
     return (D)
 end
 
-1
-
 function MakeGlobalApprox(;NCells = 3,up, down,T,C,bkwd=false,D=[],plusI = false)
     αup,Qup = up
     αdown,Qdown = down
