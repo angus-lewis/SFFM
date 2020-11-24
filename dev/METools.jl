@@ -266,7 +266,7 @@ function MakeGlobalApprox(;NCells = 3,up, down,T,C,bkwd=false,D=[],plusI = false
 end
 
 orbit(t,ME; norm = 1) = begin
-    orbits = zeros(length(t),NBases)
+    orbits = zeros(length(t),length(ME.α))
     for i in 1:length(t)
         num = ME.α*exp(ME.Q*t[i])
         if norm == 1

@@ -101,7 +101,7 @@ function MakeGlobalApprox(;NCells = 3,up, down,T,C,bkwd=false,D=[],NCounters=2)
         # idxj = (n-1)*NBases .+ ((j-1)*NBases*NCounters) .+ (1:NBases) .+ ((c-1)*NBases*NPhases)
         if i!=j
             tempmat = zeros(NBases,NBases)
-            for nn in 1:(n-1)
+            for nn in 1:(n)
                 phase = mod(1+i+nn,2)+1
                 tempmat += T[phase,phase].*I(NBases)
             end
@@ -113,7 +113,9 @@ function MakeGlobalApprox(;NCells = 3,up, down,T,C,bkwd=false,D=[],NCounters=2)
                     πtemp = πtemp./sum(πtemp)
                     D[idxi,idxj] = T[i,j].*repeat(πtemp,NBases,1)
                 else
-                    πtemp = αup
+                    πtemp = αup#*(-Qup^-1)
+                    # πtemp = -αup*(abs(C[i])*Qup+tempmat)^-1
+                    πtemp = πtemp./sum(πtemp)
                     D[idxi,idxj] = T[i,j].*repeat(πtemp,NBases,1)
                 end
             elseif C[i]<0 && C[j]>0
@@ -122,7 +124,9 @@ function MakeGlobalApprox(;NCells = 3,up, down,T,C,bkwd=false,D=[],NCounters=2)
                     πtemp = πtemp./sum(πtemp)
                     D[idxi,idxj] = T[i,j].*repeat(πtemp,NBases,1)
                 else
-                    πtemp = αdown
+                    πtemp = αdown#*(-Qdown)^-1
+                    # πtemp = -αdown*(abs(C[i])*Qdown+tempmat)^-1
+                    πtemp = πtemp./sum(πtemp)
                     D[idxi,idxj] = T[i,j].*repeat(πtemp,NBases,1)
                 end
             else
@@ -151,7 +155,7 @@ for NCounters in 2:2
         # NBases = 2
         Nodes = collect(0:Δ:10)
         NCells = length(Nodes)-1
-        Erlang = MakeME(CMEParams[NBases], mean = Δ)#MakeErlang(NBases,mean=Δ)#
+        Erlang = MakeErlang(NBases,mean=Δ)#MakeME(CMEParams[NBases], mean = Δ)#
         display(Erlang.Q)
         Q, B = MakeGlobalApprox(
             NCells = NCells,

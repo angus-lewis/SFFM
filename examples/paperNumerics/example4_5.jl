@@ -155,8 +155,8 @@ let p = plot()
             πnorms[:, n],
             xaxis = :log,
             yaxis = :log,
-            xlabel = "log(h)",
-            ylabel = "log error",
+            xlabel = "h",
+            ylabel = "error",
             label = "N_k = " * string(NBasesRange[n]),
             legend = :outertopright,
             linestyle = types[n],
@@ -178,7 +178,7 @@ let p = plot()
             πnorms[d, :],
             yaxis = :log,
             xlabel = "N_k",
-            ylabel = "log error",
+            ylabel = "error",
             label = "h = " * string(Δs[d]),
             legend = :outertopright,
             linestyle = types[d],
@@ -252,7 +252,7 @@ let q = plot()
             xaxis = :log,
             yaxis = :log,
             xlabel = "h",
-            ylabel = "log error",
+            ylabel = "error",
             label = "NBases = " * string(NBasesRange[n]),
             legend = :outertopright,
             seriestype = :line,
@@ -261,7 +261,7 @@ let q = plot()
         )
     end
     display(q)
-    # savefig(pwd()*"/examples/paperNumerics/dump/psiErrorVsDelta.png")
+    savefig(pwd()*"/examples/paperNumerics/dump/psiErrorVsDelta.png")
 end
 
 mq =
