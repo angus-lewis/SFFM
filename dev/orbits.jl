@@ -12,7 +12,7 @@ N₊ = sum(C.>=0)
 NPhases = length(C)
 
 Δ = 1
-NBases = 7
+NBases = 11
 order = NBases
 
 Erlang = MakeErlang(order,mean=Δ)
@@ -59,25 +59,25 @@ intensityME = intensity(t,CME)
 intensityπME = intensity(t,πME)
 intensityCMEt = intensity(t,CMEt)
 plot(t,orbitME,label = "fwd")
-plot(t,orbitMED,label = "D")
-plot(t,orbitπME,label = "π")
+# plot(t,orbitMED,label = "D")
+# plot(t,orbitπME,label = "π")
 plot(t,orbitCMEt,label = "tr")
-plot(orbitME[:,4],orbitME[:,5],label = "ME fwd orbit",legend=:outerright)
-plot!(orbitMED[:,4],orbitMED[:,5],label = "MED fwd",legend=:outerright)
+plot(orbitME[:,2],orbitME[:,3],label = "ME fwd orbit",legend=:outerright)
+# plot!(orbitMED[:,4],orbitMED[:,5],label = "MED fwd",legend=:outerright)
 # plot!(orbitπMEQ[:,4],orbitπMEQ[:,5],label = "MEQ fwd",legend=:outerright)
 # plot!(orbitMEQ[:,4],orbitMEQ[:,5],label = "MEQ fwd",legend=:outerright)
 plot!(orbitMEr[:,4],orbitMEr[:,5],label = "MEr",legend=:outerright)
 # plot!(orbitMEj[:,4],orbitMEj[:,5],label = "MEj",legend=:outerright)
-plot!(orbitπME[:,4],orbitπME[:,5],label = "π orbit",legend=:outerright)
-# plot!(orbitπMEr[:,4],orbitπMEr[:,5],label = "πr orbit",legend=:outerright)
-plot!(orbitπMED[:,4],orbitπMED[:,5],label = "πD orbit",legend=:outerright)
+# plot!(orbitπME[:,4],orbitπME[:,5],label = "π orbit",legend=:outerright)
+plot!(orbitπMEr[:,4],orbitπMEr[:,5],label = "πr orbit",legend=:outerright)
+# plot!(orbitπMED[:,4],orbitπMED[:,5],label = "πD orbit",legend=:outerright)
 plot!(orbitCMEt[:,4],orbitCMEt[:,5],label = "tr orbit",legend=:outerbottomright)
 scatter!([CME.α[4]],[CME.α[5]],label = :false,series_annotations = ["     α"])
 shift = CME.α*exp(CME.Q)./sum(exp(CME.Q[1,1]))#orbit(-1,CME,norm=2)
 scatter!([shift[4]],[shift[5]],label = :false,series_annotations = ["     α+"])
 
 scatter!([(CME.α*D^-1)[4]],[(CME.α*D^-1)[5]],label = :false,series_annotations = ["     α"])
-scatter!([CMEt.α[4]],[CMEt.α[5]],label = :false,series_annotations = ["     α̃"])
+scatter!([CMEr.α[4]],[CMEr.α[5]],label = :false,series_annotations = ["     α̃"])
 scatter!([orbit(1,CME)[4]],[orbit(1,CME)[5]],label = :false, series_annotations = ["       t=1"])
 scatter!([(orbit(0.1,CME))[4]],[(orbit(0.1,CME))[5]],label = :false, series_annotations = ["           t=0.1"])
 scatter!([(orbit(1,CME)*D^-1)[4]],[(orbit(1,CME)*D^-1)[5]],label = :false, series_annotations = ["                A(t)D, t=1"])
@@ -99,9 +99,28 @@ scatter!([orbit(1,CMEt)[4]],[orbit(1,CMEt)[5]],label = :false, series_annotation
 # # scatter!([orbit(2.05,CME)[2]],[orbit(2.05,CME)[3]], label = "t=2")
 # # scatter!([CME.π[2]],[CME.π[3]],label = :false, series_annotations = ["      π"])
 
-plot(t,intensityME,label = "ME")
-plot!(t,intensityπME,label = "πME")
-plot!(t,intensityCMEt,label = "CMEt")
+CME = (α = αME, Q = QME, q = sum(QME,dims=2), π = αME*QME^(-1)./sum(αME*QME^(-1)))
+CMEminus = (α = αME, Q = QME'-12*I, q = sum(QME,dims=2), π = αME*QME^(-1)./sum(αME*QME^(-1)))
+
+orbitME = orbit(t,CME)
+orbitMEminus = orbit(t,CMEminus)
+plot(orbitME[:,4],orbitME[:,5],label = "ME fwd orbit",legend=:outerright)
+plot!(orbitMEminus[:,4],orbitMEminus[:,5],label = "ME fwd orbit",legend=:outerright)
+
+display(CMEminus.Q)
+
+densityCME = density(t,CME)
+intensityCME = intensity(t,CME)
+densityCMEminus = density(t,CMEminus)
+intensityCMEminus = intensity(t,CMEminus)
+
+plot(t,intensityCME,label = "ME")
+plot!(t,intensityCMEminus,label = "ME-")
+
+plot(t,densityCME,label = "ME")
+plot!(t,densityCMEminus,label = "ME-")
+
+
 #
 plot(t,densityME,label = "ME")
 plot!(t,densityπME,label = "πME")
