@@ -1,4 +1,4 @@
-# using LinearAlgebra, Plots, JSON
+# using LinearAlgebra, Plots, JSON, Jacobi
 # include("../src/SFFM.jl")
 include("METools.jl")
 
@@ -13,24 +13,32 @@ N₋ = sum(C.<=0)
 N₊ = sum(C.>=0)
 NPhases = length(C)
 
-time = 4.0
-τ = SFFM.FixedTime(T=time)
-NSim = 100_000
-sims = SFFM.SimSFM(Model=Model,StoppingTime=τ,InitCondition=(φ=2*ones(Int,NSim),X=zeros(NSim)))
+tim = 4.0
+# τ = SFFM.FixedTime(T=tim)
+# NSim = 500_000
+# sims = SFFM.SimSFM(Model=Model,StoppingTime=τ,InitCondition=(φ=2*ones(Int,NSim),X=zeros(NSim)))
 
 let
     globalerrME = []
     globalerrDG = []
     orders = 1:2:21
     for order in orders
-        μ = 1
+        μ = vecΔ
         ME = MakeME(CMEParams[order], mean = μ)#MakeErlang(order, mean = μ)#
 
-        if order<2
-            tvec = 0
+        if order==1
+            tvec = [0]
             midpoints = 0
+        elseif order==2
+            tvec=[0;1]
         else
-            tvec = range(0,1,length=order)
+            h = (1)./(order-2)
+            # tvec = [0;range(0+h/2,1-h/2,length=order-2);1]
+            # tvec = range(0,2*(π./ME.Q[3,2]),length=order+1)[1:end-1]
+            # tvec = ((-cos.(π.*range(0,1,length=order+1)).+1.0)./2*μ)[1:end-1]
+            tvec = range(0,μ,length=order+1)[1:end-1]
+            # tvec = ((Jacobi.zglj(order, 0, 0).+1.0)./2*μ)[1:end]#2*(π./ME.Q[3,2]))[1:end-1]
+            # tvec4 = [0;range(0+h/2,1-h/2,length=order-1)]
             midpoints = (tvec[1:end-1]+tvec[2:end])./2
         end
         # tvec = range(0,1,length=order+1)
@@ -42,7 +50,7 @@ let
         H = zeros(order,order)
         # H[1,:] = ME.α
         for n in 1:order
-            u = ME.α*exp(ME.Q*tvec[n]*μ)
+            u = ME.α*exp(ME.Q*tvec[n])
             # u = ME.α*(ME.Q^-1)*(exp(ME.Q*tvec[n]*μ)-exp(ME.Q*tvec[n-1]*μ))
             u = u./sum(u)
             H[n,:] = u
@@ -52,12 +60,31 @@ let
         MEf = (α = [1;zeros(order-1)]', Q = H*ME.Q*H^-1)
         # MEf2 = (α = [0;1;zeros(order-2)]', Q = H*ME.Q*H^-1)
 
+        # timesvector = 0:0.01:2*μ
+        # let
+        #     f = zeros(length(timesvector),order)
+        #     g = zeros(length(timesvector),order)
+        #     c = 0
+        #     for t in timesvector
+        #         c = c+1
+        #         g[c,:] = H*exp(ME.Q*t)*ME.q
+        #     end
+        #     plot(timesvector,g)
+        #     scatter!(tvec,zeros(size(tvec)))
+        # end
+
         # D = ME.q.*D
         # D = I(order)[end:-1:1,:]
+        if order>1
+            idx = sum(tvec.<=μ)+1
+        else
+            idx = order
+        end
+        uvec = tvec#[1:idx]
         D = zeros(order,order)
-        for n in 2:order
-            dt = tvec[n]-tvec[n-1]
-            u = (I-exp(MEf.Q*μ*dt))*exp(MEf.Q*μ*tvec[n-1])*ones(order)
+        for n in 2:length(uvec)
+            dt = uvec[n]-uvec[n-1]
+            u = (I-exp(ME.Q*dt))*exp(ME.Q*uvec[n-1])*ones(order)
 
             # if n==2
             #     dt = (tvec[n]-tvec[n-1])/2
@@ -66,12 +93,13 @@ let
             #     dt = tvec[n]-tvec[n-1]
             #     u = (I-exp(MEf.Q*μ*dt))*exp(MEf.Q*μ*midpoints[n-2])*ones(order)
             # end
-            D[:, end-n+2] = u
+            D[:, length(uvec)-n+2] = u
         end
-        u = exp(MEf.Q*μ*tvec[end])*ones(order)
+        u = exp(ME.Q*uvec[end])*ones(order)
         # u = exp(MEf.Q*μ*midpoints[end])*ones(order)
         D[:,1] = u
-        # D = I(order)[end:-1:1,:]
+        D = D[:,end:-1:1]
+        # D = I(order)[:,end:-1:1]
 
         function MakeGlobalApprox(;NCells = 3,up, down,T,C,bkwd=false,jumpMatrixD=I)
             αup,Qup = up
@@ -153,29 +181,29 @@ let
         NCells = length(Nodes)-1
         Q, B = MakeGlobalApprox(
             NCells = NCells,
-            up = MEf,
-            down = MEf,
+            up = ME,
+            down = ME,
             T = T,
             C = C,
             bkwd = true,
-            jumpMatrixD = D,
+            jumpMatrixD = D*H,
         )
         if order<6
             display(B)
         end
 
-        DGMesh = SFFM.MakeMesh(Model=Model,NBases=1,Nodes=collect(Nodes[1]:Δ/order:Nodes[end]),Basis="lagrange")
+        DGMesh = SFFM.MakeMesh(Model=Model,NBases=order,Nodes=Nodes,Basis="lagrange")
         All = SFFM.MakeAll(Model=Model,Mesh=DGMesh)
 
         initDist = zeros(1,size(All.B.B,1))
         initDist[1] = 1
 
-        temp = initDist*exp(Matrix(All.B.B)*time)#SFFM.EulerDG(D=All.B.B,y=t,x0=initDist)#
+        temp = initDist*exp(Matrix(All.B.B)*tim)#SFFM.EulerDG(D=All.B.B,y=t,x0=initDist)#
         DGdist_t = SFFM.Coeffs2Dist(Model=Model,Mesh=DGMesh,Coeffs=temp,type="probability")
 
         initDist = zeros(1,size(B,1))
         initDist[1] = 1
-        dist_t = initDist*exp(B*time)#SFFM.EulerDG(D=B,y=t,x0=initDist)#
+        dist_t = initDist*exp(B*tim)#SFFM.EulerDG(D=B,y=t,x0=initDist)#
         display(dist_t)
         display(DGdist_t.distribution)
         pm_t = dist_t[[1:N₋;(end-N₊+1):end]]
@@ -199,7 +227,7 @@ let
                     label2 = false
                 end
                 yvalsME = [sum(dist_t[:,i,n])]
-                yvalsDG = [sum(DGdist_t.distribution[:,(1:order).+order*(n-1),i])]
+                yvalsDG = [sum(DGdist_t.distribution[:,n,i])]
                 # scatter!([x],yvalsDG,label=label1,subplot=i,color=:blue,markershape=:rtriangle)
                 # scatter!([x],yvalsME,label=label2,subplot=i,color=:black,markershape=:ltriangle)
                 localerrME += abs(sum(yvalsME-simDist.distribution[:,n,i]))
@@ -221,21 +249,33 @@ end
 # push!(globalerrME,localerrME)
 # push!(globalerrDG,localerrDG)
 # MẼ.q
-#
+# #
+# timesvector = 0:0.01:2*π./ME.Q[3,2]
 # let
-#     f = zeros(length(0:0.05:4),order)
-#     g = zeros(length(0:0.05:4),order)
+#     f = zeros(length(timesvector),order)
+#     g = zeros(length(timesvector),order)
 #     c = 0
-#     for t in 0:0.05:4
+#     for t in timesvector
 #         c = c+1
-#         f[c,:] = MẼ.q'*exp(MẼ.Q'*t)*D'
-#         g[c,:] = ME.q'*exp(ME.Q'*t)*D̃'
+#         g[c,:] = H*exp(ME.Q*t)*ME.q
 #     end
-#     # plot(0:0.05:4,f)
-#     plot(0:0.05:4,g)
+#     plot(timesvector,g)
 # end
 # #
-# display(D̃*ME.Q*D̃^-1)
+# #
+# NB = (α = [1;zeros(order-1)]', Q = MEf.Q)
+# plot!(timesvector,density(timesvector,NB))
 #
-# NB = (α = [1;zeros(order-1)]', Q = D̃*ME.Q*D̃^-1)
-# plot!(0:0.05:4,density(0:0.05:4,NB))
+#
+# plot(timesvector, orbit(timesvector,MEf)*D[:,end:-1:1], legend=:outertopright)
+# plot!(timesvector, density(timesvector,MEf))
+# scatter!(tvec, 0*tvec)
+#
+# MEtemp = (α = orbit(uvec[1]+uvec[2]/2,MEf)*D, Q = MEf.Q)
+# plot(timesvector, density(timesvector,MEtemp), legend=:outertopright)
+# for i in 2:length(uvec)
+#     MEtemp = (α = orbit(uvec[i]+uvec[2]/2,MEf)*D, Q = MEf.Q)
+#     plot!(timesvector, density(timesvector,MEtemp), legend=:outertopright)
+# end
+#
+# plot!()

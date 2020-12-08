@@ -271,8 +271,10 @@ orbit(t,ME; norm = 1) = begin
         num = ME.α*exp(ME.Q*t[i])
         if norm == 1
             denom = sum(num)
-        else
+        elseif norm == 2
             denom = exp(ME.Q[1,1]*t[i])#sum(num)
+        else
+            denom = 1
         end
         orbits[i,:] = num./denom
     end

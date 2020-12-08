@@ -15,7 +15,7 @@ NPhases = length(C)
 
 t = 4.0
 τ = SFFM.FixedTime(T=t)
-NSim = 100_000
+NSim = 400_000
 sims = SFFM.SimSFM(Model=Model,StoppingTime=τ,InitCondition=(φ=2*ones(Int,NSim),X=zeros(NSim)))
 
 p = plot()
