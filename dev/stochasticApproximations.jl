@@ -19,7 +19,7 @@ NSim = 400_000
 sims = SFFM.SimSFM(Model=Model,StoppingTime=τ,InitCondition=(φ=2*ones(Int,NSim),X=zeros(NSim)))
 
 p = plot()
-vecΔ =  1#[5 2.5 1.25 1.25/2]
+vecΔ =  2#[5 2.5 1.25 1.25/2]
 let
     vecNBases = [1,3,5,7,11,15,21]#,29]
     errPH = vecNBases

@@ -21,7 +21,7 @@ tim = 4.0
 let
     globalerrME = []
     globalerrDG = []
-    orders = 1:2:21
+    orders = 1:2:33
     for order in orders
         μ = vecΔ
         ME = MakeME(CMEParams[order], mean = μ)#MakeErlang(order, mean = μ)#
@@ -36,10 +36,11 @@ let
             # tvec = [0;range(0+h/2,1-h/2,length=order-2);1]
             # tvec = range(0,2*(π./ME.Q[3,2]),length=order+1)[1:end-1]
             # tvec = ((-cos.(π.*range(0,1,length=order+1)).+1.0)./2*μ)[1:end-1]
-            tvec = range(0,μ,length=order+1)[1:end-1]
-            # tvec = ((Jacobi.zglj(order, 0, 0).+1.0)./2*μ)[1:end]#2*(π./ME.Q[3,2]))[1:end-1]
+            tvec = range(0,μ,length=order)[1:end]
+            # tvec = ((Jacobi.zglj(order+1, 0, 0).+1.0)./2*μ)[1:end-1]#2*(π./ME.Q[3,2]))[1:end-1]
             # tvec4 = [0;range(0+h/2,1-h/2,length=order-1)]
-            midpoints = (tvec[1:end-1]+tvec[2:end])./2
+            midpoints = [0;(tvec[1:end-1]+tvec[2:end])./2]
+            # midpoints = range(0,μ,length=order)[1:end]
         end
         # tvec = range(0,1,length=order+1)
         # tvec = tvec[1:end-1]
@@ -80,7 +81,7 @@ let
         else
             idx = order
         end
-        uvec = tvec#[1:idx]
+        uvec = midpoints#tvec#[1:idx]
         D = zeros(order,order)
         for n in 2:length(uvec)
             dt = uvec[n]-uvec[n-1]
@@ -192,6 +193,7 @@ let
             display(B)
         end
 
+        # DGMesh = SFFM.MakeMesh(Model=Model,NBases=1,Nodes=collect(Nodes[1]:Δ/order:Nodes[end]),Basis="lagrange")
         DGMesh = SFFM.MakeMesh(Model=Model,NBases=order,Nodes=Nodes,Basis="lagrange")
         All = SFFM.MakeAll(Model=Model,Mesh=DGMesh)
 
@@ -227,6 +229,7 @@ let
                     label2 = false
                 end
                 yvalsME = [sum(dist_t[:,i,n])]
+                # yvalsDG = [sum(DGdist_t.distribution[:,(1:order).+(n-1)*order,i])]
                 yvalsDG = [sum(DGdist_t.distribution[:,n,i])]
                 # scatter!([x],yvalsDG,label=label1,subplot=i,color=:blue,markershape=:rtriangle)
                 # scatter!([x],yvalsME,label=label2,subplot=i,color=:black,markershape=:ltriangle)
