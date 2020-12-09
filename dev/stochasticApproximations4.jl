@@ -18,6 +18,12 @@ tim = 4.0
 # NSim = 500_000
 # sims = SFFM.SimSFM(Model=Model,StoppingTime=τ,InitCondition=(φ=2*ones(Int,NSim),X=zeros(NSim)))
 
+function e(i,order)
+    e = zeros(order)
+    e[i] = 1
+    return e
+end
+
 let
     globalerrME = []
     globalerrDG = []
@@ -100,6 +106,27 @@ let
         # u = exp(MEf.Q*μ*midpoints[end])*ones(order)
         D[:,1] = u
         D = D[:,end:-1:1]
+
+        U = zeros(order,order)
+        for n in 2:length(uvec)
+            dt = uvec[n]-uvec[n-1]
+            u = e(n,order)'*((I-exp(ME.Q*dt))*exp(ME.Q*uvec[n-1]))^-1*ME.Q
+            u = u./sum(u)
+
+            # if n==2
+            #     dt = (tvec[n]-tvec[n-1])/2
+            #     u = (I-exp(MEf.Q*μ*dt))*ones(order)
+            # else
+            #     dt = tvec[n]-tvec[n-1]
+            #     u = (I-exp(MEf.Q*μ*dt))*exp(MEf.Q*μ*midpoints[n-2])*ones(order)
+            # end
+            U[:, n-1] = u
+        end
+        u = e(1,order)'*exp(ME.Q*uvec[end])^-1*ME.Q
+        u = u./sum(u)
+        # u = exp(MEf.Q*μ*midpoints[end])*ones(order)
+        U[:,end] = u
+        MEU = (α = ME.α*U^-1, Q = U*ME.Q*U^-1)
         # D = I(order)[:,end:-1:1]
 
         function MakeGlobalApprox(;NCells = 3,up, down,T,C,bkwd=false,jumpMatrixD=I)
