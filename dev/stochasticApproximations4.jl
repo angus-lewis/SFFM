@@ -2,7 +2,7 @@
 # include("../src/SFFM.jl")
 include("METools.jl")
 
-include("stochasticApproximations.jl")
+# include("stochasticApproximations.jl")
 p = plot!()
 
 T = [-2.0 2.0; 1.0 -1.0]#[-2.0 2.0 0; 0.5 -2.0 1.5; 0 2 -2]#
@@ -21,10 +21,10 @@ tim = 4.0
 let
     globalerrME = []
     globalerrDG = []
-    orders = 1:2:33
+    orders = 1:2:23
     for order in orders
         μ = vecΔ
-        ME = MakeME(CMEParams[order], mean = μ)#MakeErlang(order, mean = μ)#
+        ME = MakeErlang(order, mean = μ)#MakeME(CMEParams[order], mean = μ)
 
         if order==1
             tvec = [0]
@@ -100,6 +100,9 @@ let
         # u = exp(MEf.Q*μ*midpoints[end])*ones(order)
         D[:,1] = u
         D = D[:,end:-1:1]
+        S = ME.Q
+        DDict = Dict("+-" => function(;s); ME.q*ME.α; end, "++"=>function(;s); S; end, "--"=>function(;s); S; end,"-+"=>function(;s); diagm(ME.q[:]); end)
+        D = SFFM.PsiFun(D=DDict)
         # D = I(order)[:,end:-1:1]
 
         function MakeGlobalApprox(;NCells = 3,up, down,T,C,bkwd=false,jumpMatrixD=I)
