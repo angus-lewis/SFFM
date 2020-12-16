@@ -15,7 +15,7 @@ CMEParams[1] = Dict(
   "b"       => Any[],
   "mu2"     => [],
   "a"       => Any[],
-  "omega"   => 0,
+  "omega"   => 1,
   "phi"     => [],
   "mu1"     => [],
   "cv2"     => [],
@@ -317,3 +317,62 @@ function orbit_zero(ME, target)
     end
     return c
 end
+
+function integrateD(evals,params)
+    N = 2*params["n"]+1
+    α = zeros(N)
+    α[1] = params["c"]
+    a = params["a"]
+    b = params["b"]
+    ω =  params["omega"]
+    for k in 1:params["n"]
+        kω = k*ω
+        α[2*k] = (1/2)*( a[k]*(1+kω) - b[k]*(1-kω) )/(1+kω^2)
+        α[2*k+1] = (1/2)*( a[k]*(1-kω) + b[k]*(1+kω) )/(1+kω^2)
+    end
+    edges = range(0,2*π/ω,length=evals+1)
+    # middles = (edges[1:end-1]+edges[2:end])./2
+    h = (2*π/ω)/(evals)
+    D = zeros(N,N)
+    orbit_LHS = α
+    orbit_RHS = zeros(N)
+    v_RHS = zeros(N)
+    v_RHS[1] = 1
+    v_LHS = ones(N)
+    for t in edges[2:end]
+        orbit_RHS[1] = α[1]
+        for k in 1:params["n"]
+            kω = k*ω
+            idx = 2*k
+            temp_cos = cos(kω*t)
+            temp_sin = sin(kω*t)
+            orbit_RHS[idx] = α[idx]*temp_cos + α[idx+1]*temp_sin
+            orbit_RHS[idx+1] = -α[idx]*temp_sin + α[idx+1]*temp_cos
+            v_RHS[idx] = temp_cos - temp_sin
+            v_RHS[idx+1] = temp_sin + temp_cos
+        end
+        orbit_RHS = orbit_RHS./sum(orbit_RHS)
+        orbit = orbit_LHS
+        # display(orbit)
+        # display(orbit_RHS)
+        v = exp(-(t-h))*(v_LHS - exp(-h)*v_RHS)
+        # display(v)
+        # display(v_RHS)
+        Dᵢ = v*orbit'
+        D += Dᵢ
+
+        orbit_LHS = copy(orbit_RHS)
+        v_LHS = copy(v_RHS)
+    end
+    D = (1/(1-exp(-2*π/ω)))*D
+    return D
+end
+D = integrateD(1000,CMEParams[5])
+
+
+params = CMEParams[3]
+mu = params["c"] +
+    sum(
+        (params["a"]+2*params["b"]*params["omega"].*(1:params["n"]) .-
+        0*params["a"].*((1:params["n"])*params["omega"]).^2)./(( 1 .+((1:params["n"])*params["omega"]).^2 ))
+    )

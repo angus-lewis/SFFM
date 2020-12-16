@@ -2,7 +2,7 @@
 # include("../src/SFFM.jl")
 include("METools.jl")
 
-include("stochasticApproximations.jl")
+# include("stochasticApproximations.jl")
 p = plot!()
 
 T = [-2.0 2.0; 1.0 -1.0]#[-2.0 2.0 0; 0.5 -2.0 1.5; 0 2 -2]#
@@ -105,7 +105,8 @@ let
         u = exp(ME.Q*uvec[end])*ones(order)
         # u = exp(MEf.Q*μ*midpoints[end])*ones(order)
         D[:,1] = u
-        D = D[:,end:-1:1]
+        D = D[:,end:-1:1]*H
+        D = integrateD(100000,CMEParams[order])
 
         U = zeros(order,order)
         for n in 2:length(uvec)
@@ -214,7 +215,7 @@ let
             T = T,
             C = C,
             bkwd = true,
-            jumpMatrixD = D*H,
+            jumpMatrixD = D,
         )
         if order<6
             display(B)
