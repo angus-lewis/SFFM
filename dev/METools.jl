@@ -1,27 +1,12 @@
-using JSON, LinearAlgebra
+using JLD2, LinearAlgebra
 
-tempCMEParams = Dict()
-open("dev/iltcme.json", "r") do f
-    global tempCMEParams
-    tempCMEParams=JSON.parse(f)  # parse and transform data
-end
-CMEParams = Dict()
-for n in keys(tempCMEParams)
-    CMEParams[2*tempCMEParams[n]["n"]+1] = tempCMEParams[n]
-end
-CMEParams[1] = Dict(
-  "n"       => 0,
-  "c"       => 1,
-  "b"       => Any[],
-  "mu2"     => [],
-  "a"       => Any[],
-  "omega"   => 1,
-  "phi"     => [],
-  "mu1"     => [],
-  "cv2"     => [],
-  "optim"   => "full",
-  "lognorm" => [],
-)
+# CMEParams = Dict()
+# open("dev/CMEParams.json", "r") do f
+#     global CMEParams
+#     CMEParams=JSON.parse(f)  # parse and transform data
+# end
+
+@load "dev/CMEParams.jld2" CMEParams
 
 function MakeME(params; mean = 1)
     N = 2*params["n"]+1
@@ -320,6 +305,7 @@ end
 
 function integrateD(evals,params)
     N = 2*params["n"]+1
+
     α = zeros(N)
     α[1] = params["c"]
     a = params["a"]
@@ -330,41 +316,42 @@ function integrateD(evals,params)
         α[2*k] = (1/2)*( a[k]*(1+kω) - b[k]*(1-kω) )/(1+kω^2)
         α[2*k+1] = (1/2)*( a[k]*(1-kω) + b[k]*(1+kω) )/(1+kω^2)
     end
-    edges = range(0,2*π/ω,length=evals+1)
-    # middles = (edges[1:end-1]+edges[2:end])./2
-    h = (2*π/ω)/(evals)
-    D = zeros(N,N)
+
+    period = 2*π/ω
+    edges = range(0,period,length=evals+1)
+    h = period/(evals)
+
     orbit_LHS = α
     orbit_RHS = zeros(N)
     v_RHS = zeros(N)
     v_RHS[1] = 1
     v_LHS = ones(N)
+    D = zeros(N,N)
     for t in edges[2:end]
         orbit_RHS[1] = α[1]
         for k in 1:params["n"]
-            kω = k*ω
+            kωt = k*ω*t
             idx = 2*k
-            temp_cos = cos(kω*t)
-            temp_sin = sin(kω*t)
-            orbit_RHS[idx] = α[idx]*temp_cos + α[idx+1]*temp_sin
-            orbit_RHS[idx+1] = -α[idx]*temp_sin + α[idx+1]*temp_cos
+            idx2 = idx+1
+            temp_cos = cos(kωt)
+            temp_sin = sin(kωt)
+            orbit_RHS[idx] = α[idx]*temp_cos + α[idx2]*temp_sin
+            orbit_RHS[idx2] = -α[idx]*temp_sin + α[idx2]*temp_cos
             v_RHS[idx] = temp_cos - temp_sin
-            v_RHS[idx+1] = temp_sin + temp_cos
+            v_RHS[idx2] = temp_sin + temp_cos
         end
         orbit_RHS = orbit_RHS./sum(orbit_RHS)
-        orbit = orbit_LHS
-        # display(orbit)
-        # display(orbit_RHS)
+        orbit = (orbit_LHS+orbit_RHS)./2
+
         v = exp(-(t-h))*(v_LHS - exp(-h)*v_RHS)
-        # display(v)
-        # display(v_RHS)
+
         Dᵢ = v*orbit'
         D += Dᵢ
 
         orbit_LHS = copy(orbit_RHS)
         v_LHS = copy(v_RHS)
     end
-    D = (1/(1-exp(-2*π/ω)))*D
+    D = (1/(1-exp(-period)))*D
     return D
 end
 D = integrateD(1000,CMEParams[5])

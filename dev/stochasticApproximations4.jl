@@ -31,103 +31,104 @@ let
     for order in orders
         μ = vecΔ
         ME = MakeME(CMEParams[order], mean = μ)#MakeErlang(order, mean = μ)#
+        D = CMEParams[order]["D"]
 
-        if order==1
-            tvec = [0]
-            midpoints = 0
-        elseif order==2
-            tvec=[0;1]
-        else
-            h = (1)./(order-2)
-            # tvec = [0;range(0+h/2,1-h/2,length=order-2);1]
-            # tvec = range(0,2*(π./ME.Q[3,2]),length=order+1)[1:end-1]
-            # tvec = ((-cos.(π.*range(0,1,length=order+1)).+1.0)./2*μ)[1:end-1]
-            tvec = range(0,μ,length=order)[1:end]
-            # tvec = ((Jacobi.zglj(order+1, 0, 0).+1.0)./2*μ)[1:end-1]#2*(π./ME.Q[3,2]))[1:end-1]
-            # tvec4 = [0;range(0+h/2,1-h/2,length=order-1)]
-            midpoints = [0;(tvec[1:end-1]+tvec[2:end])./2]
-            # midpoints = range(0,μ,length=order)[1:end]
-        end
-        # tvec = range(0,1,length=order+1)
-        # tvec = tvec[1:end-1]
-        #[0;range(0.01,20,length=order-1)]
-        #[0;0.01;20]
-        #[0;range(0.1*μ,2*μ,length=order-1)]
-        #2*((exp(1).^(range(0,1,length=order))).-1)./(exp(1)-1)
-        H = zeros(order,order)
-        # H[1,:] = ME.α
-        for n in 1:order
-            u = ME.α*exp(ME.Q*tvec[n])
-            # u = ME.α*(ME.Q^-1)*(exp(ME.Q*tvec[n]*μ)-exp(ME.Q*tvec[n-1]*μ))
-            u = u./sum(u)
-            H[n,:] = u
-        end
-        # H[end,:] = ME.α*(ME.Q^-1)*[-exp(ME.Q*tvec[end]*μ)]
-
-        MEf = (α = [1;zeros(order-1)]', Q = H*ME.Q*H^-1)
-        # MEf2 = (α = [0;1;zeros(order-2)]', Q = H*ME.Q*H^-1)
-
-        # timesvector = 0:0.01:2*μ
-        # let
-        #     f = zeros(length(timesvector),order)
-        #     g = zeros(length(timesvector),order)
-        #     c = 0
-        #     for t in timesvector
-        #         c = c+1
-        #         g[c,:] = H*exp(ME.Q*t)*ME.q
-        #     end
-        #     plot(timesvector,g)
-        #     scatter!(tvec,zeros(size(tvec)))
+        # if order==1
+        #     tvec = [0]
+        #     midpoints = 0
+        # elseif order==2
+        #     tvec=[0;1]
+        # else
+        #     h = (1)./(order-2)
+        #     # tvec = [0;range(0+h/2,1-h/2,length=order-2);1]
+        #     # tvec = range(0,2*(π./ME.Q[3,2]),length=order+1)[1:end-1]
+        #     # tvec = ((-cos.(π.*range(0,1,length=order+1)).+1.0)./2*μ)[1:end-1]
+        #     tvec = range(0,μ,length=order)[1:end]
+        #     # tvec = ((Jacobi.zglj(order+1, 0, 0).+1.0)./2*μ)[1:end-1]#2*(π./ME.Q[3,2]))[1:end-1]
+        #     # tvec4 = [0;range(0+h/2,1-h/2,length=order-1)]
+        #     midpoints = [0;(tvec[1:end-1]+tvec[2:end])./2]
+        #     # midpoints = range(0,μ,length=order)[1:end]
         # end
-
-        # D = ME.q.*D
-        # D = I(order)[end:-1:1,:]
-        if order>1
-            idx = sum(tvec.<=μ)+1
-        else
-            idx = order
-        end
-        uvec = midpoints#tvec#[1:idx]
-        D = zeros(order,order)
-        for n in 2:length(uvec)
-            dt = uvec[n]-uvec[n-1]
-            u = (I-exp(ME.Q*dt))*exp(ME.Q*uvec[n-1])*ones(order)
-
-            # if n==2
-            #     dt = (tvec[n]-tvec[n-1])/2
-            #     u = (I-exp(MEf.Q*μ*dt))*ones(order)
-            # else
-            #     dt = tvec[n]-tvec[n-1]
-            #     u = (I-exp(MEf.Q*μ*dt))*exp(MEf.Q*μ*midpoints[n-2])*ones(order)
-            # end
-            D[:, length(uvec)-n+2] = u
-        end
-        u = exp(ME.Q*uvec[end])*ones(order)
-        # u = exp(MEf.Q*μ*midpoints[end])*ones(order)
-        D[:,1] = u
-        D = D[:,end:-1:1]*H
-        D = integrateD(100000,CMEParams[order])
-
-        U = zeros(order,order)
-        for n in 2:length(uvec)
-            dt = uvec[n]-uvec[n-1]
-            u = e(n,order)'*((I-exp(ME.Q*dt))*exp(ME.Q*uvec[n-1]))^-1*ME.Q
-            u = u./sum(u)
-
-            # if n==2
-            #     dt = (tvec[n]-tvec[n-1])/2
-            #     u = (I-exp(MEf.Q*μ*dt))*ones(order)
-            # else
-            #     dt = tvec[n]-tvec[n-1]
-            #     u = (I-exp(MEf.Q*μ*dt))*exp(MEf.Q*μ*midpoints[n-2])*ones(order)
-            # end
-            U[:, n-1] = u
-        end
-        u = e(1,order)'*exp(ME.Q*uvec[end])^-1*ME.Q
-        u = u./sum(u)
-        # u = exp(MEf.Q*μ*midpoints[end])*ones(order)
-        U[:,end] = u
-        MEU = (α = ME.α*U^-1, Q = U*ME.Q*U^-1)
+        # # tvec = range(0,1,length=order+1)
+        # # tvec = tvec[1:end-1]
+        # #[0;range(0.01,20,length=order-1)]
+        # #[0;0.01;20]
+        # #[0;range(0.1*μ,2*μ,length=order-1)]
+        # #2*((exp(1).^(range(0,1,length=order))).-1)./(exp(1)-1)
+        # H = zeros(order,order)
+        # # H[1,:] = ME.α
+        # for n in 1:order
+        #     u = ME.α*exp(ME.Q*tvec[n])
+        #     # u = ME.α*(ME.Q^-1)*(exp(ME.Q*tvec[n]*μ)-exp(ME.Q*tvec[n-1]*μ))
+        #     u = u./sum(u)
+        #     H[n,:] = u
+        # end
+        # # H[end,:] = ME.α*(ME.Q^-1)*[-exp(ME.Q*tvec[end]*μ)]
+        #
+        # MEf = (α = [1;zeros(order-1)]', Q = H*ME.Q*H^-1)
+        # # MEf2 = (α = [0;1;zeros(order-2)]', Q = H*ME.Q*H^-1)
+        #
+        # # timesvector = 0:0.01:2*μ
+        # # let
+        # #     f = zeros(length(timesvector),order)
+        # #     g = zeros(length(timesvector),order)
+        # #     c = 0
+        # #     for t in timesvector
+        # #         c = c+1
+        # #         g[c,:] = H*exp(ME.Q*t)*ME.q
+        # #     end
+        # #     plot(timesvector,g)
+        # #     scatter!(tvec,zeros(size(tvec)))
+        # # end
+        #
+        # # D = ME.q.*D
+        # # D = I(order)[end:-1:1,:]
+        # if order>1
+        #     idx = sum(tvec.<=μ)+1
+        # else
+        #     idx = order
+        # end
+        # uvec = midpoints#tvec#[1:idx]
+        # D = zeros(order,order)
+        # for n in 2:length(uvec)
+        #     dt = uvec[n]-uvec[n-1]
+        #     u = (I-exp(ME.Q*dt))*exp(ME.Q*uvec[n-1])*ones(order)
+        #
+        #     # if n==2
+        #     #     dt = (tvec[n]-tvec[n-1])/2
+        #     #     u = (I-exp(MEf.Q*μ*dt))*ones(order)
+        #     # else
+        #     #     dt = tvec[n]-tvec[n-1]
+        #     #     u = (I-exp(MEf.Q*μ*dt))*exp(MEf.Q*μ*midpoints[n-2])*ones(order)
+        #     # end
+        #     D[:, length(uvec)-n+2] = u
+        # end
+        # u = exp(ME.Q*uvec[end])*ones(order)
+        # # u = exp(MEf.Q*μ*midpoints[end])*ones(order)
+        # D[:,1] = u
+        # D = D[:,end:-1:1]*H
+        # D = integrateD(100000,CMEParams[string(order)])
+        #
+        # U = zeros(order,order)
+        # for n in 2:length(uvec)
+        #     dt = uvec[n]-uvec[n-1]
+        #     u = e(n,order)'*((I-exp(ME.Q*dt))*exp(ME.Q*uvec[n-1]))^-1*ME.Q
+        #     u = u./sum(u)
+        #
+        #     # if n==2
+        #     #     dt = (tvec[n]-tvec[n-1])/2
+        #     #     u = (I-exp(MEf.Q*μ*dt))*ones(order)
+        #     # else
+        #     #     dt = tvec[n]-tvec[n-1]
+        #     #     u = (I-exp(MEf.Q*μ*dt))*exp(MEf.Q*μ*midpoints[n-2])*ones(order)
+        #     # end
+        #     U[:, n-1] = u
+        # end
+        # u = e(1,order)'*exp(ME.Q*uvec[end])^-1*ME.Q
+        # u = u./sum(u)
+        # # u = exp(MEf.Q*μ*midpoints[end])*ones(order)
+        # U[:,end] = u
+        # MEU = (α = ME.α*U^-1, Q = U*ME.Q*U^-1)
         # D = I(order)[:,end:-1:1]
 
         function MakeGlobalApprox(;NCells = 3,up, down,T,C,bkwd=false,jumpMatrixD=I)
