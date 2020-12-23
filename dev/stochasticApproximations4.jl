@@ -1,5 +1,5 @@
-# using LinearAlgebra, Plots, JSON, Jacobi
-# include("../src/SFFM.jl")
+using LinearAlgebra, Plots, JSON, Jacobi
+include("../src/SFFM.jl")
 include("METools.jl")
 
 # include("stochasticApproximations.jl")
@@ -30,12 +30,8 @@ let
     orders = 1:2:23
     for order in orders
         μ = vecΔ
-<<<<<<< HEAD
-        ME = MakeErlang(order, mean = μ)#MakeME(CMEParams[order], mean = μ)
-=======
         ME = MakeME(CMEParams[order], mean = μ)#MakeErlang(order, mean = μ)#
         D = CMEParams[order]["D"]
->>>>>>> 1df2782ac59d52c855d74164cc06d4ab778de214
 
         # if order==1
         #     tvec = [0]
@@ -53,38 +49,6 @@ let
         #     midpoints = [0;(tvec[1:end-1]+tvec[2:end])./2]
         #     # midpoints = range(0,μ,length=order)[1:end]
         # end
-<<<<<<< HEAD
-
-        # D = ME.q.*D
-        # D = I(order)[end:-1:1,:]
-        if order>1
-            idx = sum(tvec.<=μ)+1
-        else
-            idx = order
-        end
-        uvec = midpoints#tvec#[1:idx]
-        D = zeros(order,order)
-        for n in 2:length(uvec)
-            dt = uvec[n]-uvec[n-1]
-            u = (I-exp(ME.Q*dt))*exp(ME.Q*uvec[n-1])*ones(order)
-
-            # if n==2
-            #     dt = (tvec[n]-tvec[n-1])/2
-            #     u = (I-exp(MEf.Q*μ*dt))*ones(order)
-            # else
-            #     dt = tvec[n]-tvec[n-1]
-            #     u = (I-exp(MEf.Q*μ*dt))*exp(MEf.Q*μ*midpoints[n-2])*ones(order)
-            # end
-            D[:, length(uvec)-n+2] = u
-        end
-        u = exp(ME.Q*uvec[end])*ones(order)
-        # u = exp(MEf.Q*μ*midpoints[end])*ones(order)
-        D[:,1] = u
-        D = D[:,end:-1:1]
-        S = ME.Q
-        DDict = Dict("+-" => function(;s); ME.q*ME.α; end, "++"=>function(;s); S; end, "--"=>function(;s); S; end,"-+"=>function(;s); diagm(ME.q[:]); end)
-        D = SFFM.PsiFun(D=DDict)
-=======
         # # tvec = range(0,1,length=order+1)
         # # tvec = tvec[1:end-1]
         # #[0;range(0.01,20,length=order-1)]
@@ -165,7 +129,6 @@ let
         # # u = exp(MEf.Q*μ*midpoints[end])*ones(order)
         # U[:,end] = u
         # MEU = (α = ME.α*U^-1, Q = U*ME.Q*U^-1)
->>>>>>> 1df2782ac59d52c855d74164cc06d4ab778de214
         # D = I(order)[:,end:-1:1]
 
         function MakeGlobalApprox(;NCells = 3,up, down,T,C,bkwd=false,jumpMatrixD=I)

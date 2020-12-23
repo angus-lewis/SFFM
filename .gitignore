@@ -2,6 +2,9 @@
 *.jl.*.cov
 *.jl.mem
 
+CMEParams.json
+CMEParams.jld2
+
 *~
 
 *.png

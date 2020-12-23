@@ -6,7 +6,8 @@ using JLD2, LinearAlgebra
 #     CMEParams=JSON.parse(f)  # parse and transform data
 # end
 
-@load "dev/CMEParams.jld2" CMEParams
+@load pwd()*"/dev/CMEParamsData/CMEParams1.jld2" tempData
+CMEParams = tempData
 
 function MakeME(params; mean = 1)
     N = 2*params["n"]+1

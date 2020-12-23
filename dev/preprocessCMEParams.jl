@@ -50,3 +50,23 @@ open("dev/CMEParams.json","w") do f
 end
 
 @save "dev/CMEParams.jld2" CMEParams
+
+let
+    CMEKeys = sort(collect(keys(CMEParams)))
+    a = 0
+    filecounter = 1
+    tempDict = Dict()
+    for key in CMEKeys
+        a += key^2*8
+        tempDict[key] = CMEParams[key]
+        if a > 2e7
+            open(pwd()*"/dev/CMEParamsData/CMEParams"*string(filecounter)*".json","w") do f
+                JSON.print(f, tempDict)
+            end
+            @save pwd()*"/dev/CMEParamsData/CMEParams"*string(filecounter)*".jld2" tempDict
+            tempDict = Dict()
+            a = 0
+            filecounter += 1
+        end
+    end
+end
