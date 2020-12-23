@@ -3,6 +3,7 @@
 *.jl.mem
 
 CMEParams.json
+CMEParams*.json
 CMEParams.jld2
 
 *~
