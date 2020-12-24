@@ -1,7 +1,7 @@
 using JSON, LinearAlgebra, JLD2
 
 tempCMEParams = Dict()
-open("dev/iltcme.json", "r") do f
+open("dev/CMEParamsData/iltcme.json", "r") do f
     global tempCMEParams
     tempCMEParams=JSON.parse(f)  # parse and transform data
 end
