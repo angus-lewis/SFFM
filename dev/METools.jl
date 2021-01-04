@@ -6,8 +6,8 @@ using JLD2, LinearAlgebra
 #     CMEParams=JSON.parse(f)  # parse and transform data
 # end
 
-@load pwd()*"/dev/CMEParamsData/CMEParams1.jld2" tempData
-CMEParams = tempData
+@load pwd()*"/dev/CMEParamsData/CMEParams1.jld2" tempDict
+CMEParams = tempDict
 
 function MakeME(params; mean = 1)
     N = 2*params["n"]+1
@@ -303,64 +303,3 @@ function orbit_zero(ME, target)
     end
     return c
 end
-
-function integrateD(evals,params)
-    N = 2*params["n"]+1
-
-    α = zeros(N)
-    α[1] = params["c"]
-    a = params["a"]
-    b = params["b"]
-    ω =  params["omega"]
-    for k in 1:params["n"]
-        kω = k*ω
-        α[2*k] = (1/2)*( a[k]*(1+kω) - b[k]*(1-kω) )/(1+kω^2)
-        α[2*k+1] = (1/2)*( a[k]*(1-kω) + b[k]*(1+kω) )/(1+kω^2)
-    end
-
-    period = 2*π/ω
-    edges = range(0,period,length=evals+1)
-    h = period/(evals)
-
-    orbit_LHS = α
-    orbit_RHS = zeros(N)
-    v_RHS = zeros(N)
-    v_RHS[1] = 1
-    v_LHS = ones(N)
-    D = zeros(N,N)
-    for t in edges[2:end]
-        orbit_RHS[1] = α[1]
-        for k in 1:params["n"]
-            kωt = k*ω*t
-            idx = 2*k
-            idx2 = idx+1
-            temp_cos = cos(kωt)
-            temp_sin = sin(kωt)
-            orbit_RHS[idx] = α[idx]*temp_cos + α[idx2]*temp_sin
-            orbit_RHS[idx2] = -α[idx]*temp_sin + α[idx2]*temp_cos
-            v_RHS[idx] = temp_cos - temp_sin
-            v_RHS[idx2] = temp_sin + temp_cos
-        end
-        orbit_RHS = orbit_RHS./sum(orbit_RHS)
-        orbit = (orbit_LHS+orbit_RHS)./2
-
-        v = exp(-(t-h))*(v_LHS - exp(-h)*v_RHS)
-
-        Dᵢ = v*orbit'
-        D += Dᵢ
-
-        orbit_LHS = copy(orbit_RHS)
-        v_LHS = copy(v_RHS)
-    end
-    D = (1/(1-exp(-period)))*D
-    return D
-end
-D = integrateD(1000,CMEParams[5])
-
-
-params = CMEParams[3]
-mu = params["c"] +
-    sum(
-        (params["a"]+2*params["b"]*params["omega"].*(1:params["n"]) .-
-        0*params["a"].*((1:params["n"])*params["omega"]).^2)./(( 1 .+((1:params["n"])*params["omega"]).^2 ))
-    )
