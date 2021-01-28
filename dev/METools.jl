@@ -303,3 +303,32 @@ function orbit_zero(ME, target)
     end
     return c
 end
+
+function renewalProperties(ME)
+    density(t) = begin
+        Q = ME.Q
+        q = ME.q
+        α = ME.α
+        e = ones(size(q))
+        (α*exp((Q+q*α)*t)*q)[1]
+    end
+    mean(t) = begin
+        Q = ME.Q
+        q = ME.q
+        α = ME.α
+        e = ones(size(q))
+        temp1 = α*-Q^-1
+        temp2 = temp1*e
+        temp3 = temp1./temp2
+        temp4 = Q + (q*α)
+        ((t./temp2) - α*(I - exp(temp4*t))*(temp4 + e*temp3)^-1*q)[1]
+    end
+    ExpectedOrbit(t) = begin
+        Q = ME.Q
+        q = ME.q
+        α = ME.α
+        e = ones(size(q))
+        (α*exp((Q + q*α)*t))[1]
+    end
+    return (density=density,mean=mean,ExpectedOrbit=ExpectedOrbit)
+end
