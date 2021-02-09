@@ -2,7 +2,7 @@ using LinearAlgebra, Plots, JSON, Jacobi
 include("../src/SFFM.jl")
 include("METools.jl")
 
-# include("stochasticApproximations.jl")
+include("stochasticApproximations.jl")
 p = plot!()
 
 T = [-2.0 2.0; 1.0 -1.0]#[-2.0 2.0 0; 0.5 -2.0 1.5; 0 2 -2]#
@@ -13,7 +13,7 @@ N₋ = sum(C.<=0)
 N₊ = sum(C.>=0)
 NPhases = length(C)
 
-tim = 4.0
+tim = 3
 # τ = SFFM.FixedTime(T=tim)
 # NSim = 500_000
 # sims = SFFM.SimSFM(Model=Model,StoppingTime=τ,InitCondition=(φ=2*ones(Int,NSim),X=zeros(NSim)))
@@ -274,8 +274,8 @@ let
         push!(globalerrME,localerrME)
         push!(globalerrDG,localerrDG)
     end
-    p = plot!(orders,log.(globalerrME),label=false,linestyle=:dash,colour=2)
-    plot!(p,orders,log.(globalerrDG),label=false,linestyle=:solid,colour=3)
+    p = plot!(orders,log.(globalerrME),label="CME",linestyle=:dash,colour=2)
+    plot!(p,orders,log.(globalerrDG),label="DG NBases",linestyle=:solid,colour=3)
     display(p)
 end
 # push!(globalerrME,localerrME)

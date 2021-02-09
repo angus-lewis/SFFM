@@ -13,7 +13,7 @@ NPhases = length(C)
 
 # construct global approximation
 
-t = 4.0
+t = 3
 τ = SFFM.FixedTime(T=t)
 NSim = 400_000
 sims = SFFM.SimSFM(Model=Model,StoppingTime=τ,InitCondition=(φ=2*ones(Int,NSim),X=zeros(NSim)))
@@ -166,13 +166,13 @@ let
         errME = [errME globalerrME]
         errbkwdME = [errbkwdME globalerrbkwdME]
         errπME = [errπME globalerrπME]
-        plot!(p,vecNBases,log.(globalerrPH),label=false,linestyle=:dot,colour=c,linewidth=2)
-        plot!(p,vecNBases,log.(globalerrME),label=false,linestyle=:dash,colour=c)
-        plot!(p,vecNBases,log.(globalerrbkwdME),label=false,linestyle=:dashdot,colour=c)
-        plot!(p,vecNBases,log.(globalerrπME),label=false,linestyle=:dashdotdot,colour=c)
-        plot!(p,vecNBases,log.(globalerrDG),label=string(Δ),color=c)
-        plot!(p,legend=:bottomleft,xlabel="Order",ylabel="log(error)",legendtitle="Δ")
-        display(plot!(p,title="... PH,  -- ME,  -. pois ME,  Solid DG,  -.. MEπ"))
+        # plot!(p,vecNBases,log.(globalerrPH),label=false,linestyle=:dot,colour=c,linewidth=2)
+        # plot!(p,vecNBases,log.(globalerrME),label=false,linestyle=:dash,colour=c)
+        # plot!(p,vecNBases,log.(globalerrbkwdME),label=false,linestyle=:dashdot,colour=c)
+        # plot!(p,vecNBases,log.(globalerrπME),label=false,linestyle=:dashdotdot,colour=c)
+        plot!(p,vecNBases,log.(globalerrDG),label="DG Δ",color=c)
+        plot!(p,legend=:topright,xlabel="Order",ylabel="log(error)")
+        display(plot!(p,title="DG"))
         display(globalerrbkwdME[end])
     end
     # plot(log.(vecΔ)[:], log.(errPH[:,2:end]'),colour=[1 2 3 4 5],linestyle=:dot,label=false,linewidth=2)
