@@ -31,6 +31,7 @@ function MakeXi(;
     # writing out the system it turns out we only need the index -- and -0
     # blocks of the inverse. Wikipedia tells us that these are
 
+    # the next two lines are a fancy way to do an inverse of a block matrix
     tempMat = inv(Matrix(B["00"]))
     invBmm = inv(B["--"] - B["-0"]*tempMat*B["0-"])
     invBm0 = -invBmm*B["-0"]*tempMat

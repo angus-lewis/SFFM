@@ -128,6 +128,7 @@ include("SFFMDGBase.jl")
 include("SFFMDGAdv.jl")
 include("SFFMDGpi.jl")
 include("SFM.jl")
+include("FRAPApproximation.jl")
 
 function MyPrint(Obj)
     show(stdout, "text/plain", Obj)

@@ -9,6 +9,44 @@ using JLD2, LinearAlgebra
 @load pwd()*"/dev/CMEParamsData/CMEParams1.jld2" tempDict
 CMEParams = tempDict
 
+"""
+ME constructor method
+    
+    ME(
+        a::Array{<:Real,2},
+        S::Array{<:Real,2},
+        s::Array{<:Real,1},
+    )
+
+Inputs: 
+ - `a` a 1 by p Array of reals
+ - `S` a p by p Array of reals
+ - `s` a p by 1 Array of reals
+ Throws an error if the dimensions are inconsistent.
+"""
+struct ME 
+    a::Array{<:Real,2}
+    S::Array{<:Real,2}
+    s::Array{<:Real,1}
+    function ME(a,S,s) 
+        s1 = size(a,1)
+        s2 = size(a,2)
+        s3 = size(S,1)
+        s4 = size(S,2)
+        s5 = size(s,1)
+        s6 = size(s,2)
+        test = (s1!=1) || (s6!=1) || any(([s2;s3;s4].-s5).!=0)
+        if test
+            error("Dimensions of ME representation not consistent")
+        else
+            return new(a,S,s)
+        end
+    end
+end
+
+"""
+
+"""
 function MakeME(params; mean = 1)
     N = 2*params["n"]+1
     α = zeros(1,N)
