@@ -226,7 +226,7 @@ begin
     println("")
 end
 
-for d = 1:6
+for d = 1:4
     data = log.(πnorms[d,:])
     ind = .!isnan.(data)
     data = data[ind]

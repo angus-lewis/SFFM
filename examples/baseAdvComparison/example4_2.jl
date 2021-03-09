@@ -2,7 +2,7 @@
 using LinearAlgebra, Plots, JLD2, StatsBase
 
 ## define the model(s)
-# include("exampleModelDef.jl")
+include("exampleModelDef.jl")
 
 ## section 4.2: Ψ paths
 

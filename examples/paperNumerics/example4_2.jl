@@ -1,4 +1,4 @@
-include("src/SFFM.jl")
+include("../../src/SFFM.jl")
 using LinearAlgebra, Plots, JLD2, StatsBase
 
 ## define the model(s)

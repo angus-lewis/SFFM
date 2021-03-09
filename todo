@@ -1,3 +1,5 @@
+#DONE Create Model constructors to replace functions/tuples
+Create Mesh constructors to replace functions/tuples
 Efficient implementation of DGAdv
 Implement DGBase lagrange without probability transform
 #DONE Implement Dist2Coeffs for lagrange without probability transform

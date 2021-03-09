@@ -72,7 +72,8 @@ struct Model
             TDict[ℓ*m] = T[SDict[ℓ], SDict[m]]
         end
     
-        new(
+        println("UPDATE: Model object created with fields ", fieldnames(Model))
+        return new(
             T,
             C,
             r,
@@ -81,42 +82,8 @@ struct Model
             SDict,
             TDict,
         )
-        println("UPDATE: Model object created with fields ", fieldnames(Model))
     end
 end 
-# function MakeModel(;
-#     T::Array{<:Real,2},
-#     C::Array{<:Real,1},
-#     r::NamedTuple{(:r, :R)},
-#     Bounds::Array{<:Real,2} = [-Inf Inf; -Inf Inf],
-# )
-#     a(x) = abs.(r.r(x))
-#     r = (r = r.r, R = r.R, a = a)
-#     NPhases = length(C)
-
-#     SDict = Dict{String,Array}("S" => 1:NPhases)
-#     SDict["+"] = findall(C .> 0)
-#     SDict["-"] = findall(C .< 0)
-#     SDict["0"] = findall(C .== 0)
-#     SDict["bullet"] = findall(C .!= 0)
-
-#     TDict = Dict{String,Array}("T" => T)
-#     for ℓ in ["+" "-" "0" "bullet"], m in ["+" "-" "0" "bullet"]
-#         TDict[ℓ*m] = T[SDict[ℓ], SDict[m]]
-#     end
-
-#     Model = (
-#         T = T,
-#         C = C,
-#         r = r,
-#         Bounds = Bounds,
-#         NPhases = NPhases,
-#         SDict = SDict,
-#         TDict = TDict,
-#     )
-#     println("UPDATE: Model object created with fields ", keys(Model))
-#     return Model
-# end
 
 include("SFFMPlots.jl")
 include("SimulateSFFM.jl")

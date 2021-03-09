@@ -1,5 +1,5 @@
 # include("../../src/SFFM.jl")
-# using LinearAlgebra, Plots, JLD2, GLM
+using LinearAlgebra, Plots, JLD2, GLM
 
 ## define the model(s)
 # include("exampleModelDef.jl")
