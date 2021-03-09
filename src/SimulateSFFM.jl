@@ -3,17 +3,17 @@ Simulates a SFM defined by `Model` until the `StoppingTime` has occured,
 given the `InitialCondition` on (φ(0),X(0)).
 
     SimSFM(;
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        model::Model,
         StoppingTime::Function,
         InitCondition::NamedTuple{(:φ, :X)},
     )
 
 # Arguments
-- `Model`: A Model object as output from `MakeModel`
+- `model`: A Model object 
 - `StoppingTime`: A function which takes the value of the process at the current
     time and at the time of the last jump of the phase process, as well as the
-    `Model` object.
-    i.e. `StoppingTime(;Model,SFM,SFM0)` where `SFM` and `SFM0` are tuples with
+    `model` object.
+    i.e. `StoppingTime(;model,SFM,SFM0)` where `SFM` and `SFM0` are tuples with
     keys `(:t::Float64, :φ::Int, :X::Float64, :n::Int)` which are the value of
     the SFM at the current time, and time of the previous jump of the phase
     process, repsectively. The `StoppingTime` must return a
@@ -38,15 +38,15 @@ given the `InitialCondition` on (φ(0),X(0)).
         transitions of `φ` at the `StoppingTime`
 """
 function SimSFM(;
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+    model::Model,
     StoppingTime::Function,
     InitCondition::NamedTuple{(:φ, :X)},
 )
     # the transition matrix of the jump chain
-    d = LinearAlgebra.diag(Model.T)
-    P = (Model.T - LinearAlgebra.diagm(0 => d)) ./ -d
+    d = LinearAlgebra.diag(model.T)
+    P = (model.T - LinearAlgebra.diagm(0 => d)) ./ -d
     CumP = cumsum(P, dims = 2)
-    Λ = LinearAlgebra.diag(Model.T)
+    Λ = LinearAlgebra.diag(model.T)
 
     M = length(InitCondition.φ)
     tSims = zeros(Float64, M)
@@ -59,11 +59,11 @@ function SimSFM(;
         while 1 == 1
             S = log(rand()) / Λ[SFM0.φ] # generate exp random variable
             t = SFM0.t + S
-            X = UpdateXt(Model = Model, SFM0 = SFM0, S = S)
+            X = UpdateXt(model = model, SFM0 = SFM0, S = S)
             φ = findfirst(rand() .< CumP[SFM0.φ, :])
             n = SFM0.n + 1
             SFM = (t = t, φ = φ, X = X, n = n)
-            τ = StoppingTime(Model, SFM, SFM0)
+            τ = StoppingTime(model, SFM, SFM0)
             if τ.Ind # if the stopping time occurs
                 (tSims[m], φSims[m], XSims[m], nSims[m]) = τ.SFM
                 break
@@ -75,21 +75,21 @@ function SimSFM(;
 end
 
 """
-Simulates a SFFM defined by `Model` until the `StoppingTime` has occured,
+Simulates a SFFM defined by `model` until the `StoppingTime` has occured,
 given the `InitialCondition` on (φ(0),X(0),Y(0)).
 
     SimSFFM(;
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        model::Model,
         StoppingTime::Function,
         InitCondition::NamedTuple{(:φ, :X, :Y)},
     )
 
 # Arguments
-- `Model`: A Model object as output from `MakeModel`
+- `model`: A Model object
 - `StoppingTime`: A function which takes the value of the process at the current
     time and at the time of the last jump of the phase process, as well as the
-    `Model` object.
-    i.e. `StoppingTime(;Model,SFFM,SFFM0)` where `SFFM` and `SFFM0` are tuples
+    `model` object.
+    i.e. `StoppingTime(;model,SFFM,SFFM0)` where `SFFM` and `SFFM0` are tuples
     with keys `(:t::Float64, :φ::Int, :X::Float64, :Y::Float64, :n::Int)` which
     are the value of the SFFM at the current time, and time of the previous jump
     of the phase process, repsectively. The `StoppingTime` must return a
@@ -117,14 +117,14 @@ given the `InitialCondition` on (φ(0),X(0),Y(0)).
         transitions of `φ` at the `StoppingTime`
 """
 function SimSFFM(;
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+    model::Model,
     StoppingTime::Function,
     InitCondition::NamedTuple{(:φ, :X, :Y)},
 )
-    d = LinearAlgebra.diag(Model.T)
-    P = (Model.T - LinearAlgebra.diagm(0 => d)) ./ -d
+    d = LinearAlgebra.diag(model.T)
+    P = (model.T - LinearAlgebra.diagm(0 => d)) ./ -d
     CumP = cumsum(P, dims = 2)
-    Λ = LinearAlgebra.diag(Model.T)
+    Λ = LinearAlgebra.diag(model.T)
 
     M = length(InitCondition.φ)
     tSims = Array{Float64,1}(undef, M)
@@ -141,21 +141,21 @@ function SimSFFM(;
             Y = InitCondition.Y[m],
             n = 0.0,
         )
-        if !(Model.Bounds[1, 1] <= SFFM0.X <= Model.Bounds[1, 2]) ||
-           !(Model.Bounds[2, 1] <= SFFM0.Y <= Model.Bounds[2, 2]) ||
-           !in(SFFM0.φ, 1:Model.NPhases)
+        if !(model.Bounds[1, 1] <= SFFM0.X <= model.Bounds[1, 2]) ||
+           !(model.Bounds[2, 1] <= SFFM0.Y <= model.Bounds[2, 2]) ||
+           !in(SFFM0.φ, 1:model.NPhases)
             (tSims[m], φSims[m], XSims[m], YSims[m], nSims[m]) =
                 (t = NaN, φ = NaN, X = NaN, Y = NaN, n = NaN)
         else
             while 1 == 1
                 S = log(rand()) / Λ[SFFM0.φ]
                 t = SFFM0.t + S
-                X = UpdateXt(Model = Model, SFM0 = SFFM0, S = S)
-                Y = UpdateYt(Model = Model, SFFM0 = SFFM0, S = S)
+                X = UpdateXt(model = model, SFM0 = SFFM0, S = S)
+                Y = UpdateYt(model = model, SFFM0 = SFFM0, S = S)
                 φ = findfirst(rand() .< CumP[SFFM0.φ, :])
                 n = SFFM0.n + 1.0
                 SFFM = (t = t, φ = φ, X = X, Y = Y, n = n)
-                τ = StoppingTime(Model, SFFM, SFFM0)
+                τ = StoppingTime(model, SFFM, SFFM0)
                 if τ.Ind
                     (tSims[m], φSims[m], XSims[m], YSims[m], nSims[m]) = τ.SFFM
                     break
@@ -172,28 +172,28 @@ Returns ``X(t+S) = min(max(X(t) + cᵢS,0),U)`` where ``U`` is some upper bound
 on the process.
 
     UpdateXt(;
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        model::Model,
         SFM0::NamedTuple,
         S::Real,
     )
 
 # Arguments
-- `Model`: an object as output from 'MakeModel'
+- `model`: a Model object
 - `SFM0::NamedTuple` containing at least the keys `:X` giving the value of
     ``X(t)`` at the current time, and `:φ` giving the value of
     ``φ(t)`` at the current time.
 - `S::Real`: an elapsed amount of time to evaluate ``X`` at, i.e. ``X(t+S)``.
 """
 function UpdateXt(;
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+    model::Model,
     SFM0::NamedTuple,
     S::Real,
 )
     # given the last position of a SFM, SFM0, a time step of size s, find the
     # position of X at time t
     X = min(
-        max(SFM0.X + Model.C[SFM0.φ] * S, Model.Bounds[1, 1]),
-        Model.Bounds[1, 2],
+        max(SFM0.X + model.C[SFM0.φ] * S, model.Bounds[1, 1]),
+        model.Bounds[1, 2],
     )
     return X
 end
@@ -202,43 +202,43 @@ end
 Returns ``Y(t+S)`` given ``Y(t)``.
 
     UpdateYt(;
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        model::Model,
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
         S::Real,
     )
 
 # Arguments
-- `Model`: an object as output from 'MakeModel'
+- `model`: a Model object
 - `SFFM0::NamedTuple` containing at least the keys `:X` giving the value of
     ``X(t)`` at the current time, and `:Y` giving the value of ``Y(t)`` at the
     current time, and `:φ` giving the value of `φ(t)`` at the current time.
 - `S::Real`: an elapsed amount of time to evaluate ``X`` at, i.e. ``X(t+S)``.
 """
 function UpdateYt(;
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+    model::Model,
     SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     S::Real,
 )
     # given the last position of a SFFM, SFFM0, a time step of size s, find the
     # position of Y at time t
-    if Model.C[SFFM0.φ] == 0
-        Y = SFFM0.Y + S * Model.r.r(SFFM0.X)[SFFM0.φ]
+    if model.C[SFFM0.φ] == 0
+        Y = SFFM0.Y + S * model.r.r(SFFM0.X)[SFFM0.φ]
     else
-        X = UpdateXt(Model = Model, SFM0 = SFFM0, S = S)
-        ind = (X.==Model.Bounds[1, :])[:]
+        X = UpdateXt(model = model, SFM0 = SFFM0, S = S)
+        ind = (X.==model.Bounds[1, :])[:]
         if any(ind)
             # time at which Xt hits u or v
-            t0 = (Model.Bounds[1, ind][1] - SFFM0.X) / Model.C[SFFM0.φ]
+            t0 = (model.Bounds[1, ind][1] - SFFM0.X) / model.C[SFFM0.φ]
             Y =
                 SFFM0.Y +
-                (Model.r.R(X)[SFFM0.φ] - Model.r.R(SFFM0.X)[SFFM0.φ]) /
-                Model.C[SFFM0.φ] +
-                Model.r.r(Model.Bounds[1, ind][1])[SFFM0.φ] * (S - t0)
+                (model.r.R(X)[SFFM0.φ] - model.r.R(SFFM0.X)[SFFM0.φ]) /
+                model.C[SFFM0.φ] +
+                model.r.r(model.Bounds[1, ind][1])[SFFM0.φ] * (S - t0)
         else
             Y =
                 SFFM0.Y +
-                (Model.r.R(X)[SFFM0.φ] - Model.r.R(SFFM0.X)[SFFM0.φ]) /
-                Model.C[SFFM0.φ]
+                (model.r.R(X)[SFFM0.φ] - model.r.R(SFFM0.X)[SFFM0.φ]) /
+                model.C[SFFM0.φ]
         end
     end
     return Y
@@ -255,12 +255,12 @@ Constructs the `StoppingTime` ``1(t>T)``
 # Output
 - `FixedTimeFun`: a function with two methods
     - `FixedTimeFun(
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        model::Model,
         SFM::NamedTuple{(:t, :φ, :X, :n)},
         SFM0::NamedTuple{(:t, :φ, :X, :n)},
     )`: a stopping time for a SFM.
     - `FixedTimeFun(
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        model::Model,
         SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )`: a stopping time for a SFFM
@@ -269,29 +269,29 @@ function FixedTime(; T::Real)
     # Defines a simple stopping time, 1(t>T).
     # SFM method
     function FixedTimeFun(
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        model::Model,
         SFM::NamedTuple{(:t, :φ, :X, :n)},
         SFM0::NamedTuple{(:t, :φ, :X, :n)},
     )
         Ind = SFM.t > T
         if Ind
             s = T - SFM0.t
-            X = UpdateXt(Model = Model, SFM0 = SFM0, S = s)
+            X = UpdateXt(model = model, SFM0 = SFM0, S = s)
             SFM = (t = T, φ = SFM0.φ, X = X, n = SFM0.n)
         end
         return (Ind = Ind, SFM = SFM)
     end
     # SFFM METHOD
     function FixedTimeFun(
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        model::Model,
         SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )
         Ind = SFFM.t > T
         if Ind
             s = T - SFFM0.t
-            X = UpdateXt(Model = Model, SFM0 = SFFM0, S = s)
-            Y = UpdateYt(Model = Model, SFFM0 = SFFM0, S = s)
+            X = UpdateXt(model = model, SFM0 = SFFM0, S = s)
+            Y = UpdateYt(model = model, SFFM0 = SFFM0, S = s)
             SFFM = (T, SFFM0.φ, X, Y, SFFM0.n)
         end
         return (Ind = Ind, SFFM = SFFM)
@@ -311,12 +311,12 @@ jumps of ``φ`` by time ``t``.
 # Output
 - `NJumpsFun`: a function with two methods
     - `NJumpsFun(
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        model::Model,
         SFM::NamedTuple{(:t, :φ, :X, :n)},
         SFM0::NamedTuple{(:t, :φ, :X, :n)},
     )`: a stopping time for a SFM.
     - `NJumpsFun(
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        model::Model,
         SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )`: a stopping time for a SFFM
@@ -325,7 +325,7 @@ function NJumps(; N::Int)
     # Defines a simple stopping time, 1(n>N), where n is the number of jumps of φ.
     # SFM method
     function NJumpsFun(
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        model::Model,
         SFM::NamedTuple{(:t, :φ, :X, :n)},
         SFM0::NamedTuple{(:t, :φ, :X, :n)},
     )
@@ -334,7 +334,7 @@ function NJumps(; N::Int)
     end
     # SFFM method
     function NJumpsFun(
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        model::Model,
         SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )
@@ -357,12 +357,12 @@ from the interval ``[u,v]``.
 # Output
 - `FirstExitXFun`: a function with two methods
     - `FirstExitXFun(
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        model::Model,
         SFM::NamedTuple{(:t, :φ, :X, :n)},
         SFM0::NamedTuple{(:t, :φ, :X, :n)},
     )`: a stopping time for a SFM.
     - `FirstExitXFun(
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        model::Model,
         SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )`: a stopping time for a SFFM
@@ -370,7 +370,7 @@ from the interval ``[u,v]``.
 function FirstExitX(; u::Real, v::Real)
     # SFM Method
     function FirstExitXFun(
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        model::Model,
         SFM::NamedTuple{(:t, :φ, :X, :n)},
         SFM0::NamedTuple{(:t, :φ, :X, :n)},
     )
@@ -381,7 +381,7 @@ function FirstExitX(; u::Real, v::Real)
             else
                 X = u
             end
-            s = (X - SFM0.X) / Model.C[SFM0.φ] # can't exit with c = 0
+            s = (X - SFM0.X) / model.C[SFM0.φ] # can't exit with c = 0
             t = SFM0.t + s
             SFM = (t = t, φ = SFM0.φ, X = X, n = SFM0.n)
         end
@@ -389,7 +389,7 @@ function FirstExitX(; u::Real, v::Real)
     end
     # SFFM Method
     function FirstExitXFun(
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
         SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )
@@ -400,9 +400,9 @@ function FirstExitX(; u::Real, v::Real)
             else
                 X = u
             end
-            s = (X - SFFM0.X) / Model.C[SFFM0.φ] # can't exit with c = 0.
+            s = (X - SFFM0.X) / model.C[SFFM0.φ] # can't exit with c = 0.
             t = SFFM0.t + s
-            Y = UpdateYt(Model = Model, SFFM0 = SFFM0, S = s)
+            Y = UpdateYt(model = model, SFFM0 = SFFM0, S = s)
             SFFM = (t, SFFM0.φ, X, Y, SFFM0.n)
         end
         return (Ind = Ind, SFFM = SFFM)
@@ -423,7 +423,7 @@ from the interval ``[u,v]``. ASSUMES ``Y(t)`` is monotonic between jumps.
 # Output
 - `FirstExitYFun`: a function with one method
     - `FirstExitYFun(
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        model::Model,
         SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )`: a stopping time for a SFFM
@@ -431,7 +431,7 @@ from the interval ``[u,v]``. ASSUMES ``Y(t)`` is monotonic between jumps.
 function FirstExitY(; u::Real, v::Real)
     # SFFM Method
     function FirstExitYFun(
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        model::Model,
         SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )
@@ -439,10 +439,10 @@ function FirstExitY(; u::Real, v::Real)
         if Ind
             idx = [SFFM.Y < u; SFFM.Y > v]
             boundaryHit = [u;v][idx][1]
-            YFun(t) = UpdateYt(Model = Model, SFFM0 = SFFM0, S = t) - boundaryHit
+            YFun(t) = UpdateYt(model = model, SFFM0 = SFFM0, S = t) - boundaryHit
             S = SFFM.t - SFFM0.t
             tstar = fzero(f = YFun, a = 0, b = S)
-            X = UpdateXt(Model = Model, SFM0 = SFFM0, S = tstar)
+            X = UpdateXt(model = model, SFM0 = SFFM0, S = tstar)
             t = SFFM0.t + tstar
             Y = boundaryHit
             SFFM = (t, SFFM0.φ, X, Y, SFFM0.n)
@@ -481,7 +481,7 @@ end
 Convert from simulations of a SFM or SFFM to a distribution.
 
     Sims2Dist(;
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        model::Model,
         Mesh::NamedTuple{
             (
                 :NBases,
@@ -499,7 +499,7 @@ Convert from simulations of a SFM or SFFM to a distribution.
     )
 
 # Arguments
-- `Model`: a model object as output from `MakeModel`
+- `Model`: a Model object
 - `Mesh`: a mesh object as output from `MakeMesh`
 - `sims::Array`: a named tuple as output of `SFFMSim` or `SFMSim`
 - `type::String`: an (optional) declaration of what type of distribution you
@@ -512,8 +512,8 @@ Convert from simulations of a SFM or SFFM to a distribution.
 - a tuple with keys
 (pm=pm, distribution=yvals, x=xvals, type=type)
     - `pm::Array{Float64}`: a vector containing the point masses, the first
-        `sum(Model.C.<=0)` entries are the left hand point masses and the last
-        `sum(Model.C.>=0)` are the right-hand point masses.
+        `sum(model.C.<=0)` entries are the left hand point masses and the last
+        `sum(model.C.>=0)` are the right-hand point masses.
     - `distribution::Array{Float64,3}`:
         - if `type="cumulative"` returns a `2×NIntervals×NPhases` array
             containing the CDF evaluated at the cell edges as contained in
@@ -538,7 +538,7 @@ Convert from simulations of a SFM or SFFM to a distribution.
     - `type`: as input in arguments.
 """
 function Sims2Dist(;
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+    model::Model,
     Mesh::NamedTuple{
         (
             :NBases,
@@ -556,22 +556,22 @@ function Sims2Dist(;
 )
 
     if type == "density"
-        distribution = zeros(Float64, Mesh.NBases, Mesh.NIntervals, Model.NPhases)
+        distribution = zeros(Float64, Mesh.NBases, Mesh.NIntervals, model.NPhases)
     elseif type == "probability"
-        distribution = zeros(Float64, 1, Mesh.NIntervals, Model.NPhases)
+        distribution = zeros(Float64, 1, Mesh.NIntervals, model.NPhases)
     elseif type == "cumulative"
-        distribution = zeros(Float64, 2, Mesh.NIntervals, Model.NPhases)
+        distribution = zeros(Float64, 2, Mesh.NIntervals, model.NPhases)
     end
-    pm = zeros(Float64, sum(Model.C .<= 0) + sum(Model.C .>= 0))
+    pm = zeros(Float64, sum(model.C .<= 0) + sum(model.C .>= 0))
     pc = 0
     qc = 0
     xvals = Mesh.CellNodes
-    for i = 1:Model.NPhases
+    for i = 1:model.NPhases
         # find the simluated value of imterest for this iteration
         whichsims =
             (sims.φ .== i) .&
-            (sims.X .!= Model.Bounds[1, 1]) .&
-            (sims.X .!= Model.Bounds[1, end])
+            (sims.X .!= model.Bounds[1, 1]) .&
+            (sims.X .!= model.Bounds[1, end])
         data = sims.X[whichsims]
         totalprob = sum(whichsims) / length(sims.φ)
         if type == "probability"
@@ -583,12 +583,12 @@ function Sims2Dist(;
             xvals = Mesh.CellNodes[1, :] + Mesh.Δ / 2
         elseif type == "density"
             if length(data)!=0
-                if Model.Bounds[1, end] == Inf
+                if model.Bounds[1, end] == Inf
                     U = KernelDensity.kde(data)
                 else
                     U = KernelDensity.kde(
                         data,
-                        boundary = (Model.Bounds[1, 1], Model.Bounds[1, end]),
+                        boundary = (model.Bounds[1, 1], model.Bounds[1, end]),
                     )
                 end
                 distribution[:, :, i] =
@@ -613,23 +613,23 @@ function Sims2Dist(;
             end
         end
 
-        if Model.C[i] <= 0
+        if model.C[i] <= 0
             pc = pc + 1
-            whichsims = (sims.φ .== i) .& (sims.X .== Model.Bounds[1, 1])
+            whichsims = (sims.φ .== i) .& (sims.X .== model.Bounds[1, 1])
             p = sum(whichsims) / length(sims.φ)
             pm[pc] = p
             if type == "cumulative"
                 distribution[:,:,i] = distribution[:,:,i] .+ pm[pc]
             end
         end
-        if Model.C[i] >= 0
+        if model.C[i] >= 0
             qc = qc + 1
-            whichsims = (sims.φ .== i) .& (sims.X .== Model.Bounds[1, end])
+            whichsims = (sims.φ .== i) .& (sims.X .== model.Bounds[1, end])
             p = sum(whichsims) / length(sims.φ)
             if type == "cumulative"
-                pm[sum(Model.C .<= 0)+qc] = p + distribution[end,end,i]
+                pm[sum(model.C .<= 0)+qc] = p + distribution[end,end,i]
             else
-                pm[sum(Model.C .<= 0)+qc] = p
+                pm[sum(model.C .<= 0)+qc] = p
             end
         end
     end

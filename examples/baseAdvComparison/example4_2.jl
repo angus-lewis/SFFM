@@ -16,14 +16,14 @@ Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
 NBases = 1
 Basis = "lagrange"
 Mesh = SFFM.MakeMesh(
-    Model = approxModel,
+    model = approxModel,
     Nodes = Nodes,
     NBases = NBases,
     Basis = Basis,
 )
 
 ## turn sims into a cdf
-simprobs = SFFM.Sims2Dist(Model=simModel,Mesh=Mesh,sims=sims,type="cumulative")
+simprobs = SFFM.Sims2Dist(model=simModel,Mesh=Mesh,sims=sims,type="cumulative")
 
 ## bootstrap to get CI
 function bootFun(sims; nBoot = 10)
@@ -35,7 +35,7 @@ function bootFun(sims; nBoot = 10)
             φ = sims.φ[sampleIdx],
             X = sims.X[sampleIdx],
         )
-        tempDist = SFFM.Sims2Dist(Model=simModel,Mesh=Mesh,sims=tempData,type="cumulative").distribution[1,1:6,[2;4]]
+        tempDist = SFFM.Sims2Dist(model=simModel,Mesh=Mesh,sims=tempData,type="cumulative").distribution[1,1:6,[2;4]]
         samplesBoot[n,:,:] = tempDist
     end
     ql = zeros(6,2)
@@ -65,13 +65,13 @@ let
     for NBases in 1:2
         c = c+1
         Mesh = SFFM.MakeMesh(
-            Model = approxModel,
+            model = approxModel,
             Nodes = Nodes,
             NBases = NBases,
             Basis = Basis,
         )
         # construct matrices
-        All = SFFM.MakeAll(Model = approxModel, Mesh = Mesh, approxType = "projection")
+        All = SFFM.MakeAll(model = approxModel, Mesh = Mesh, approxType = "projection")
         Ψ = SFFM.PsiFun(D=All.D)
 
         # construct initial condition
@@ -94,7 +94,7 @@ let
         ) # convert to a distribution object so we can apply Dist2Coeffs
         # convert to Coeffs α in the DG context
 
-        x0 = SFFM.Dist2Coeffs(Model = approxModel, Mesh = Mesh, Distn = initdist)
+        x0 = SFFM.Dist2Coeffs(model = approxModel, Mesh = Mesh, Distn = initdist)
         # the initial condition on Ψ is restricted to + states so find the + states
         plusIdx = [
             Mesh.Fil["p+"];
@@ -126,7 +126,7 @@ let
 
         # convert to a distribution object for plotting
         DGProbs = SFFM.Coeffs2Dist(
-            Model = approxModel,
+            model = approxModel,
             Mesh = Mesh,
             Coeffs = z,
             type="cumulative",
@@ -164,19 +164,19 @@ let
     for NBases in 1:2
         c = c+1
         Mesh = SFFM.MakeMesh(
-            Model = approxModel,
+            model = approxModel,
             Nodes = Nodes,
             NBases = NBases,
             Basis = Basis,
         )
         # construct matrices
-        Matrices = SFFM.MakeMatrices(Model=approxModel,Mesh=Mesh,probTransform=false)
-        MatricesR = SFFM.MakeMatricesR(Model=approxModel,Mesh=Mesh)
-        B = SFFM.MakeB(Model=approxModel,Mesh=Mesh,Matrices=Matrices,probTransform=false)
+        Matrices = SFFM.MakeMatrices(model=approxModel,Mesh=Mesh,probTransform=false)
+        MatricesR = SFFM.MakeMatricesR(model=approxModel,Mesh=Mesh)
+        B = SFFM.MakeB(model=approxModel,Mesh=Mesh,Matrices=Matrices,probTransform=false)
         Dr = SFFM.MakeDR(
             Matrices=Matrices,
             MatricesR=MatricesR,
-            Model=approxModel,
+            model=approxModel,
             Mesh=Mesh,
             B=B,
         )
@@ -201,7 +201,7 @@ let
             x = Mesh.CellNodes,
             type = "density"
         ) # convert to a distribution object so we can apply Dist2Coeffs
-        x0 = SFFM.Dist2Coeffs(Model = approxModel, Mesh = Mesh, Distn = initdist, probTransform = false)#[0;0;initdist.distribution[:];0;0]'
+        x0 = SFFM.Dist2Coeffs(model = approxModel, Mesh = Mesh, Distn = initdist, probTransform = false)#[0;0;initdist.distribution[:];0;0]'
         # the initial condition on Ψ is restricted to + states so find the + states
         plusIdx = [
             Mesh.Fil["p+"];
@@ -233,7 +233,7 @@ let
 
         # convert to a distribution object for plotting
         DGProbs = SFFM.Coeffs2Dist(
-            Model = approxModel,
+            model = approxModel,
             Mesh = Mesh,
             Coeffs = z,
             type="cumulative",

@@ -15,19 +15,19 @@ r = (
 )
 
 Bounds = [0 1.8; -Inf Inf]
-Model = SFFM.MakeModel(T = T, C = C, r = r, Bounds = Bounds)
+model = SFFM.Model(T = T, C = C, r = r, Bounds = Bounds)
 
 ## Define mesh
 Nodes = [0;1;1.8]
 NBases = 2
 Basis = "lagrange"
-Mesh = SFFM.MakeMesh(Model = Model, Nodes = Nodes, NBases = NBases, Basis=Basis)
+Mesh = SFFM.MakeMesh(model = model, Nodes = Nodes, NBases = NBases, Basis=Basis)
 
 ## Make matrices
-All = SFFM.MakeAll(Model=Model,Mesh=Mesh)
-M = SFFM.MakeMatrices(Model = Model, Mesh = Mesh, probTransform=false)
-B = SFFM.MakeB(Model=Model,Mesh=Mesh,Matrices=M, probTransform=false)
-R = SFFM.MakeR(Model=Model,Mesh=Mesh)
+All = SFFM.MakeAll(model=model,Mesh=Mesh)
+M = SFFM.MakeMatrices(model = model, Mesh = Mesh, probTransform=false)
+B = SFFM.MakeB(model=model,Mesh=Mesh,Matrices=M, probTransform=false)
+R = SFFM.MakeR(model=model,Mesh=Mesh)
 
 println("")
 println("The operator B looks like: ")

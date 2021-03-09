@@ -20,7 +20,7 @@ simsOuter = SharedArray(zeros(NSim, 5))
 # @profiler @time for n = 1:(NSim÷innerNSim)
 #     IC = (φ = 3 .* ones(Int, innerNSim), X = 5 .* ones(innerNSim), Y = zeros(innerNSim))
 #     simsInner = SFFM.SimSFFM(
-#         Model = simModel,
+#         model = simModel,
 #         StoppingTime = SFFM.FirstExitY(u = 0, v = Inf),
 #         InitCondition = IC,
 #     )
@@ -31,7 +31,7 @@ simsOuter = SharedArray(zeros(NSim, 5))
 @time @sync @distributed for n = 1:(NSim÷innerNSim)
     IC = (φ = 3 .* ones(Int, innerNSim), X = 5 .* ones(innerNSim), Y = zeros(innerNSim))
     simsInner = SFFM.SimSFFM(
-        Model = simModel,
+        model = simModel,
         StoppingTime = SFFM.FirstExitY(u = 0, v = Inf),
         InitCondition = IC,
     )
@@ -47,4 +47,4 @@ sims = (
     n = simsOuter[:, 5],
 )
 
-@save pwd()*"/examples/paperNumerics/dump/sims.jld2" sims
+# @save pwd()*"/examples/paperNumerics/dump/sims.jld2" sims

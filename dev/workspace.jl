@@ -15,7 +15,7 @@ display([1 x]*CM*exp(CM^-1*T*1)*CM^-1*abs.(CM))
 r = (r = function (x); [1.0.+0.01*x 1.0.+0.01*x].*ones(size(x)); end,
         R = function (x); [1*x.+0.01.*x.^2.0./2 1*x.+0.01.*x.^2.0./2]; end) # [1*(x.<=2.0).-2.0*(x.>1.0) -2.0*(x.<=2.0).+(x.>2.0)] # [1.0 -2.0].*ones(size(x))#
 
-Model = SFFM.MakeModel(T=T,C=C,r=r,Bounds=[-1 1; -Inf Inf])
+model = SFFM.Model(T=T,C=C,r=r,Bounds=[-1 1; -Inf Inf])
 
 Nodes = collect(0.0:1:5.0)
 MaxIters = 100
@@ -39,13 +39,13 @@ Fil = Dict{String,BitArray{1}}("1+" => Bool[1, 1, 0, 0, 0],
 #                                "1-" => r(Mesh.CellNodes[:])[2:NBases:end,1].<0) #falses(length(Nodes)-1) )#, 1])
 NBases = 2
 
-Mesh = SFFM.MakeMesh(Model=Model,Nodes=Nodes,NBases=NBases,Fil=Fil)
-Matrices = SFFM.MakeMatrices(Model=Model,Mesh=Mesh,Basis="legendre")
-MatricesR = SFFM.MakeMatricesR(Model=Model,Mesh=Mesh)
-B = SFFM.MakeB(Model=Model,Mesh=Mesh,Matrices=Matrices)
-R = SFFM.MakeR(Model=Model,Mesh=Mesh)
-D = SFFM.MakeD(Model=Model,Mesh=Mesh,R=R,B=B)
-DR = SFFM.MakeDR(Matrices=Matrices,MatricesR=MatricesR,Model=Model,Mesh=Mesh,R=R,B=B)
+Mesh = SFFM.MakeMesh(model=model,Nodes=Nodes,NBases=NBases,Fil=Fil)
+Matrices = SFFM.MakeMatrices(model=model,Mesh=Mesh,Basis="legendre")
+MatricesR = SFFM.MakeMatricesR(model=model,Mesh=Mesh)
+B = SFFM.MakeB(model=model,Mesh=Mesh,Matrices=Matrices)
+R = SFFM.MakeR(model=model,Mesh=Mesh)
+D = SFFM.MakeD(model=model,Mesh=Mesh,R=R,B=B)
+DR = SFFM.MakeDR(Matrices=Matrices,MatricesR=MatricesR,model=model,Mesh=Mesh,R=R,B=B)
 # [D["++"]() D["+-"](); D["-+"]() D["--"]()]
 display(D["++"](s=0))
 display(DR.D(0))
@@ -90,10 +90,10 @@ end
 display(Psi) #
 
 ## lagrange
-Matrices = SFFM.MakeMatrices(Model=Model,Mesh=Mesh,Basis="lagrange")
-B = SFFM.MakeB(Model=Model,Mesh=Mesh,Matrices=Matrices)
-R = SFFM.MakeR(Model=Model,Mesh=Mesh)
-D = SFFM.MakeD(Model=Model,Mesh=Mesh,R=R,B=B)
+Matrices = SFFM.MakeMatrices(model=model,Mesh=Mesh,Basis="lagrange")
+B = SFFM.MakeB(model=model,Mesh=Mesh,Matrices=Matrices)
+R = SFFM.MakeR(model=model,Mesh=Mesh)
+D = SFFM.MakeD(model=model,Mesh=Mesh,R=R,B=B)
 
 Ψlagrange = SFFM.PsiFun(D=D,MaxIters=MaxIters,s=0)
 
@@ -112,11 +112,11 @@ display(sum(VinvtΨlegendreVinv,dims=2))
 
 ##
 for NBases in 1:4
-    Mesh = SFFM.MakeMesh(Model=Model,Nodes=Nodes,NBases=NBases,Fil=Fil)
-    Matrices = SFFM.MakeMatrices(Model=Model,Mesh=Mesh,Basis="legendre")
-    B = SFFM.MakeB(Model=Model,Mesh=Mesh,Matrices=Matrices)
-    R = SFFM.MakeR(Model=Model,Mesh=Mesh)
-    D = SFFM.MakeD(Model=Model,Mesh=Mesh,R=R,B=B)
+    Mesh = SFFM.MakeMesh(model=model,Nodes=Nodes,NBases=NBases,Fil=Fil)
+    Matrices = SFFM.MakeMatrices(model=model,Mesh=Mesh,Basis="legendre")
+    B = SFFM.MakeB(model=model,Mesh=Mesh,Matrices=Matrices)
+    R = SFFM.MakeR(model=model,Mesh=Mesh)
+    D = SFFM.MakeD(model=model,Mesh=Mesh,R=R,B=B)
     #display(D["--"]()[(NBases+1):(2*NBases),(NBases+1):(2*NBases)])
     Ψ = SFFM.PsiFun(D=D,MaxIters=MaxIters)
     display(Ψ[1:NBases,1:NBases])
@@ -169,7 +169,7 @@ r = (
     end, # R = function (x); [1*x.+0.01.*x.^2.0./2 1*x.+0.01.*x.^2.0./2 1*x]; end
 ) # [1*(x.<=2.0).-2.0*(x.>1.0) -2.0*(x.<=2.0).+(x.>2.0)] # [1.0 -2.0].*ones(size(x))#
 Bounds = [-1 1; -Inf Inf]
-Model = SFFM.MakeModel(T = T, C = C, r = r, Bounds = Bounds)
+model = SFFM.Model(T = T, C = C, r = r, Bounds = Bounds)
 
 # in out Y-level
 y = 1
@@ -184,7 +184,7 @@ IC = (
     Y = zeros(NSim),
 )
 sims =
-    SFFM.SimSFFM(Model = Model, StoppingTime = SFFM.InOutYLevel(y = y), InitCondition = IC)
+    SFFM.SimSFFM(model = model, StoppingTime = SFFM.InOutYLevel(y = y), InitCondition = IC)
 
 ## Define the mesh
 Δ = 0.1
@@ -199,72 +199,72 @@ Fil = Dict{String,BitArray{1}}(
     "q3+" => trues(1),
 )
 NBases = 6
-Mesh = SFFM.MakeMesh(Model = Model, Nodes = Nodes, NBases = NBases, Fil = Fil)
+Mesh = SFFM.MakeMesh(model = model, Nodes = Nodes, NBases = NBases, Fil = Fil)
 
 ## Construct all DG operators
-All = SFFM.MakeAll(Model = Model, Mesh = Mesh, Basis = "legendre")
+All = SFFM.MakeAll(model = model, Mesh = Mesh, Basis = "legendre")
 Matrices = All.Matrices
 MatricesR = All.MatricesR
 B = All.B
 R = All.R
 D = All.D
 DR = All.DR
-MyD = SFFM.MakeMyD(Model = Model, Mesh = Mesh, MatricesR = MatricesR, B = B)
+MyD = SFFM.MakeMyD(model = model, Mesh = Mesh, MatricesR = MatricesR, B = B)
 
 ## initial condition
 # x0 = Matrix(
 #     [
-#         zeros(sum(Model.C.<=0)) # LHS point mass
+#         zeros(sum(model.C.<=0)) # LHS point mass
 #         zeros(Mesh.NBases * Mesh.NIntervals * 1 ÷ 2) # phase 1
 #         1 # phase 1
 #         zeros(NBases - 1) # phase 1
 #         zeros(Mesh.NBases * Mesh.NIntervals * 1 ÷ 2 - NBases) # phase 1
 #         zeros(Mesh.TotalNBases * 2) # phases 2 and 3
-#         zeros(sum(Model.C.>=0)) # RHS point mass
+#         zeros(sum(model.C.>=0)) # RHS point mass
 #     ]',
 # )
 x0 = Matrix(
     [
-        zeros(sum(Model.C .<= 0)) # LHS point mass
-        repeat([1.0; zeros(Float64, NBases-1)], Model.NPhases * Mesh.NIntervals, 1) ./
-        (Model.NPhases * Mesh.NIntervals)
-        zeros(sum(Model.C .>= 0)) # RHS point mass
+        zeros(sum(model.C .<= 0)) # LHS point mass
+        repeat([1.0; zeros(Float64, NBases-1)], model.NPhases * Mesh.NIntervals, 1) ./
+        (model.NPhases * Mesh.NIntervals)
+        zeros(sum(model.C .>= 0)) # RHS point mass
     ]',
 )
 
 ## DG approximations to exp(Dy)
 yvalsR =
     SFFM.EulerDG(D = DR.DDict["++"](s = 0), y = y, x0 = x0, h = 0.0001)[[
-        1:sum(Model.C .<= 0)
-        sum(Model.C .<= 0).+1:1:end.-sum(Model.C .>= 0)
-        end.-sum(Model.C .>= 0).+1:end
+        1:sum(model.C .<= 0)
+        sum(model.C .<= 0).+1:1:end.-sum(model.C .>= 0)
+        end.-sum(model.C .>= 0).+1:end
     ]]
 yvalsR = [yvalsR[1:2]' sum(reshape(yvalsR[3:end-2],NBases,length(yvalsR[3:end-2])÷NBases),dims=1) yvalsR[end-1:end]']
 yvals =
     SFFM.EulerDG(D = D["++"](s = 0), y = y, x0 = x0, h = 0.0001)[[
-        1:sum(Model.C .<= 0)
-        sum(Model.C .<= 0).+1:1:end.-sum(Model.C .>= 0)
-        end.-sum(Model.C .>= 0).+1:end
+        1:sum(model.C .<= 0)
+        sum(model.C .<= 0).+1:1:end.-sum(model.C .>= 0)
+        end.-sum(model.C .>= 0).+1:end
     ]]
 yvals = [yvals[1:2]' sum(reshape(yvals[3:end-2],NBases,length(yvals[3:end-2])÷NBases),dims=1) yvals[end-1:end]']
 MyDyvals =
     SFFM.EulerDG(D = MyD.D(s = 0), y = y, x0 = x0, h = 0.0001)[[
-        1:sum(Model.C .<= 0)
-        sum(Model.C .<= 0).+1:1:end.-sum(Model.C .>= 0)
-        end.-sum(Model.C .>= 0).+1:end
+        1:sum(model.C .<= 0)
+        sum(model.C .<= 0).+1:1:end.-sum(model.C .>= 0)
+        end.-sum(model.C .>= 0).+1:end
     ]]
 MyDyvals = [MyDyvals[1:2]' sum(reshape(MyDyvals[3:end-2],NBases,length(MyDyvals[3:end-2])÷NBases),dims=1) MyDyvals[end-1:end]']
 ## analysis and plots
 
 # plot solutions
 p = plot(legend = false, layout = (3, 1))
-Y = zeros((length(Nodes) - 1), Model.NPhases)
-YR = zeros((length(Nodes) - 1), Model.NPhases)
-MyY = zeros((length(Nodes) - 1), Model.NPhases)
+Y = zeros((length(Nodes) - 1), model.NPhases)
+YR = zeros((length(Nodes) - 1), model.NPhases)
+MyY = zeros((length(Nodes) - 1), model.NPhases)
 let cum = 0
-    for i = 1:Model.NPhases
+    for i = 1:model.NPhases
         idx = findall(.!Fil[string(i)*"0"]) .- cum .+ (i - 1) * Mesh.NIntervals .+
-            sum(Model.C .<= 0)
+            sum(model.C .<= 0)
         cum = cum + sum(Fil[string(i)*"0"])*NBases
         p = plot!(
             (
@@ -300,12 +300,12 @@ let cum = 0
 end
 p = plot!(subplot = 1, legend = :topright)
 pmdata = [
-    [Nodes[1] * ones(sum(Model.C .<= 0)); Nodes[end] * ones(sum(Model.C .>= 0))]'
-    yvals[[.!Mesh.Fil["p0"]; falses(Model.NPhases * Mesh.NIntervals); .!Mesh.Fil["q0"]]]'
-    yvalsR[[.!Mesh.Fil["p0"]; falses(Model.NPhases * Mesh.NIntervals); .!Mesh.Fil["q0"]]]'
-    MyDyvals[[.!Mesh.Fil["p0"]; falses(Model.NPhases * Mesh.NIntervals); .!Mesh.Fil["q0"]]]'
-    [(sum(repeat(sims.X,1,Model.NPhases).*(sims.φ.==[1 2 3]).==Nodes[1],dims=1)./NSim)[Model.C.<=0];
-    (sum(repeat(sims.X,1,Model.NPhases).*(sims.φ.==[1 2 3]).==Nodes[end],dims=1)./NSim)[Model.C.>=0]]'
+    [Nodes[1] * ones(sum(model.C .<= 0)); Nodes[end] * ones(sum(model.C .>= 0))]'
+    yvals[[.!Mesh.Fil["p0"]; falses(model.NPhases * Mesh.NIntervals); .!Mesh.Fil["q0"]]]'
+    yvalsR[[.!Mesh.Fil["p0"]; falses(model.NPhases * Mesh.NIntervals); .!Mesh.Fil["q0"]]]'
+    MyDyvals[[.!Mesh.Fil["p0"]; falses(model.NPhases * Mesh.NIntervals); .!Mesh.Fil["q0"]]]'
+    [(sum(repeat(sims.X,1,model.NPhases).*(sims.φ.==[1 2 3]).==Nodes[1],dims=1)./NSim)[model.C.<=0];
+    (sum(repeat(sims.X,1,model.NPhases).*(sims.φ.==[1 2 3]).==Nodes[end],dims=1)./NSim)[model.C.>=0]]'
 ]
 SFFM.MyPrint([".";"pm";"pmR";"pmMyD";"sim"])
 SFFM.MyPrint(pmdata)
@@ -313,8 +313,8 @@ SFFM.MyPrint(pmdata)
 display(p)
 
 # plot sims
-H = zeros(length(Nodes) - 1, Model.NPhases)
-for whichφ = 1:Model.NPhases
+H = zeros(length(Nodes) - 1, model.NPhases)
+for whichφ = 1:model.NPhases
     #pltvals = kde(sims.X[sims.φ.==whichφ])
     #p = histogram!(sims.X[sims.φ.==whichφ],bins=Nodes,normalize=:probability,alpha=0.2)
     # plot!(

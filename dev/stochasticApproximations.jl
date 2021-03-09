@@ -1,12 +1,12 @@
 # using LinearAlgebra, Plots, JSON
-# include("../src/SFFM.jl")
-include("METools.jl")
+include("src/SFFM.jl")
+include("dev/METools.jl")
 
 # define SFM
 T = [-2.0 2.0; 1.0 -1.0]#[-2.0 2.0 0; 1.0 -2.0 1; 1 1 -2]
 C = [1.0; -2.0]#; -1]
 fn(x) = [ones(size(x)) ones(size(x))]# ones(size(x))]
-Model = SFFM.MakeModel(;T=T,C=C,r=(r=fn,R=fn),Bounds=[0 10;-Inf Inf])
+M = SFFM.Model(;T=T,C=C,r=(r=fn,R=fn),Bounds=[0 10;-Inf Inf])
 N₋ = sum(C.<=0)
 N₊ = sum(C.>=0)
 NPhases = length(C)
@@ -16,7 +16,7 @@ NPhases = length(C)
 t = 3
 τ = SFFM.FixedTime(T=t)
 NSim = 400_000
-sims = SFFM.SimSFM(Model=Model,StoppingTime=τ,InitCondition=(φ=2*ones(Int,NSim),X=zeros(NSim)))
+sims = SFFM.SimSFM(model=model,StoppingTime=τ,InitCondition=(φ=2*ones(Int,NSim),X=zeros(NSim)))
 
 p = plot()
 vecΔ =  2#[5 2.5 1.25 1.25/2]
@@ -37,8 +37,8 @@ let
         globalerrπME = []
         globalerrDG = []
         for NBases in vecNBases
-            Mesh = SFFM.MakeMesh(Model=Model,NBases=NBases,Nodes=Nodes,Basis="lagrange")
-            simDist = SFFM.Sims2Dist(Model=Model,Mesh=Mesh,sims=sims,type="probability")
+            Mesh = SFFM.MakeMesh(model=model,NBases=NBases,Nodes=Nodes,Basis="lagrange")
+            simDist = SFFM.Sims2Dist(model=model,Mesh=Mesh,sims=sims,type="probability")
 
             # define generator for up approximation
             Erlang = MakeErlang(NBases, mean = Δ)
@@ -88,14 +88,14 @@ let
                 plusI = false,
             )
 
-            DGMesh = SFFM.MakeMesh(Model=Model,NBases=1,Nodes=collect(Nodes[1]:Δ/NBases:Nodes[end]),Basis="lagrange")
-            All = SFFM.MakeAll(Model=Model,Mesh=DGMesh)
+            DGMesh = SFFM.MakeMesh(model=model,NBases=1,Nodes=collect(Nodes[1]:Δ/NBases:Nodes[end]),Basis="lagrange")
+            All = SFFM.MakeAll(model=model,Mesh=DGMesh)
 
             initDist = zeros(1,size(B,1))
             initDist[1] = 1
 
             temp = initDist*exp(Matrix(All.B.B)*t)#SFFM.EulerDG(D=All.B.B,y=t,x0=initDist)#
-            DGdist_t = SFFM.Coeffs2Dist(Model=Model,Mesh=DGMesh,Coeffs=temp,type="probability")
+            DGdist_t = SFFM.Coeffs2Dist(model=model,Mesh=DGMesh,Coeffs=temp,type="probability")
 
             dist_t = initDist*exp(B*t)#SFFM.EulerDG(D=B,y=t,x0=initDist)#
             pm_t = dist_t[[1:N₋;(end-N₊+1):end]]
@@ -206,8 +206,8 @@ end
 #         globalerrSomePHBkwd = []
 #         globalerrDG = []
 #         for NBases in vecNBases
-#             Mesh = SFFM.MakeMesh(Model=Model,NBases=NBases,Nodes=Nodes,Basis="lagrange")
-#             simDist = SFFM.Sims2Dist(Model=Model,Mesh=Mesh,sims=sims,type="probability")
+#             Mesh = SFFM.MakeMesh(model=model,NBases=NBases,Nodes=Nodes,Basis="lagrange")
+#             simDist = SFFM.Sims2Dist(model=model,Mesh=Mesh,sims=sims,type="probability")
 #
 #             # define generator for up approximation
 #             Erlang = MakeErlang(NBases, mean = Δ)
@@ -263,14 +263,14 @@ end
 #                 D = jumpMatrixD(SomePH)
 #             )
 #
-#             DGMesh = SFFM.MakeMesh(Model=Model,NBases=1,Nodes=collect(Nodes[1]:Δ/NBases:Nodes[end]),Basis="lagrange")
-#             All = SFFM.MakeAll(Model=Model,Mesh=DGMesh)
+#             DGMesh = SFFM.MakeMesh(model=model,NBases=1,Nodes=collect(Nodes[1]:Δ/NBases:Nodes[end]),Basis="lagrange")
+#             All = SFFM.MakeAll(model=model,Mesh=DGMesh)
 #
 #             initDist = zeros(1,size(B,1))
 #             initDist[1] = 1
 #
 #             temp = initDist*exp(Matrix(All.B.B)*t)#SFFM.EulerDG(D=All.B.B,y=t,x0=initDist)#
-#             DGdist_t = SFFM.Coeffs2Dist(Model=Model,Mesh=DGMesh,Coeffs=temp,type="probability")
+#             DGdist_t = SFFM.Coeffs2Dist(model=model,Mesh=DGMesh,Coeffs=temp,type="probability")
 #
 #             dist_t = initDist*exp(B*t)#SFFM.EulerDG(D=B,y=t,x0=initDist)#
 #             pm_t = dist_t[[1:N₋;(end-N₊+1):end]]
@@ -437,10 +437,10 @@ end
 #
 #
 # Mesh = SFFM.MakeMesh(
-#     Model = Model,
+#     model = model,
 #     Nodes = collect(0:1:10),
 #     NBases = 4,
 #     Basis = "lagrange",
 # )
 #
-# Mat = SFFM.MakeMatrices(Mesh=Mesh,Model=Model)
+# Mat = SFFM.MakeMatrices(Mesh=Mesh,model=model)

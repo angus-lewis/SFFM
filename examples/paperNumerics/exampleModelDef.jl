@@ -42,11 +42,11 @@ r = (
 
 ## make models
 simBounds = [0 Inf; -Inf Inf] # bounds for simulation only
-simModel = SFFM.MakeModel(T = T, C = C, r = r, Bounds = simBounds)
+simModel = SFFM.Model(T = T, C = C, r = r, Bounds = simBounds)
 println("created simModel with no upper bound")
 println("")
 
 approxBounds = [0 48; -Inf Inf] # bounds for approximation only
-approxModel = SFFM.MakeModel(T = T, C = C, r = r, Bounds = approxBounds)
+approxModel = SFFM.Model(T = T, C = C, r = r, Bounds = approxBounds)
 println("Created approxModel with upper bound at x=", approxModel.Bounds[1,end])
 println("")

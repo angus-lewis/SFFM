@@ -2,7 +2,7 @@
 Add to a figure a plot of a SFM distribution.
 
     PlotSFM!(p;
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        model::Model,
         Mesh::NamedTuple{
             (
                 :NBases,
@@ -21,13 +21,13 @@ Add to a figure a plot of a SFM distribution.
 
 # Arguments
 - `p::Plots.Plot{Plots.GRBackend}`: a plot object as initialised by `PlotSFM()`
-- `Model`: A model tuple from `MakeModel`
+- `Model`: A Model object
 - `Mesh`: A Mesh tuple from `MakeMesh`
 - `Dist`: A distribution object as output from `Coeff2Dist` or `Sims2Dist`
 - `color`: (optional) a colour specifier for the plot
 """
 function PlotSFM!(p;
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+    model::Model,
     Mesh::NamedTuple{
         (
             :NBases,
@@ -52,7 +52,7 @@ function PlotSFM!(p;
     pc = 0
     qc = 0
     # yLimValues = (0.0, 0.0)
-    for i = 1:Model.NPhases
+    for i = 1:model.NPhases
         if Dist.type == "density"
             p = Plots.plot!(
                 Dist.x,
@@ -82,9 +82,9 @@ function PlotSFM!(p;
                 grid = false,
             )
         end
-        if Model.C[i] <= 0
+        if model.C[i] <= 0
             pc = pc + 1
-            x = [Model.Bounds[1,1]]
+            x = [model.Bounds[1,1]]
             y = [Dist.pm[pc]]
             p = Plots.scatter!(
                 x .- jitter/2 .+ jitter*rand(),
@@ -98,10 +98,10 @@ function PlotSFM!(p;
                 grid = false,
             )
         end
-        if Model.C[i] >= 0
+        if model.C[i] >= 0
             qc = qc + 1
-            x = [Model.Bounds[1,end]]
-            y = [Dist.pm[sum(Model.C .>= 0) + qc]]
+            x = [model.Bounds[1,end]]
+            y = [Dist.pm[sum(model.C .>= 0) + qc]]
             p = Plots.scatter!(
                 x .- jitter/2 .+ jitter*rand(),
                 y,
@@ -144,7 +144,7 @@ end # end PlotSFM!
 Initialise and plot a SFM distribution.
 
     PlotSFM(
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        model::Model,
         Mesh::NamedTuple{
             (
                 :NBases,
@@ -162,7 +162,7 @@ Initialise and plot a SFM distribution.
     )
 
 # Arguments
-- `Model`: A model tuple from `MakeModel`
+- `Model`: A Model object
 - `Mesh`: A Mesh tuple from `MakeMesh`
 - `Dist`: A distribution object as output from `Coeff2Dist` or `Sims2Dist`
 - `color`: (optional) a colour specifier for the plot
@@ -172,7 +172,7 @@ Initialise and plot a SFM distribution.
     containing a plot of the distribution for each phase.
 """
 function PlotSFM(;
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+    model::Model,
     Mesh::NamedTuple{
         (
             :NBases,
@@ -204,10 +204,10 @@ function PlotSFM(;
     titles = false,
     jitter = 0,
 )
-    p = Plots.plot(layout = Plots.@layout(Plots.grid((Model.NPhases+1)÷2, 2)))
+    p = Plots.plot(layout = Plots.@layout(Plots.grid((model.NPhases+1)÷2, 2)))
     if length(Dist.distribution) != 0
         p = SFFM.PlotSFM!(p;
-            Model = Model,
+            model = model,
             Mesh = Mesh,
             Dist = Dist,
             color = color,

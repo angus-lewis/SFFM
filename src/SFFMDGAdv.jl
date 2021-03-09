@@ -1,5 +1,5 @@
 # function MakeMatrices2(;
-#     Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+#     model::Model,
 #     Mesh::NamedTuple{
 #         (
 #             :NBases,
@@ -51,12 +51,12 @@
 #     )
 #
 #     ## Assemble the DG drift operator
-#     Q = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,Model.NPhases)
-#     for i = 1:Model.NPhases
-#         if Model.C[i] > 0
-#             Q[i] = Model.C[i] * (G + F["+"]) * MInv
-#         elseif Model.C[i] < 0
-#             Q[i] = Model.C[i] * (G + F["-"]) * MInv
+#     Q = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,model.NPhases)
+#     for i = 1:model.NPhases
+#         if model.C[i] > 0
+#             Q[i] = model.C[i] * (G + F["+"]) * MInv
+#         elseif model.C[i] < 0
+#             Q[i] = model.C[i] * (G + F["-"]) * MInv
 #         end
 #     end
 #
@@ -73,7 +73,7 @@
 Constructs a block diagonal matrix from blocks
 
     MakeBlockDiagonalMatrixR(;
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        model::Model,
         Mesh::NamedTuple{
             (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
         },
@@ -82,7 +82,7 @@ Constructs a block diagonal matrix from blocks
     )
 
 # Aguments
-- `Model`: A tuple from `MakeModel()`
+- `model`: A Model object
 - `Mesh`: A tuple from `MakeMesh()`
 - `Blocks(x::Array{Float64}, i::Int)`: a function wich returns a
     `Mesh.NBases×Mesh.NBases` array to put along the diagonal. The input
@@ -95,18 +95,18 @@ Constructs a block diagonal matrix from blocks
         block matrix
 """
 function MakeBlockDiagonalMatrixR(;
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+    model::Model,
     Mesh::NamedTuple{
         (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
     },
     Blocks,
     Factors::Array,
 )
-    BlockMatrix = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,Model.NPhases)
-    for i in 1:Model.NPhases
+    BlockMatrix = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,model.NPhases)
+    for i in 1:model.NPhases
         BlockMatrix[i] = SparseArrays.spzeros(Float64, Mesh.TotalNBases, Mesh.TotalNBases)
     end
-    for i = 1:Mesh.NIntervals, j = 1:Model.NPhases
+    for i = 1:Mesh.NIntervals, j = 1:model.NPhases
         idx = (1:Mesh.NBases) .+ (i - 1) * Mesh.NBases
         BlockMatrix[j][idx, idx] = Blocks(Mesh.CellNodes[:, i], j) * Factors[i]
     end
@@ -120,27 +120,27 @@ Constructs the flux matrices for DG
         Mesh::NamedTuple{
             (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
         },
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        model::Model,
         Phi,
     )
 
 # Arguments
 - `Mesh`: a Mesh tuple from MakeMesh
-- `Model`: A tuple from `MakeModel()`
+- `model`: A Model object
 - `Phi::Array{Float64,2}`: where `Phi[1,:]` and `Phi[1,:]` are the basis
     function evaluated at the left-hand and right-hand edge of a cell,
     respectively
 
 # Output
-- `F::Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,Model.NPhases)`:
-    an array with index `i ∈ 1:Model.NPhases`, of sparse arrays which are
+- `F::Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,model.NPhases)`:
+    an array with index `i ∈ 1:model.NPhases`, of sparse arrays which are
     `TotalNBases×TotalNBases` flux matrices for phase `i`.
 """
 function MakeFluxMatrixR(;
     Mesh::NamedTuple{
         (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
     },
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+    model::Model,
     Phi,
 )
     ## Create the blocks
@@ -150,30 +150,30 @@ function MakeFluxMatrixR(;
     LowDiagBlock = -Phi[1, :] * Phi[end, :]'
 
     ## Construct global block diagonal matrix
-    F = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,Model.NPhases)
-    for i = 1:Model.NPhases
+    F = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,model.NPhases)
+    for i = 1:model.NPhases
         F[i] = SparseArrays.spzeros(Float64, Mesh.TotalNBases, Mesh.TotalNBases)
         for k = 1:Mesh.NIntervals
             idx = (1:Mesh.NBases) .+ (k - 1) * Mesh.NBases
-            if Model.C[i] > 0
+            if model.C[i] > 0
                 xright = Mesh.CellNodes[end, k]
-                R = 1.0 ./ Model.r.a(xright)[i]
+                R = 1.0 ./ model.r.a(xright)[i]
                 F[i][idx, idx] = PosDiagBlock * R
-            elseif Model.C[i] < 0
+            elseif model.C[i] < 0
                 xleft = Mesh.CellNodes[1, k]
-                R = 1.0 ./ Model.r.a(xleft)[i]
+                R = 1.0 ./ model.r.a(xleft)[i]
                 F[i][idx, idx] = NegDiagBlock * R
             end # end if C[i]
             if k > 1
                 idxup = (1:Mesh.NBases) .+ (k - 2) * Mesh.NBases
-                if Model.C[i] > 0
+                if model.C[i] > 0
                     xright = Mesh.CellNodes[end, k-1]
-                    R = 1.0 ./ Model.r.a(xright)[i]
+                    R = 1.0 ./ model.r.a(xright)[i]
                     η = (Mesh.Δ[k] / Mesh.NBases) / (Mesh.Δ[k-1] / Mesh.NBases)
                     F[i][idxup, idx] = UpDiagBlock * η * R
-                elseif Model.C[i] < 0
+                elseif model.C[i] < 0
                     xleft = Mesh.CellNodes[1, k]
-                    R = 1.0 ./ Model.r.a(xleft)[i]
+                    R = 1.0 ./ model.r.a(xleft)[i]
                     η = (Mesh.Δ[k-1] / Mesh.NBases) / (Mesh.Δ[k] / Mesh.NBases)
                     F[i][idx, idxup] = LowDiagBlock * η * R
                 end # end if C[i]
@@ -189,14 +189,14 @@ Creates the Local and global mass, stiffness and flux matrices to compute `D(s)`
 directly.
 
     MakeMatricesR(;
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        model::Model,
         Mesh::NamedTuple{
             (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
         },
     )
 
 # Arguments
-- `Model`: A model tuple from MakeModel
+- `model`: A Model object
 - `Mesh`: A mesh tuple from MakeMesh
 
 # Output
@@ -224,7 +224,7 @@ directly.
       - `:V::NamedTuple`: as output from SFFM.vandermonde
  """
 function MakeMatricesR(;
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+    model::Model,
     Mesh::NamedTuple{
         (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
     },
@@ -238,7 +238,7 @@ function MakeMatricesR(;
             # Inputs:
             #   - x a vector of Gauss-Lobatto points on Dk
             #   - i a phase
-            V.V' * LinearAlgebra.diagm(V.w ./ Model.r.a(x)[:, i]) * V.V
+            V.V' * LinearAlgebra.diagm(V.w ./ model.r.a(x)[:, i]) * V.V
         end
         GLocal = function (x::Array{Float64}, i::Int)
             # Numerical integration of ϕᵢ(x)|r(x)|ϕⱼ'(x) over Dk with Gauss-Lobatto
@@ -246,7 +246,7 @@ function MakeMatricesR(;
             # Inputs:
             #   - x a vector of Gauss-Lobatto points on Dk
             #   - i a phase
-            V.V' * LinearAlgebra.diagm(V.w ./ Model.r.a(x)[:, i]) * V.D
+            V.V' * LinearAlgebra.diagm(V.w ./ model.r.a(x)[:, i]) * V.D
         end
         MInvLocal = function (x::Array{Float64}, i::Int)
             MLocal(x, i)^-1
@@ -260,7 +260,7 @@ function MakeMatricesR(;
             # Inputs:
             #   - x a vector of Gauss-Lobatto points on Dk
             #   - i a phase
-            LinearAlgebra.diagm(V.w ./ Model.r.a(x)[:, i])
+            LinearAlgebra.diagm(V.w ./ model.r.a(x)[:, i])
         end
         GLocal = function (x::Array{Float64}, i::Int)
             # Numerical integration of ϕᵢ(x)|r(x)|ϕⱼ'(x) over Dk with Gauss-Lobatto
@@ -278,30 +278,30 @@ function MakeMatricesR(;
 
     ## Assemble into block diagonal matrices
     G = SFFM.MakeBlockDiagonalMatrixR(
-        Model = Model,
+        model = model,
         Mesh = Mesh,
         Blocks = GLocal,
         Factors = ones(Mesh.NIntervals),
     )
     M = SFFM.MakeBlockDiagonalMatrixR(
-        Model = Model,
+        model = model,
         Mesh = Mesh,
         Blocks = MLocal,
         Factors = Mesh.Δ * 0.5,
     )
     MInv = SFFM.MakeBlockDiagonalMatrixR(
-        Model = Model,
+        model = model,
         Mesh = Mesh,
         Blocks = MInvLocal,
         Factors = 2.0 ./ Mesh.Δ,
     )
 
-    F = SFFM.MakeFluxMatrixR(Mesh = Mesh, Model = Model, Phi = Phi)
+    F = SFFM.MakeFluxMatrixR(Mesh = Mesh, model = model, Phi = Phi)
 
     ## Assemble the DG drift operator
-    Q = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,Model.NPhases)
-    for i = 1:Model.NPhases
-        Q[i] = Model.C[i] * (G[i] + F[i])
+    Q = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,model.NPhases)
+    for i = 1:model.NPhases
+        Q[i] = model.C[i] * (G[i] + F[i])
     end
 
     Local = (G = GLocal, M = MLocal, MInv = MInvLocal, V = V, Phi = Phi)
@@ -319,7 +319,7 @@ Construct the operator `D(s)` directly.
     MakeDR(;
         Matrices,
         MatricesR,
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        model::Model,
         Mesh::NamedTuple{
             (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
         },
@@ -328,11 +328,11 @@ Construct the operator `D(s)` directly.
 
 # Arguments
 - `Matrices`: a tuple as output from
-    `Matrices = SFFM.MakeMatrices(Model=Model,Mesh=Mesh,probTransform=false)`
+    `Matrices = SFFM.MakeMatrices(model=model,Mesh=Mesh,probTransform=false)`
     note, must have `probTransform=false`.
 - `MatricesR`: a tuple as output from
-    `MatricesR = SFFM.MakeMatricesR(Model=approxModel,Mesh=Mesh)`
-- `Model`: a model object as constructed by `MakeModel`
+    `MatricesR = SFFM.MakeMatricesR(model=approxModel,Mesh=Mesh)`
+- `model`: a Model object 
 - `Mesh`: a mesh object as constructed by `MakeMesh`
 
 # Output
@@ -347,21 +347,21 @@ Construct the operator `D(s)` directly.
 function MakeDR(;
     Matrices,
     MatricesR,
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+    model::Model,
     Mesh::NamedTuple{
         (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
     },
     B,
 )
-    N₊ = sum(Model.C .>= 0)
-    N₋ = sum(Model.C .<= 0)
+    N₊ = sum(model.C .>= 0)
+    N₋ = sum(model.C .<= 0)
 
-    BigN = Model.NPhases * Mesh.TotalNBases + N₊ + N₋
-    MR = SparseArrays.spzeros(Float64, Model.NPhases * Mesh.TotalNBases, Model.NPhases * Mesh.TotalNBases)
+    BigN = model.NPhases * Mesh.TotalNBases + N₊ + N₋
+    MR = SparseArrays.spzeros(Float64, model.NPhases * Mesh.TotalNBases, model.NPhases * Mesh.TotalNBases)
     Minv =
-        SparseArrays.spzeros(Float64, Model.NPhases * Mesh.TotalNBases, Model.NPhases * Mesh.TotalNBases)
-    FGR = SparseArrays.spzeros(Float64, Model.NPhases * Mesh.TotalNBases, Model.NPhases * Mesh.TotalNBases)
-    for i = 1:Model.NPhases
+        SparseArrays.spzeros(Float64, model.NPhases * Mesh.TotalNBases, model.NPhases * Mesh.TotalNBases)
+    FGR = SparseArrays.spzeros(Float64, model.NPhases * Mesh.TotalNBases, model.NPhases * Mesh.TotalNBases)
+    for i = 1:model.NPhases
         idx = ((i-1)*Mesh.TotalNBases+1:i*Mesh.TotalNBases)
         MR[idx, idx] = MatricesR.Global.M[i]
         Minv[idx, idx] = Matrices.Global.MInv
@@ -369,25 +369,25 @@ function MakeDR(;
     end
 
     # Interior behaviour
-    T = SparseArrays.kron(Model.T, SparseArrays.sparse(LinearAlgebra.I,Mesh.TotalNBases,Mesh.TotalNBases))
+    T = SparseArrays.kron(model.T, SparseArrays.sparse(LinearAlgebra.I,Mesh.TotalNBases,Mesh.TotalNBases))
     BR = SparseArrays.spzeros(Float64, BigN, BigN)
     BR[(N₋+1):(end-N₊), (N₋+1):(end-N₊)] = MR * T * Minv + FGR
 
     # Boundary behaviour
     # Lower boundary
     # At boundary
-    BR[1:N₋, 1:N₋] = (1.0./ Model.r.a(Mesh.Nodes[1])'.*Model.T)[Model.C.<=0, Model.C.<=0]
+    BR[1:N₋, 1:N₋] = (1.0./ model.r.a(Mesh.Nodes[1])'.*model.T)[model.C.<=0, model.C.<=0]
     # Out of boundary
-    idxup = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .> 0) .- 1)')[:] .+ N₋
+    idxup = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(model.C .> 0) .- 1)')[:] .+ N₋
     BR[1:N₋, idxup] = kron(
-        (1.0./Model.r.a(Mesh.Nodes[1])'.*Model.T)[Model.C.<=0, Model.C.>0],
+        (1.0./model.r.a(Mesh.Nodes[1])'.*model.T)[model.C.<=0, model.C.>0],
         Matrices.Local.Phi[1, :]' * Matrices.Local.MInv * 2 ./ Mesh.Δ[1],
     )
     # Into boundary
-    idxdown = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .<= 0) .- 1)')[:] .+ N₋
+    idxdown = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(model.C .<= 0) .- 1)')[:] .+ N₋
     BR[idxdown, 1:N₋] = LinearAlgebra.kron(
         LinearAlgebra.diagm(
-            Model.C[Model.C.<=0] ./ Model.r.a(Mesh.Nodes[1].+sqrt(eps()))[Model.C.<=0],
+            model.C[model.C.<=0] ./ model.r.a(Mesh.Nodes[1].+sqrt(eps()))[model.C.<=0],
         ),
         -Matrices.Local.Phi[1, :],
     )
@@ -395,22 +395,22 @@ function MakeDR(;
     # Upper boundary
     # At boundary
     BR[(end-N₊+1):end, (end-N₊+1):end] =
-        (1.0./Model.r.a(Mesh.Nodes[end])'.*Model.T)[Model.C.>=0, Model.C.>=0]
+        (1.0./model.r.a(Mesh.Nodes[end])'.*model.T)[model.C.>=0, model.C.>=0]
     # Out of boundary
     idxdown =
-        ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .< 0) .- 1)')[:] .+
+        ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(model.C .< 0) .- 1)')[:] .+
         (N₋ + Mesh.TotalNBases - Mesh.NBases)
     BR[(end-N₊+1):end, idxdown] = kron(
-        (1.0./Model.r.a(Mesh.Nodes[end])'.*Model.T)[Model.C.>=0, Model.C.<0],
+        (1.0./model.r.a(Mesh.Nodes[end])'.*model.T)[model.C.>=0, model.C.<0],
         Matrices.Local.Phi[end, :]' * Matrices.Local.MInv * 2 ./ Mesh.Δ[end],
     )
     # Into boundary
     idxup =
-        ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(Model.C .>= 0) .- 1)')[:] .+
+        ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(model.C .>= 0) .- 1)')[:] .+
         (N₋ + Mesh.TotalNBases - Mesh.NBases)
     BR[idxup, (end-N₊+1):end] = LinearAlgebra.kron(
         LinearAlgebra.diagm(
-            Model.C[Model.C.>=0] ./ Model.r.a(Mesh.Nodes[end].-sqrt(eps()))[Model.C.>=0],
+            model.C[model.C.>=0] ./ model.r.a(Mesh.Nodes[end].-sqrt(eps()))[model.C.>=0],
         ),
         Matrices.Local.Phi[end, :],
     )

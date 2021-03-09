@@ -9,9 +9,9 @@ include("exampleModelDef.jl")
 
 ## analytic X distribution for comparison
 # construction
-Ψₓ = SFFM.PsiFunX(Model = approxModel)
-ξₓ = SFFM.MakeXiX(Model = approxModel, Ψ = Ψₓ)
-pₓ, πₓ, Πₓ, Kₓ = SFFM.StationaryDistributionX(Model = approxModel, Ψ = Ψₓ, ξ = ξₓ)
+Ψₓ = SFFM.PsiFunX(model = approxModel)
+ξₓ = SFFM.MakeXiX(model = approxModel, Ψ = Ψₓ)
+pₓ, πₓ, Πₓ, Kₓ = SFFM.StationaryDistributionX(model = approxModel, Ψ = Ψₓ, ξ = ξₓ)
 
 ## section 4.5: error for approximation of stationary distribution of X
 Basis = "lagrange"
@@ -37,7 +37,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         ~, times[d, n], mems[d, n], gctimes[d, n], alloc[d, n] = @timed begin
             Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
             Mesh = SFFM.MakeMesh(
-                Model = approxModel,
+                model = approxModel,
                 Nodes = Nodes,
                 NBases = NBases,
                 Basis = Basis,
@@ -45,7 +45,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
             approxSpec[d, n] = (Δ, NBases, Mesh.TotalNBases * approxModel.NPhases)
 
             # compute the marginal via DG
-            All = SFFM.MakeAll(Model = approxModel, Mesh = Mesh, approxType = "projection")
+            All = SFFM.MakeAll(model = approxModel, Mesh = Mesh, approxType = "projection")
             Ψ = SFFM.PsiFun(D = All.D)
 
             # the distribution of X when Y first returns to 0
@@ -62,7 +62,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         end
         # convert marginalX to a distribution for analysis
         DGStationaryDist = SFFM.Coeffs2Dist(
-            Model = approxModel,
+            model = approxModel,
             Mesh = Mesh,
             Coeffs = marginalX,
             type = "probability",
@@ -84,7 +84,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
 ##      ## now do Ψ
         ## turn sims into a cdf
         simprobs =
-            SFFM.Sims2Dist(Model = simModel, Mesh = Mesh, sims = sims, type = "probability")
+            SFFM.Sims2Dist(model = simModel, Mesh = Mesh, sims = sims, type = "probability")
 
         # do DG for Ψ
         theNodes = Mesh.CellNodes[:, convert(Int, ceil(5 / Δ))]
@@ -104,7 +104,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         initdist =
             (pm = initpm, distribution = initprobs, x = Mesh.CellNodes, type = "density") # convert to a distribution object so we can apply Dist2Coeffs
         # convert to Coeffs α in the DG context
-        x0 = SFFM.Dist2Coeffs(Model = approxModel, Mesh = Mesh, Distn = initdist)
+        x0 = SFFM.Dist2Coeffs(model = approxModel, Mesh = Mesh, Distn = initdist)
         # the initial condition on Ψ is restricted to + states so find the + states
         plusIdx = [
             Mesh.Fil["p+"]
@@ -133,7 +133,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
 
         # convert to a distribution object
         DGΨProbs = SFFM.Coeffs2Dist(
-            Model = approxModel,
+            model = approxModel,
             Mesh = Mesh,
             Coeffs = z,
             type = "probability",
@@ -167,7 +167,7 @@ let p = plot()
         )
     end
     display(p)
-    savefig(pwd()*"/examples/paperNumerics/dump/piErrorVsDelta.png")
+    # savefig(pwd()*"/examples/paperNumerics/dump/piErrorVsDelta.png")
 end
 
 let p = plot()
@@ -189,7 +189,7 @@ let p = plot()
         )
     end
     display(p)
-    savefig(pwd()*"/examples/paperNumerics/dump/piErrorVsNBases.png")
+    # savefig(pwd()*"/examples/paperNumerics/dump/piErrorVsNBases.png")
 end
 
 begin
@@ -261,7 +261,7 @@ let q = plot()
         )
     end
     display(q)
-    savefig(pwd()*"/examples/paperNumerics/dump/psiErrorVsDelta.png")
+    # savefig(pwd()*"/examples/paperNumerics/dump/psiErrorVsDelta.png")
 end
 
 mq =

@@ -4,10 +4,10 @@ Construct and evaluate ``Ψ(s)`` for a triditional SFM.
 Uses newtons method to solve the Ricatti equation
 ``D⁺⁻(s) + Ψ(s)D⁻⁺(s)Ψ(s) + Ψ(s)D⁻⁻(s) + D⁺⁺(s)Ψ(s) = 0.``
 
-    PsiFun(; Model::NamedTuple, s = 0, MaxIters = 1000, err = 1e-8)
+    PsiFun(; model::Model, s = 0, MaxIters = 1000, err = 1e-8)
 
 # Arguments
-- `Model`: a model object as output from `MakeModel`
+- `model`: a Model object
 - `s::Real`: a value to evaluate the LST at
 - `MaxIters::Int`: the maximum number of iterations of newtons method
 - `err::Float64`: an error tolerance for terminating newtons method. Terminates
@@ -16,21 +16,21 @@ Uses newtons method to solve the Ricatti equation
 # Output
 - `Ψ(s)::Array{Float64,2}` the matrix ``Ψ``
 """
-function PsiFunX(; Model::NamedTuple, s = 0, MaxIters = 1000, err = 1e-8)
-    T00inv = inv(Model.TDict["00"] - s * LinearAlgebra.I)
+function PsiFunX(; model::Model, s = 0, MaxIters = 1000, err = 1e-8)
+    T00inv = inv(model.TDict["00"] - s * LinearAlgebra.I)
     # construct the generator Q(s)
     Q =
-        (1 ./ abs.(Model.C[Model.SDict["bullet"]])) .* (
-            Model.TDict["bulletbullet"] - s * LinearAlgebra.I -
-            Model.TDict["bullet0"] * T00inv * Model.TDict["0bullet"]
+        (1 ./ abs.(model.C[model.SDict["bullet"]])) .* (
+            model.TDict["bulletbullet"] - s * LinearAlgebra.I -
+            model.TDict["bullet0"] * T00inv * model.TDict["0bullet"]
         )
 
     QDict = Dict{String,Array}("Q" => Q)
     for ℓ in ["+" "-"], m in ["+" "-"]
-        QDict[ℓ*m] = Q[Model.SDict[ℓ], Model.SDict[m]]
+        QDict[ℓ*m] = Q[model.SDict[ℓ], model.SDict[m]]
     end
 
-    Ψ = zeros(Float64, length(Model.SDict["+"]), length(Model.SDict["-"]))
+    Ψ = zeros(Float64, length(model.SDict["+"]), length(model.SDict["-"]))
     A = QDict["++"]
     B = QDict["--"]
     D = QDict["+-"]
@@ -52,30 +52,30 @@ end
 Construct the vector ``ξ`` containing the distribution of the phase at the time
 when ``X(t)`` first hits `0`.
 
-    MakeXiX(; Model::NamedTuple, Ψ::Array)
+    MakeXiX(; model::Model, Ψ::Array)
 
 # Arguments
-- `Model`: a model object as output from `MakeModel`
+- `model`: a Model object
 - `Ψ`: an array as output from `PsiFunX`
 
 # Output
 - the vector `ξ`
 """
-function MakeXiX(; Model::NamedTuple, Ψ::Array)
+function MakeXiX(; model::Model, Ψ::Array)
     # the system to solve is [ξ 0](-[B₋₋ B₋₀; B₀₋ B₀₀])⁻¹[B₋₊; B₀₊]Ψ = ξ
     # writing this out and using block inversion (as described on wikipedia)
     # we can solve this in the following way
-    T00inv = inv(Model.TDict["00"])
+    T00inv = inv(model.TDict["00"])
     invT₋₋ =
-        inv(Model.TDict["--"] - Model.TDict["-0"] * T00inv * Model.TDict["0-"])
-    invT₋₀ = -invT₋₋ * Model.TDict["-0"] * T00inv
+        inv(model.TDict["--"] - model.TDict["-0"] * T00inv * model.TDict["0-"])
+    invT₋₀ = -invT₋₋ * model.TDict["-0"] * T00inv
 
     A =
         -(
-            invT₋₋ * Model.TDict["-+"] * Ψ + invT₋₀ * Model.TDict["0+"] * Ψ +
+            invT₋₋ * model.TDict["-+"] * Ψ + invT₋₀ * model.TDict["0+"] * Ψ +
             LinearAlgebra.I
         )
-    b = zeros(1, size(Model.TDict["--"], 1))
+    b = zeros(1, size(model.TDict["--"], 1))
     A[:, 1] .= 1.0 # normalisation conditions
     b[1] = 1.0 # normalisation conditions
 
@@ -87,10 +87,10 @@ end
 """
 Construct the stationary distribution of the SFM
 
-    StationaryDistributionX(; Model::NamedTuple, Ψ::Array, ξ::Array)
+    StationaryDistributionX(; model::Model, Ψ::Array, ξ::Array)
 
 # Arguments
-- `Model`: a model object as output from `MakeModel`
+- `model`: a Model object
 - `Ψ`: an array as output from `PsiFunX`
 - `ξ`: an array as returned from `MakeXiX`
 
@@ -103,22 +103,22 @@ Construct the stationary distribution of the SFM
         as is output by Coeff2Dist.
 - `K::Array{Float64,2}`: the matrix in the exponential of the density.
 """
-function StationaryDistributionX(; Model::NamedTuple, Ψ::Array, ξ::Array)
+function StationaryDistributionX(; model::Model, Ψ::Array, ξ::Array)
     # using the same block inversion trick as in MakeXiX
-    T00inv = inv(Model.TDict["00"])
+    T00inv = inv(model.TDict["00"])
     invT₋₋ =
-        inv(Model.TDict["--"] - Model.TDict["-0"] * T00inv * Model.TDict["0-"])
-    invT₋₀ = -invT₋₋ * Model.TDict["-0"] * T00inv
+        inv(model.TDict["--"] - model.TDict["-0"] * T00inv * model.TDict["0-"])
+    invT₋₀ = -invT₋₋ * model.TDict["-0"] * T00inv
 
     Q =
-        (1 ./ abs.(Model.C[Model.SDict["bullet"]])) .* (
-            Model.TDict["bulletbullet"] -
-            Model.TDict["bullet0"] * T00inv * Model.TDict["0bullet"]
+        (1 ./ abs.(model.C[model.SDict["bullet"]])) .* (
+            model.TDict["bulletbullet"] -
+            model.TDict["bullet0"] * T00inv * model.TDict["0bullet"]
         )
 
     QDict = Dict{String,Array}("Q" => Q)
     for ℓ in ["+" "-"], m in ["+" "-"]
-        QDict[ℓ*m] = Q[Model.SDict[ℓ], Model.SDict[m]]
+        QDict[ℓ*m] = Q[model.SDict[ℓ], model.SDict[m]]
     end
 
     K = QDict["++"] + Ψ * QDict["-+"]
@@ -129,12 +129,12 @@ function StationaryDistributionX(; Model::NamedTuple, Ψ::Array, ξ::Array)
     αpₓ = ξ * A
 
     απₓ = αpₓ *
-        [Model.TDict["-+"]; Model.TDict["0+"]] *
+        [model.TDict["-+"]; model.TDict["0+"]] *
         -inv(K) *
-        [LinearAlgebra.I(length(Model.SDict["+"])) Ψ] *
-        LinearAlgebra.diagm(1 ./ abs.(Model.C[Model.SDict["bullet"]]))
+        [LinearAlgebra.I(length(model.SDict["+"])) Ψ] *
+        LinearAlgebra.diagm(1 ./ abs.(model.C[model.SDict["bullet"]]))
 
-    απₓ0 = -απₓ * [Model.TDict["+0"];Model.TDict["-0"]] * T00inv
+    απₓ0 = -απₓ * [model.TDict["+0"];model.TDict["-0"]] * T00inv
 
     # normalising constant
     α = sum(αpₓ) + sum(απₓ) + sum(απₓ0)
@@ -145,17 +145,17 @@ function StationaryDistributionX(; Model::NamedTuple, Ψ::Array, ξ::Array)
     # density method for scalar x-values
     function πₓ(x::Real)
         pₓ *
-        [Model.TDict["-+"]; Model.TDict["0+"]] *
+        [model.TDict["-+"]; model.TDict["0+"]] *
         exp(K*x) *
-        [LinearAlgebra.I(length(Model.SDict["+"])) Ψ] *
-        LinearAlgebra.diagm(1 ./ abs.(Model.C[Model.SDict["bullet"]])) *
-        [LinearAlgebra.I(sum(Model.C .!= 0)) [Model.TDict["+0"];Model.TDict["-0"]] * T00inv]
+        [LinearAlgebra.I(length(model.SDict["+"])) Ψ] *
+        LinearAlgebra.diagm(1 ./ abs.(model.C[model.SDict["bullet"]])) *
+        [LinearAlgebra.I(sum(model.C .!= 0)) [model.TDict["+0"];model.TDict["-0"]] * T00inv]
     end
     # density method for arrays so that πₓ returns an array with the same shape
     # as is output by Coeff2Dist
     function πₓ(x::Array)
         temp = πₓ.(x)
-        Evalπₓ = zeros(Float64, size(x,1), size(x,2), Model.NPhases)
+        Evalπₓ = zeros(Float64, size(x,1), size(x,2), model.NPhases)
         for cell in 1:size(x,2)
             for basis in 1:size(x,1)
                 Evalπₓ[basis,cell,:] = temp[basis,cell]
@@ -166,19 +166,19 @@ function StationaryDistributionX(; Model::NamedTuple, Ψ::Array, ξ::Array)
 
     # CDF method for scalar x-values
     function Πₓ(x::Real)
-        [pₓ zeros(1,sum(Model.C.>0))] .+
+        [pₓ zeros(1,sum(model.C.>0))] .+
         pₓ *
-        [Model.TDict["-+"]; Model.TDict["0+"]] *
+        [model.TDict["-+"]; model.TDict["0+"]] *
         (exp(K*x) - LinearAlgebra.I) / K *
-        [LinearAlgebra.I(length(Model.SDict["+"])) Ψ] *
-        LinearAlgebra.diagm(1 ./ abs.(Model.C[Model.SDict["bullet"]])) *
-        [LinearAlgebra.I(sum(Model.C .!= 0)) [Model.TDict["+0"];Model.TDict["-0"]] * T00inv]
+        [LinearAlgebra.I(length(model.SDict["+"])) Ψ] *
+        LinearAlgebra.diagm(1 ./ abs.(model.C[model.SDict["bullet"]])) *
+        [LinearAlgebra.I(sum(model.C .!= 0)) [model.TDict["+0"];model.TDict["-0"]] * T00inv]
     end
     # CDF method for arrays so that Πₓ returns an array with the same shape
     # as is output by Coeff2Dist
     function Πₓ(x::Array)
         temp = Πₓ.(x)
-        Evalπₓ = zeros(Float64, size(x,1), size(x,2), Model.NPhases)
+        Evalπₓ = zeros(Float64, size(x,1), size(x,2), model.NPhases)
         for cell in 1:size(x,2)
             for basis in 1:size(x,1)
                 Evalπₓ[basis,cell,:] = temp[basis,cell]

@@ -8,7 +8,7 @@ p = plot!()
 T = [-2.0 2.0; 1.0 -1.0]#[-2.0 2.0 0; 0.5 -2.0 1.5; 0 2 -2]#
 C = [1.0; -2.0]#; -1]
 fn(x) = [ones(size(x)) ones(size(x))]# ones(size(x))]
-Model = SFFM.MakeModel(;T=T,C=C,r=(r=fn,R=fn),Bounds=[0 10;-Inf Inf])
+model = SFFM.Model(;T=T,C=C,r=(r=fn,R=fn),Bounds=[0 10;-Inf Inf])
 N₋ = sum(C.<=0)
 N₊ = sum(C.>=0)
 NPhases = length(C)
@@ -16,7 +16,7 @@ NPhases = length(C)
 tim = 3
 # τ = SFFM.FixedTime(T=tim)
 # NSim = 500_000
-# sims = SFFM.SimSFM(Model=Model,StoppingTime=τ,InitCondition=(φ=2*ones(Int,NSim),X=zeros(NSim)))
+# sims = SFFM.SimSFM(model=model,StoppingTime=τ,InitCondition=(φ=2*ones(Int,NSim),X=zeros(NSim)))
 
 function e(i,order)
     e = zeros(order)
@@ -222,15 +222,15 @@ let
             display(B)
         end
 
-        # DGMesh = SFFM.MakeMesh(Model=Model,NBases=1,Nodes=collect(Nodes[1]:Δ/order:Nodes[end]),Basis="lagrange")
-        DGMesh = SFFM.MakeMesh(Model=Model,NBases=order,Nodes=Nodes,Basis="lagrange")
-        All = SFFM.MakeAll(Model=Model,Mesh=DGMesh)
+        # DGMesh = SFFM.MakeMesh(model=model,NBases=1,Nodes=collect(Nodes[1]:Δ/order:Nodes[end]),Basis="lagrange")
+        DGMesh = SFFM.MakeMesh(model=model,NBases=order,Nodes=Nodes,Basis="lagrange")
+        All = SFFM.MakeAll(model=model,Mesh=DGMesh)
 
         initDist = zeros(1,size(All.B.B,1))
         initDist[1] = 1
 
         temp = initDist*exp(Matrix(All.B.B)*tim)#SFFM.EulerDG(D=All.B.B,y=t,x0=initDist)#
-        DGdist_t = SFFM.Coeffs2Dist(Model=Model,Mesh=DGMesh,Coeffs=temp,type="probability")
+        DGdist_t = SFFM.Coeffs2Dist(model=model,Mesh=DGMesh,Coeffs=temp,type="probability")
 
         initDist = zeros(1,size(B,1))
         initDist[1] = 1
@@ -240,8 +240,8 @@ let
         pm_t = dist_t[[1:N₋;(end-N₊+1):end]]
         dist_t = reshape(dist_t[N₋+1:end-N₊],order,NPhases,NCells)
 
-        Mesh = SFFM.MakeMesh(Model=Model,NBases=order,Nodes=Nodes,Basis="lagrange")
-        simDist = SFFM.Sims2Dist(Model=Model,Mesh=Mesh,sims=sims,type="probability")
+        Mesh = SFFM.MakeMesh(model=model,NBases=order,Nodes=Nodes,Basis="lagrange")
+        simDist = SFFM.Sims2Dist(model=model,Mesh=Mesh,sims=sims,type="probability")
 
         localerrME = sum(abs.(pm_t-simDist.pm))
         localerrDG = sum(abs.(DGdist_t.pm-simDist.pm))

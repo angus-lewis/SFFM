@@ -2,21 +2,10 @@ module SFFM
 import Jacobi, LinearAlgebra, SparseArrays
 import Plots, StatsBase, KernelDensity
 
-include("SFFMPlots.jl")
-include("SimulateSFFM.jl")
-include("SFFMDGBase.jl")
-include("SFFMDGAdv.jl")
-include("SFFMDGpi.jl")
-include("SFM.jl")
-
-function MyPrint(Obj)
-    show(stdout, "text/plain", Obj)
-end
-
 """
 Construct a SFFM model object.
 
-    MakeModel(;
+    Model(;
         T::Array{Float64,2},
         C::Array{Float64,1},
         r::NamedTuple{(:r, :R)},
@@ -53,45 +42,98 @@ Construct a SFFM model object.
         `T[S[ℓ],S[m]]`.
 )
 """
-function MakeModel(;
-    T::Array{<:Real,2},
-    C::Array{<:Real,1},
-    r::NamedTuple{(:r, :R)},
-    Bounds::Array{<:Real,2} = [-Inf Inf; -Inf Inf],
-)
-    a(x) = abs.(r.r(x))
-    r = (r = r.r, R = r.R, a = a)
-    NPhases = length(C)
+struct Model 
+    T::Array{<:Real,2}
+    C::Array{<:Real,1}
+    r::NamedTuple{(:r, :R, :a)}
+    Bounds::Array{<:Real,2}
+    NPhases::Int
+    SDict::Dict{String,Array}
+    TDict::Dict{String,Array}
 
-    SDict = Dict{String,Array}("S" => 1:NPhases)
-    SDict["+"] = findall(C .> 0)
-    SDict["-"] = findall(C .< 0)
-    SDict["0"] = findall(C .== 0)
-    SDict["bullet"] = findall(C .!= 0)
-
-    TDict = Dict{String,Array}("T" => T)
-    for ℓ in ["+" "-" "0" "bullet"], m in ["+" "-" "0" "bullet"]
-        TDict[ℓ*m] = T[SDict[ℓ], SDict[m]]
-    end
-
-    Model = (
-        T = T,
-        C = C,
-        r = r,
-        Bounds = Bounds,
-        NPhases = NPhases,
-        SDict = SDict,
-        TDict = TDict,
+    function Model(;
+        T::Array{<:Real,2},
+        C::Array{<:Real,1},
+        r::NamedTuple{(:r, :R)},
+        Bounds::Array{<:Real,2} = [-Inf Inf; -Inf Inf],
     )
-    println("UPDATE: Model object created with fields ", keys(Model))
-    return Model
+        a(x) = abs.(r.r(x))
+        r = (r = r.r, R = r.R, a = a)
+        NPhases = length(C)
+    
+        SDict = Dict{String,Array}("S" => 1:NPhases)
+        SDict["+"] = findall(C .> 0)
+        SDict["-"] = findall(C .< 0)
+        SDict["0"] = findall(C .== 0)
+        SDict["bullet"] = findall(C .!= 0)
+    
+        TDict = Dict{String,Array}("T" => T)
+        for ℓ in ["+" "-" "0" "bullet"], m in ["+" "-" "0" "bullet"]
+            TDict[ℓ*m] = T[SDict[ℓ], SDict[m]]
+        end
+    
+        new(
+            T,
+            C,
+            r,
+            Bounds,
+            NPhases,
+            SDict,
+            TDict,
+        )
+        println("UPDATE: Model object created with fields ", fieldnames(Model))
+    end
+end 
+# function MakeModel(;
+#     T::Array{<:Real,2},
+#     C::Array{<:Real,1},
+#     r::NamedTuple{(:r, :R)},
+#     Bounds::Array{<:Real,2} = [-Inf Inf; -Inf Inf],
+# )
+#     a(x) = abs.(r.r(x))
+#     r = (r = r.r, R = r.R, a = a)
+#     NPhases = length(C)
+
+#     SDict = Dict{String,Array}("S" => 1:NPhases)
+#     SDict["+"] = findall(C .> 0)
+#     SDict["-"] = findall(C .< 0)
+#     SDict["0"] = findall(C .== 0)
+#     SDict["bullet"] = findall(C .!= 0)
+
+#     TDict = Dict{String,Array}("T" => T)
+#     for ℓ in ["+" "-" "0" "bullet"], m in ["+" "-" "0" "bullet"]
+#         TDict[ℓ*m] = T[SDict[ℓ], SDict[m]]
+#     end
+
+#     Model = (
+#         T = T,
+#         C = C,
+#         r = r,
+#         Bounds = Bounds,
+#         NPhases = NPhases,
+#         SDict = SDict,
+#         TDict = TDict,
+#     )
+#     println("UPDATE: Model object created with fields ", keys(Model))
+#     return Model
+# end
+
+include("SFFMPlots.jl")
+include("SimulateSFFM.jl")
+include("SFFMDGBase.jl")
+include("SFFMDGAdv.jl")
+include("SFFMDGpi.jl")
+include("SFM.jl")
+
+function MyPrint(Obj)
+    show(stdout, "text/plain", Obj)
 end
 
 """
 Construct all the DG operators.
 
     MakeAll(;
-        Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+        model::Model,
         Mesh::NamedTuple{
             (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
         },
@@ -99,7 +141,7 @@ Construct all the DG operators.
     )
 
 # Arguments
-- `Model`: a model object as output from MakeModel
+- `model`: a model object as output from Model
 - `Mesh`: a mesh object as output from MakeMesh
 - `approxType::String`: (optional) argument specifying how to approximate R (in
     `MakeR()`)
@@ -114,22 +156,22 @@ Construct all the DG operators.
     - `DR`: see `MakeDR`
 """
 function MakeAll(;
-    Model::NamedTuple{(:T, :C, :r, :Bounds, :NPhases, :SDict, :TDict)},
+    model::Model,
     Mesh::NamedTuple{
         (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
     },
     approxType::String = "projection"
 )
 
-    Matrices = MakeMatrices(Model = Model, Mesh = Mesh)
-    # MatricesR = MakeMatricesR(Model = Model, Mesh = Mesh)
-    B = MakeB(Model = Model, Mesh = Mesh, Matrices = Matrices)
-    R = MakeR(Model = Model, Mesh = Mesh, approxType = approxType)
-    D = MakeD(Model = Model, Mesh = Mesh, R = R, B = B)
+    Matrices = MakeMatrices(model = model, Mesh = Mesh)
+    # MatricesR = MakeMatricesR(model = model, Mesh = Mesh)
+    B = MakeB(model = model, Mesh = Mesh, Matrices = Matrices)
+    R = MakeR(model = model, Mesh = Mesh, approxType = approxType)
+    D = MakeD(model = model, Mesh = Mesh, R = R, B = B)
     # DR = MakeDR(
     #     Matrices = Matrices,
     #     MatricesR = MatricesR,
-    #     Model = Model,
+    #     model = model,
     #     Mesh = Mesh,
     #     B = B,
     # )

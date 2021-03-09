@@ -6,7 +6,7 @@ include("METools.jl")
 T = [-2.0 2.0; 1.0 -1.0]
 C = [1.0; -2.0]
 fn(x) = [ones(size(x)) ones(size(x))]
-Model = SFFM.MakeModel(;T=T,C=C,r=(r=fn,R=fn),Bounds=[0 10;-Inf Inf])
+model = SFFM.Model(;T=T,C=C,r=(r=fn,R=fn),Bounds=[0 10;-Inf Inf])
 N₋ = sum(C.<=0)
 N₊ = sum(C.>=0)
 NPhases = length(C)

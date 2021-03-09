@@ -20,7 +20,7 @@ function MakeXi(;
     Ψ::Array{Float64,2},
     probTransform::Bool = true,
     Mesh=1,
-    Model=1,
+    model=1,
 )
     # BBullet = [B["--"] B["-0"]; B["0-"] B["00"]]
     # invB = inv(Matrix(Bbullet))
@@ -54,7 +54,7 @@ function MakeXi(;
             w = [2]
         end
         A[:,1] = [ones(sum(Mesh.Fil["p-"]));
-        repeat(w, sum(Mesh.Fil["-"])).*repeat(repeat(Mesh.Δ./2,Model.NPhases,1)[Mesh.Fil["-"]]', Mesh.NBases, 1)[:];
+        repeat(w, sum(Mesh.Fil["-"])).*repeat(repeat(Mesh.Δ./2,model.NPhases,1)[Mesh.Fil["-"]]', Mesh.NBases, 1)[:];
         ones(sum(Mesh.Fil["q-"]))]# normalisation conditions
         b[1] = 1.0 # normalisation conditions
     end
@@ -103,7 +103,7 @@ function MakeLimitDistMatrices(;
     ξ::Array{<:Real},
     Mesh,
     probTransform::Bool = true,
-    Model=1,
+    model=1,
 )
     B00inv = inv(Matrix(B["00"]))
     invBmm = inv(B["--"] - B["-0"]*B00inv*B["0-"])
@@ -136,9 +136,9 @@ function MakeLimitDistMatrices(;
         idx₊ = Mesh.Fil["+"]
         idx₋ = Mesh.Fil["-"]
         idx₀ = Mesh.Fil["0"]
-        a₋ = [ones(sum(Mesh.Fil["p-"])); repeat(w, sum(Mesh.Fil["-"])).*(repeat(repeat(Mesh.Δ./2,Model.NPhases,1)[idx₋]', Mesh.NBases, 1)[:]); ones(sum(Mesh.Fil["q-"]))]
-        a₊ = [ones(sum(Mesh.Fil["p+"])); repeat(w, sum(Mesh.Fil["+"])).*(repeat(repeat(Mesh.Δ./2,Model.NPhases,1)[idx₊]', Mesh.NBases, 1)[:]); ones(sum(Mesh.Fil["q+"]))]
-        a₀ = [ones(sum(Mesh.Fil["p0"])); repeat(w, sum(Mesh.Fil["0"])).*(repeat(repeat(Mesh.Δ./2,Model.NPhases,1)[idx₀]', Mesh.NBases, 1)[:]); ones(sum(Mesh.Fil["q0"]))]
+        a₋ = [ones(sum(Mesh.Fil["p-"])); repeat(w, sum(Mesh.Fil["-"])).*(repeat(repeat(Mesh.Δ./2,model.NPhases,1)[idx₋]', Mesh.NBases, 1)[:]); ones(sum(Mesh.Fil["q-"]))]
+        a₊ = [ones(sum(Mesh.Fil["p+"])); repeat(w, sum(Mesh.Fil["+"])).*(repeat(repeat(Mesh.Δ./2,model.NPhases,1)[idx₊]', Mesh.NBases, 1)[:]); ones(sum(Mesh.Fil["q+"]))]
+        a₀ = [ones(sum(Mesh.Fil["p0"])); repeat(w, sum(Mesh.Fil["0"])).*(repeat(repeat(Mesh.Δ./2,model.NPhases,1)[idx₀]', Mesh.NBases, 1)[:]); ones(sum(Mesh.Fil["q0"]))]
         # display(a₋)
         # display(a₊)
         # display(a₀)

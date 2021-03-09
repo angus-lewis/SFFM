@@ -23,7 +23,7 @@ let
     for γ₂ in [11;16;22]
         c = c+1
         Ttemp = Tfun(γ₂)
-        tempModel = SFFM.MakeModel(T = Ttemp, C = C, r = r, Bounds = approxModel.Bounds)
+        tempModel = SFFM.Model(T = Ttemp, C = C, r = r, Bounds = approxModel.Bounds)
         println("created tempModel with upper bound x=", tempModel.Bounds[1,end])
         ## mesh
         Δ = 0.4
@@ -32,14 +32,14 @@ let
         Basis = "lagrange"
         NBases = 2
         Mesh = SFFM.MakeMesh(
-            Model = tempModel,
+            model = tempModel,
             Nodes = Nodes,
             NBases = NBases,
             Basis=Basis,
         )
 
         # compute the marginal via DG
-        All = SFFM.MakeAll(Model = tempModel, Mesh = Mesh, approxType = "projection")
+        All = SFFM.MakeAll(model = tempModel, Mesh = Mesh, approxType = "projection")
         Ψ = SFFM.PsiFun(D=All.D)
 
         # the distribution of X when Y first returns to 0
@@ -63,7 +63,7 @@ let
             ".",
         )
         tempDist = SFFM.Coeffs2Dist(
-            Model = tempModel,
+            model = tempModel,
             Mesh = Mesh,
             Coeffs = marginalX,
             type="density",
@@ -117,7 +117,7 @@ let
         # )
         #
         # # plot it
-        # q = SFFM.PlotSFM!(q;Model=tempModel,Mesh=Mesh,
+        # q = SFFM.PlotSFM!(q;model=tempModel,Mesh=Mesh,
         #     Dist = Dist,
         #     color = colours[c],
         #     label = "α₂: "*string(γ₂),

@@ -11,17 +11,17 @@ Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
 NBases = 2
 Basis = "lagrange"
 Mesh = SFFM.MakeMesh(
-    Model = approxModel,
+    model = approxModel,
     Nodes = Nodes,
     NBases = NBases,
     Basis = Basis,
 )
-let q = SFFM.PlotSFM(Model = approxModel)
+let q = SFFM.PlotSFM(model = approxModel)
     ## analytic version for comparison
     # construction
-    Ψₓ = SFFM.PsiFunX(Model=approxModel)
-    ξₓ = SFFM.MakeXiX(Model=approxModel, Ψ=Ψₓ)
-    pₓ, πₓ, Πₓ, Kₓ = SFFM.StationaryDistributionX(Model=approxModel, Ψ=Ψₓ, ξ=ξₓ)
+    Ψₓ = SFFM.PsiFunX(model=approxModel)
+    ξₓ = SFFM.MakeXiX(model=approxModel, Ψ=Ψₓ)
+    pₓ, πₓ, Πₓ, Kₓ = SFFM.StationaryDistributionX(model=approxModel, Ψ=Ψₓ, ξ=ξₓ)
 
     # evaluate the distribution
     analyticX = (
@@ -33,7 +33,7 @@ let q = SFFM.PlotSFM(Model = approxModel)
 
     # plot it
     q = SFFM.PlotSFM!(q;
-        Model=approxModel,
+        model=approxModel,
         Mesh=Mesh,
         Dist = analyticX,
         color = :red,
@@ -49,14 +49,14 @@ let q = SFFM.PlotSFM(Model = approxModel)
     for NBases in 1:2
         c = c+1
         Mesh = SFFM.MakeMesh(
-            Model = approxModel,
+            model = approxModel,
             Nodes = Nodes,
             NBases = NBases,
             Basis=Basis,
         )
 
         # compute the marginal via DG
-        All = SFFM.MakeAll(Model = approxModel, Mesh = Mesh, approxType = "projection")
+        All = SFFM.MakeAll(model = approxModel, Mesh = Mesh, approxType = "projection")
         Ψ = SFFM.PsiFun(D=All.D)
 
         # the distribution of X when Y first returns to 0
@@ -72,13 +72,13 @@ let q = SFFM.PlotSFM(Model = approxModel)
         )
         # convert marginalX to a distribution for plotting
         Dist = SFFM.Coeffs2Dist(
-            Model = approxModel,
+            model = approxModel,
             Mesh = Mesh,
             Coeffs = marginalX,
             type="density",
         )
         # plot it
-        q = SFFM.PlotSFM!(q;Model=approxModel,Mesh=Mesh,
+        q = SFFM.PlotSFM!(q;model=approxModel,Mesh=Mesh,
             Dist = Dist,
             color = colours[c],
             label = "DG: N_k = "*string(NBases),
@@ -97,7 +97,7 @@ let q = SFFM.PlotSFM(Model = approxModel)
         #
         # # convert w to a distribution
         # eigDist = SFFM.Coeffs2Dist(
-        #     Model = approxModel,
+        #     model = approxModel,
         #     Mesh = Mesh,
         #     Coeffs = w,
         #     type="density",
@@ -105,7 +105,7 @@ let q = SFFM.PlotSFM(Model = approxModel)
         #
         # # plot it
         # q = SFFM.PlotSFM!(q;
-        #     Model = approxModel,
+        #     model = approxModel,
         #     Mesh = Mesh,
         #     Dist = eigDist,
         #     color = NBases+10,
@@ -125,5 +125,5 @@ let q = SFFM.PlotSFM(Model = approxModel)
         )
     end
     display(q)
-    savefig(pwd()*"/examples/paperNumerics/dump/marginalStationaryDistX.png")
+    # savefig(pwd()*"/examples/paperNumerics/dump/marginalStationaryDistX.png")
 end
