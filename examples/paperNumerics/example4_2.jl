@@ -15,7 +15,7 @@ Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
 
 NBases = 1
 Basis = "lagrange"
-Mesh = SFFM.MakeMesh(
+mesh = SFFM.MakeMesh(
     model = approxModel,
     Nodes = Nodes,
     NBases = NBases,
@@ -23,7 +23,7 @@ Mesh = SFFM.MakeMesh(
 )
 
 ## turn sims into a cdf
-simprobs = SFFM.Sims2Dist(model=simModel,Mesh=Mesh,sims=sims,type="cumulative")
+simprobs = SFFM.Sims2Dist(model=simModel,mesh=mesh,sims=sims,type="cumulative")
 
 ## bootstrap to get CI
 function bootFun(sims; nBoot = 10_000)
@@ -35,7 +35,7 @@ function bootFun(sims; nBoot = 10_000)
             φ = sims.φ[sampleIdx],
             X = sims.X[sampleIdx],
         )
-        tempDist = SFFM.Sims2Dist(model=simModel,Mesh=Mesh,sims=tempData,type="cumulative").distribution[1,1:6,[2;4]]
+        tempDist = SFFM.Sims2Dist(model=simModel,mesh=mesh,sims=tempData,type="cumulative").distribution[1,1:6,[2;4]]
         samplesBoot[n,:,:] = tempDist
     end
     ql = zeros(6,2)
@@ -64,18 +64,18 @@ let
     styles = [:dashdot,:dash]
     for NBases in 1:2
         c = c+1
-        Mesh = SFFM.MakeMesh(
+        mesh = SFFM.MakeMesh(
             model = approxModel,
             Nodes = Nodes,
             NBases = NBases,
             Basis = Basis,
         )
         # construct matrices
-        All = SFFM.MakeAll(model = approxModel, Mesh = Mesh, approxType = "projection")
+        All = SFFM.MakeAll(model = approxModel, mesh = mesh, approxType = "projection")
         Ψ = SFFM.PsiFun(D=All.D)
 
         # construct initial condition
-        theNodes = Mesh.CellNodes[:,convert(Int,ceil(5/Δ))]
+        theNodes = mesh.CellNodes[:,convert(Int,ceil(5/Δ))]
         basisValues = zeros(length(theNodes))
         for n in 1:length(theNodes)
             basisValues[n] = prod(5.0.-theNodes[[1:n-1;n+1:end]])./prod(theNodes[n].-theNodes[[1:n-1;n+1:end]])
@@ -84,21 +84,21 @@ let
             zeros(sum(approxModel.C.<=0)) # LHS point mass
             zeros(sum(approxModel.C.>=0)) # RHS point mass
         ]
-        initprobs = zeros(Float64,Mesh.NBases,Mesh.NIntervals,approxModel.NPhases)
+        initprobs = zeros(Float64,mesh.NBases,mesh.NIntervals,approxModel.NPhases)
         initprobs[:,convert(Int,ceil(5/Δ)),3] = basisValues'*All.Matrices.Local.V.V*All.Matrices.Local.V.V'.*2/Δ
         initdist = (
             pm = initpm,
             distribution = initprobs,
-            x = Mesh.CellNodes,
+            x = mesh.CellNodes,
             type = "density"
         ) # convert to a distribution object so we can apply Dist2Coeffs
         # convert to Coeffs α in the DG context
-        x0 = SFFM.Dist2Coeffs(model = approxModel, Mesh = Mesh, Distn = initdist)
+        x0 = SFFM.Dist2Coeffs(model = approxModel, mesh = mesh, Distn = initdist)
         # the initial condition on Ψ is restricted to + states so find the + states
         plusIdx = [
-            Mesh.Fil["p+"];
-            repeat(Mesh.Fil["+"]', Mesh.NBases, 1)[:];
-            Mesh.Fil["q+"];
+            mesh.Fil["p+"];
+            repeat(mesh.Fil["+"]', mesh.NBases, 1)[:];
+            mesh.Fil["q+"];
         ]
         # get the elements of x0 in + states only
         x0 = x0[plusIdx]'
@@ -109,14 +109,14 @@ let
         w = x0*Ψ
         # this can occur in - states only, so find the - states
         minusIdx = [
-            Mesh.Fil["p-"];
-            repeat(Mesh.Fil["-"]', Mesh.NBases, 1)[:];
-            Mesh.Fil["q-"];
+            mesh.Fil["p-"];
+            repeat(mesh.Fil["-"]', mesh.NBases, 1)[:];
+            mesh.Fil["q-"];
         ]
         # then map to the whole state space for plotting
         z = zeros(
             Float64,
-            Mesh.NBases*Mesh.NIntervals * approxModel.NPhases +
+            mesh.NBases*mesh.NIntervals * approxModel.NPhases +
                 sum(approxModel.C.<=0) + sum(approxModel.C.>=0)
         )
         z[minusIdx] = w
@@ -126,7 +126,7 @@ let
         # convert to a distribution object for plotting
         DGProbs = SFFM.Coeffs2Dist(
             model = approxModel,
-            Mesh = Mesh,
+            mesh = mesh,
             Coeffs = z,
             type="cumulative",
         )

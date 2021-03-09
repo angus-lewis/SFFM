@@ -19,7 +19,7 @@ function MakeXi(;
     B::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
     Ψ::Array{Float64,2},
     probTransform::Bool = true,
-    Mesh=1,
+    mesh=1,
     model=1,
 )
     # BBullet = [B["--"] B["-0"]; B["0-"] B["00"]]
@@ -42,20 +42,20 @@ function MakeXi(;
         A[:,1] .= 1.0 # normalisation conditions
         b[1] = 1.0 # normalisation conditions
     elseif !probTransform
-        idx₋ = [Mesh.Fil["p-"]; Mesh.Fil["-"]; Mesh.Fil["q-"]]
-        if Mesh.NBases>1
+        idx₋ = [mesh.Fil["p-"]; mesh.Fil["-"]; mesh.Fil["q-"]]
+        if mesh.NBases>1
             w =
                 2.0 ./ (
-                    Mesh.NBases *
-                    (Mesh.NBases - 1) *
-                    Jacobi.legendre.(Jacobi.zglj(Mesh.NBases, 0, 0), Mesh.NBases - 1) .^ 2
+                    mesh.NBases *
+                    (mesh.NBases - 1) *
+                    Jacobi.legendre.(Jacobi.zglj(mesh.NBases, 0, 0), mesh.NBases - 1) .^ 2
                 )
         else
             w = [2]
         end
-        A[:,1] = [ones(sum(Mesh.Fil["p-"]));
-        repeat(w, sum(Mesh.Fil["-"])).*repeat(repeat(Mesh.Δ./2,model.NPhases,1)[Mesh.Fil["-"]]', Mesh.NBases, 1)[:];
-        ones(sum(Mesh.Fil["q-"]))]# normalisation conditions
+        A[:,1] = [ones(sum(mesh.Fil["p-"]));
+        repeat(w, sum(mesh.Fil["-"])).*repeat(repeat(mesh.Δ./2,model.NPhases,1)[mesh.Fil["-"]]', mesh.NBases, 1)[:];
+        ones(sum(mesh.Fil["q-"]))]# normalisation conditions
         b[1] = 1.0 # normalisation conditions
     end
 
@@ -75,7 +75,7 @@ NOTE: IMPLEMENTED FOR LAGRANGE BASIS ONLY
         R::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
         Ψ::Array{<:Real},
         ξ::Array{<:Real},
-        Mesh,
+        mesh::Mesh,
     )
 
 # Arguments
@@ -101,7 +101,7 @@ function MakeLimitDistMatrices(;
     R::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
     Ψ::Array{<:Real},
     ξ::Array{<:Real},
-    Mesh,
+    mesh::Mesh,
     probTransform::Bool = true,
     model=1,
 )
@@ -124,21 +124,21 @@ function MakeLimitDistMatrices(;
     if probTransform
         α = sum(αintegralPibullet) + sum(αintegralPi0) + sum(αp)
     elseif !probTransform
-        if Mesh.NBases>1
+        if mesh.NBases>1
             w = 2.0 ./ (
-                    Mesh.NBases *
-                    (Mesh.NBases - 1) *
-                    Jacobi.legendre.(Jacobi.zglj(Mesh.NBases, 0, 0), Mesh.NBases - 1) .^ 2
+                    mesh.NBases *
+                    (mesh.NBases - 1) *
+                    Jacobi.legendre.(Jacobi.zglj(mesh.NBases, 0, 0), mesh.NBases - 1) .^ 2
                 )
         else
             w = [2]
         end
-        idx₊ = Mesh.Fil["+"]
-        idx₋ = Mesh.Fil["-"]
-        idx₀ = Mesh.Fil["0"]
-        a₋ = [ones(sum(Mesh.Fil["p-"])); repeat(w, sum(Mesh.Fil["-"])).*(repeat(repeat(Mesh.Δ./2,model.NPhases,1)[idx₋]', Mesh.NBases, 1)[:]); ones(sum(Mesh.Fil["q-"]))]
-        a₊ = [ones(sum(Mesh.Fil["p+"])); repeat(w, sum(Mesh.Fil["+"])).*(repeat(repeat(Mesh.Δ./2,model.NPhases,1)[idx₊]', Mesh.NBases, 1)[:]); ones(sum(Mesh.Fil["q+"]))]
-        a₀ = [ones(sum(Mesh.Fil["p0"])); repeat(w, sum(Mesh.Fil["0"])).*(repeat(repeat(Mesh.Δ./2,model.NPhases,1)[idx₀]', Mesh.NBases, 1)[:]); ones(sum(Mesh.Fil["q0"]))]
+        idx₊ = mesh.Fil["+"]
+        idx₋ = mesh.Fil["-"]
+        idx₀ = mesh.Fil["0"]
+        a₋ = [ones(sum(mesh.Fil["p-"])); repeat(w, sum(mesh.Fil["-"])).*(repeat(repeat(mesh.Δ./2,model.NPhases,1)[idx₋]', mesh.NBases, 1)[:]); ones(sum(mesh.Fil["q-"]))]
+        a₊ = [ones(sum(mesh.Fil["p+"])); repeat(w, sum(mesh.Fil["+"])).*(repeat(repeat(mesh.Δ./2,model.NPhases,1)[idx₊]', mesh.NBases, 1)[:]); ones(sum(mesh.Fil["q+"]))]
+        a₀ = [ones(sum(mesh.Fil["p0"])); repeat(w, sum(mesh.Fil["0"])).*(repeat(repeat(mesh.Δ./2,model.NPhases,1)[idx₀]', mesh.NBases, 1)[:]); ones(sum(mesh.Fil["q0"]))]
         # display(a₋)
         # display(a₊)
         # display(a₀)
@@ -153,11 +153,11 @@ function MakeLimitDistMatrices(;
     integralPi0 = αintegralPi0 ./ α
 
     marginalX = zeros(Float64, n₊ + n₋ + n₀)
-    idx₊ = [Mesh.Fil["p+"]; repeat(Mesh.Fil["+"]', Mesh.NBases, 1)[:]; Mesh.Fil["q+"]]
+    idx₊ = [mesh.Fil["p+"]; repeat(mesh.Fil["+"]', mesh.NBases, 1)[:]; mesh.Fil["q+"]]
     marginalX[idx₊] = integralPibullet[1:n₊]
-    idx₋ = [Mesh.Fil["p-"]; repeat(Mesh.Fil["-"]', Mesh.NBases, 1)[:]; Mesh.Fil["q-"]]
+    idx₋ = [mesh.Fil["p-"]; repeat(mesh.Fil["-"]', mesh.NBases, 1)[:]; mesh.Fil["q-"]]
     marginalX[idx₋] = integralPibullet[(n₊+1):end] + p[1:n₋]
-    idx₀ = [Mesh.Fil["p0"]; repeat(Mesh.Fil["0"]', Mesh.NBases, 1)[:]; Mesh.Fil["q0"]]
+    idx₀ = [mesh.Fil["p0"]; repeat(mesh.Fil["0"]', mesh.NBases, 1)[:]; mesh.Fil["q0"]]
     marginalX[idx₀] = integralPi0[:] + p[(n₋+1):end]
 
     return marginalX, p, K

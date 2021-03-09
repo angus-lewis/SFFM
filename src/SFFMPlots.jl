@@ -3,18 +3,7 @@ Add to a figure a plot of a SFM distribution.
 
     PlotSFM!(p;
         model::Model,
-        Mesh::NamedTuple{
-            (
-                :NBases,
-                :CellNodes,
-                :Fil,
-                :Δ,
-                :NIntervals,
-                :Nodes,
-                :TotalNBases,
-                :Basis,
-            ),
-        },
+        mesh::Mesh,
         Dist::NamedTuple{(:pm, :distribution, :x, :type)},
         color = 1,
     )
@@ -22,24 +11,13 @@ Add to a figure a plot of a SFM distribution.
 # Arguments
 - `p::Plots.Plot{Plots.GRBackend}`: a plot object as initialised by `PlotSFM()`
 - `Model`: A Model object
-- `Mesh`: A Mesh tuple from `MakeMesh`
+- `mesh`: A Mesh object from `MakeMesh`
 - `Dist`: A distribution object as output from `Coeff2Dist` or `Sims2Dist`
 - `color`: (optional) a colour specifier for the plot
 """
 function PlotSFM!(p;
     model::Model,
-    Mesh::NamedTuple{
-        (
-            :NBases,
-            :CellNodes,
-            :Fil,
-            :Δ,
-            :NIntervals,
-            :Nodes,
-            :TotalNBases,
-            :Basis,
-        ),
-    },
+    mesh::Mesh,
     Dist::NamedTuple{(:pm, :distribution, :x, :type)},
     color = 1,
     label = false,
@@ -74,7 +52,7 @@ function PlotSFM!(p;
                 Dist.distribution[:, :, i][:],
                 alpha = 0.25,
                 fillcolor = color,
-                bar_width = Mesh.Δ,
+                bar_width = mesh.Δ,
                 subplot = i,
                 title = "φ=" * string(i),
                 ylabel = Dist.type,
@@ -145,25 +123,14 @@ Initialise and plot a SFM distribution.
 
     PlotSFM(
         model::Model,
-        Mesh::NamedTuple{
-            (
-                :NBases,
-                :CellNodes,
-                :Fil,
-                :Δ,
-                :NIntervals,
-                :Nodes,
-                :TotalNBases,
-                :Basis,
-            ),
-        },
+        mesh::Mesh,
         Dist::NamedTuple{(:pm, :distribution, :x, :type)},
         color = 1,
     )
 
 # Arguments
 - `Model`: A Model object
-- `Mesh`: A Mesh tuple from `MakeMesh`
+- `mesh`: A Mesh object from `MakeMesh`
 - `Dist`: A distribution object as output from `Coeff2Dist` or `Sims2Dist`
 - `color`: (optional) a colour specifier for the plot
 
@@ -173,26 +140,15 @@ Initialise and plot a SFM distribution.
 """
 function PlotSFM(;
     model::Model,
-    Mesh::NamedTuple{
-        (
-            :NBases,
-            :CellNodes,
-            :Fil,
-            :Δ,
-            :NIntervals,
-            :Nodes,
-            :TotalNBases,
-            :Basis,
-        ),
-    } = (
-        NBases = 0,
-        CellNodes = Float64[],
-        Fil = Dict(),
-        Δ = 0,
-        NIntervals = 0,
-        Nodes = 0,
-        TotalNBases = 0,
-        Basis = "",
+    mesh::Mesh = SFFM.Mesh(
+        0,
+        Array{Real,2}(undef,0,0),
+        Dict{String,BitArray{1}}(),
+        Array{Float64,1}(undef,0),
+        0,
+        Array{Float64,1}(undef,0),
+        0,
+        "",
     ),
     Dist::NamedTuple{(:pm, :distribution, :x, :type)} =
         (pm=Float64[],distribution=Float64[],x=Float64[],type=""),
@@ -208,7 +164,7 @@ function PlotSFM(;
     if length(Dist.distribution) != 0
         p = SFFM.PlotSFM!(p;
             model = model,
-            Mesh = Mesh,
+            mesh = mesh,
             Dist = Dist,
             color = color,
             label = label,

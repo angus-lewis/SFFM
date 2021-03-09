@@ -21,13 +21,13 @@ model = SFFM.Model(T = T, C = C, r = r, Bounds = Bounds)
 Nodes = [0;1;1.8]
 NBases = 2
 Basis = "lagrange"
-Mesh = SFFM.MakeMesh(model = model, Nodes = Nodes, NBases = NBases, Basis=Basis)
+mesh = SFFM.MakeMesh(model = model, Nodes = Nodes, NBases = NBases, Basis=Basis)
 
 ## Make matrices
-All = SFFM.MakeAll(model=model,Mesh=Mesh)
-M = SFFM.MakeMatrices(model = model, Mesh = Mesh, probTransform=false)
-B = SFFM.MakeB(model=model,Mesh=Mesh,Matrices=M, probTransform=false)
-R = SFFM.MakeR(model=model,Mesh=Mesh)
+All = SFFM.MakeAll(model=model,mesh=mesh)
+M = SFFM.MakeMatrices(model = model, mesh = mesh, probTransform=false)
+B = SFFM.MakeB(model=model,mesh=mesh,Matrices=M, probTransform=false)
+R = SFFM.MakeR(model=model,mesh=mesh)
 
 println("")
 println("The operator B looks like: ")
@@ -86,8 +86,8 @@ println("")
 println("for 22--")
 display(Matrix(B.BDict["22--"]))
 
-plusIdx = B.QBDidx[[Mesh.Fil["p+"];repeat(Mesh.Fil["+"]',2)[:];Mesh.Fil["q+"]]]
-minusIdx = B.QBDidx[[Mesh.Fil["p-"];repeat(Mesh.Fil["-"]',2)[:];Mesh.Fil["q-"]]]
+plusIdx = B.QBDidx[[mesh.Fil["p+"];repeat(mesh.Fil["+"]',2)[:];mesh.Fil["q+"]]]
+minusIdx = B.QBDidx[[mesh.Fil["p-"];repeat(mesh.Fil["-"]',2)[:];mesh.Fil["q-"]]]
 println("")
 println("for ++")
 display(Matrix(B.B)[plusIdx,plusIdx])

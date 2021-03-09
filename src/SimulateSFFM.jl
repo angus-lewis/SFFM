@@ -482,31 +482,20 @@ Convert from simulations of a SFM or SFFM to a distribution.
 
     Sims2Dist(;
         model::Model,
-        Mesh::NamedTuple{
-            (
-                :NBases,
-                :CellNodes,
-                :Fil,
-                :Δ,
-                :NIntervals,
-                :Nodes,
-                :TotalNBases,
-                :Basis,
-            ),
-        },
+        mesh::Mesh,
         sims::NamedTuple,
         type::String = "density",
     )
 
 # Arguments
 - `Model`: a Model object
-- `Mesh`: a mesh object as output from `MakeMesh`
+- `mesh`: a Mesh object as output from `MakeMesh`
 - `sims::Array`: a named tuple as output of `SFFMSim` or `SFMSim`
 - `type::String`: an (optional) declaration of what type of distribution you
     want to convert to. Options are `"probability"` to return the probabilities
     ``P(X(t)∈ D_k, φ(t) = i)`` where ``D_k``is the kth cell, `"cumulative"` to
     return the CDF evaluated at cell edges, or `"density"` to return an
-    approximation to the density ar at the Mesh.CellNodes.
+    approximation to the density ar at the mesh.CellNodes.
 
 # Output
 - a tuple with keys
@@ -539,33 +528,22 @@ Convert from simulations of a SFM or SFFM to a distribution.
 """
 function Sims2Dist(;
     model::Model,
-    Mesh::NamedTuple{
-        (
-            :NBases,
-            :CellNodes,
-            :Fil,
-            :Δ,
-            :NIntervals,
-            :Nodes,
-            :TotalNBases,
-            :Basis,
-        ),
-    },
+    mesh::Mesh,
     sims::NamedTuple,
     type::String = "density",
 )
 
     if type == "density"
-        distribution = zeros(Float64, Mesh.NBases, Mesh.NIntervals, model.NPhases)
+        distribution = zeros(Float64, mesh.NBases, mesh.NIntervals, model.NPhases)
     elseif type == "probability"
-        distribution = zeros(Float64, 1, Mesh.NIntervals, model.NPhases)
+        distribution = zeros(Float64, 1, mesh.NIntervals, model.NPhases)
     elseif type == "cumulative"
-        distribution = zeros(Float64, 2, Mesh.NIntervals, model.NPhases)
+        distribution = zeros(Float64, 2, mesh.NIntervals, model.NPhases)
     end
     pm = zeros(Float64, sum(model.C .<= 0) + sum(model.C .>= 0))
     pc = 0
     qc = 0
-    xvals = Mesh.CellNodes
+    xvals = mesh.CellNodes
     for i = 1:model.NPhases
         # find the simluated value of imterest for this iteration
         whichsims =
@@ -576,11 +554,11 @@ function Sims2Dist(;
         totalprob = sum(whichsims) / length(sims.φ)
         if type == "probability"
             if length(data)!=0
-                h = StatsBase.fit(StatsBase.Histogram, data, Mesh.Nodes)
+                h = StatsBase.fit(StatsBase.Histogram, data, mesh.Nodes)
                 h = h.weights ./ sum(h.weights) * totalprob
                 distribution[:, :, i] = h
             end
-            xvals = Mesh.CellNodes[1, :] + Mesh.Δ / 2
+            xvals = mesh.CellNodes[1, :] + mesh.Δ / 2
         elseif type == "density"
             if length(data)!=0
                 if model.Bounds[1, end] == Inf
@@ -593,22 +571,22 @@ function Sims2Dist(;
                 end
                 distribution[:, :, i] =
                     reshape(
-                        KernelDensity.pdf(U, Mesh.CellNodes[:])',
-                        Mesh.NBases,
-                        Mesh.NIntervals,
+                        KernelDensity.pdf(U, mesh.CellNodes[:])',
+                        mesh.NBases,
+                        mesh.NIntervals,
                     ) * totalprob
             end
         elseif type == "cumulative"
             if length(data)!=0
-                h = StatsBase.fit(StatsBase.Histogram, data, Mesh.Nodes)
+                h = StatsBase.fit(StatsBase.Histogram, data, mesh.Nodes)
                 tempDist = h.weights ./ sum(h.weights) * totalprob
                 tempDist = cumsum(tempDist)
                 distribution[1, 2:end, i] = tempDist[1:end-1]
                 distribution[2, :, i] = tempDist
-                if Mesh.NBases == 1
-                    xvals = [Mesh.Nodes[1:end-1]';Mesh.Nodes[2:end]']
+                if mesh.NBases == 1
+                    xvals = [mesh.Nodes[1:end-1]';mesh.Nodes[2:end]']
                 else
-                    xvals = Mesh.CellNodes[[1;end], :]
+                    xvals = mesh.CellNodes[[1;end], :]
                 end
             end
         end
@@ -633,9 +611,9 @@ function Sims2Dist(;
             end
         end
     end
-    if type == "density" && Mesh.NBases == 1
+    if type == "density" && mesh.NBases == 1
         distribution = [1; 1] .* distribution
-        xvals = [Mesh.CellNodes-Mesh.Δ'/2;Mesh.CellNodes+Mesh.Δ'/2]
+        xvals = [mesh.CellNodes-mesh.Δ'/2;mesh.CellNodes+mesh.Δ'/2]
     end
     return (pm = pm, distribution = distribution, x = xvals, type = type)
 end

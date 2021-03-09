@@ -37,8 +37,8 @@ let
         globalerrπME = []
         globalerrDG = []
         for NBases in vecNBases
-            Mesh = SFFM.MakeMesh(model=model,NBases=NBases,Nodes=Nodes,Basis="lagrange")
-            simDist = SFFM.Sims2Dist(model=model,Mesh=Mesh,sims=sims,type="probability")
+            mesh = SFFM.MakeMesh(model=model,NBases=NBases,Nodes=Nodes,Basis="lagrange")
+            simDist = SFFM.Sims2Dist(model=model,mesh=mesh,sims=sims,type="probability")
 
             # define generator for up approximation
             Erlang = MakeErlang(NBases, mean = Δ)
@@ -89,13 +89,13 @@ let
             )
 
             DGMesh = SFFM.MakeMesh(model=model,NBases=1,Nodes=collect(Nodes[1]:Δ/NBases:Nodes[end]),Basis="lagrange")
-            All = SFFM.MakeAll(model=model,Mesh=DGMesh)
+            All = SFFM.MakeAll(model=model,mesh=DGMesh)
 
             initDist = zeros(1,size(B,1))
             initDist[1] = 1
 
             temp = initDist*exp(Matrix(All.B.B)*t)#SFFM.EulerDG(D=All.B.B,y=t,x0=initDist)#
-            DGdist_t = SFFM.Coeffs2Dist(model=model,Mesh=DGMesh,Coeffs=temp,type="probability")
+            DGdist_t = SFFM.Coeffs2Dist(model=model,mesh=DGMesh,Coeffs=temp,type="probability")
 
             dist_t = initDist*exp(B*t)#SFFM.EulerDG(D=B,y=t,x0=initDist)#
             pm_t = dist_t[[1:N₋;(end-N₊+1):end]]
@@ -206,8 +206,8 @@ end
 #         globalerrSomePHBkwd = []
 #         globalerrDG = []
 #         for NBases in vecNBases
-#             Mesh = SFFM.MakeMesh(model=model,NBases=NBases,Nodes=Nodes,Basis="lagrange")
-#             simDist = SFFM.Sims2Dist(model=model,Mesh=Mesh,sims=sims,type="probability")
+#             mesh = SFFM.MakeMesh(model=model,NBases=NBases,Nodes=Nodes,Basis="lagrange")
+#             simDist = SFFM.Sims2Dist(model=model,mesh=mesh,sims=sims,type="probability")
 #
 #             # define generator for up approximation
 #             Erlang = MakeErlang(NBases, mean = Δ)
@@ -264,13 +264,13 @@ end
 #             )
 #
 #             DGMesh = SFFM.MakeMesh(model=model,NBases=1,Nodes=collect(Nodes[1]:Δ/NBases:Nodes[end]),Basis="lagrange")
-#             All = SFFM.MakeAll(model=model,Mesh=DGMesh)
+#             All = SFFM.MakeAll(model=model,mesh=DGMesh)
 #
 #             initDist = zeros(1,size(B,1))
 #             initDist[1] = 1
 #
 #             temp = initDist*exp(Matrix(All.B.B)*t)#SFFM.EulerDG(D=All.B.B,y=t,x0=initDist)#
-#             DGdist_t = SFFM.Coeffs2Dist(model=model,Mesh=DGMesh,Coeffs=temp,type="probability")
+#             DGdist_t = SFFM.Coeffs2Dist(model=model,mesh=DGMesh,Coeffs=temp,type="probability")
 #
 #             dist_t = initDist*exp(B*t)#SFFM.EulerDG(D=B,y=t,x0=initDist)#
 #             pm_t = dist_t[[1:N₋;(end-N₊+1):end]]
@@ -436,11 +436,11 @@ end
 # display(eigen(Q̃).values)
 #
 #
-# Mesh = SFFM.MakeMesh(
+# mesh = SFFM.MakeMesh(
 #     model = model,
 #     Nodes = collect(0:1:10),
 #     NBases = 4,
 #     Basis = "lagrange",
 # )
 #
-# Mat = SFFM.MakeMatrices(Mesh=Mesh,model=model)
+# Mat = SFFM.MakeMatrices(mesh=mesh,model=model)

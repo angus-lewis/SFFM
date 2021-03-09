@@ -35,37 +35,37 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         # define the mesh for each iteration
         NBases = NBasesRange[n]
         Δ = Δs[d]
-        println("Mesh details; h = ", Δ, " NBases = ", NBases)
+        println("mesh details; h = ", Δ, " NBases = ", NBases)
 
         # collect time and memory stats
         ~, times[d, n], mems[d, n], gctimes[d, n], alloc[d, n] = @timed begin
             Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
-            Mesh = SFFM.MakeMesh(
+            mesh = SFFM.MakeMesh(
                 model = approxModel,
                 Nodes = Nodes,
                 NBases = NBases,
                 Basis = Basis,
             )
-            approxSpec[d, n] = (Δ, NBases, Mesh.TotalNBases * approxModel.NPhases)
+            approxSpec[d, n] = (Δ, NBases, mesh.TotalNBases * approxModel.NPhases)
 
             # compute the marginal via DG
-            Matrices = SFFM.MakeMatrices(model=approxModel,Mesh=Mesh,probTransform=false)
-            MatricesR = SFFM.MakeMatricesR(model=approxModel,Mesh=Mesh)
-            B = SFFM.MakeB(model=approxModel,Mesh=Mesh,Matrices=Matrices,probTransform=false)
+            Matrices = SFFM.MakeMatrices(model=approxModel,mesh=mesh,probTransform=false)
+            MatricesR = SFFM.MakeMatricesR(model=approxModel,mesh=mesh)
+            B = SFFM.MakeB(model=approxModel,mesh=mesh,Matrices=Matrices,probTransform=false)
             Dr = SFFM.MakeDR(
                 Matrices=Matrices,
                 MatricesR=MatricesR,
                 model=approxModel,
-                Mesh=Mesh,
+                mesh=mesh,
                 B=B,
             )
             Ψ = SFFM.PsiFun(D=Dr.DDict)
-            R = SFFM.MakeR(model=approxModel,Mesh=Mesh,approxType="projection",probTransform=false)
-            # All = SFFM.MakeAll(model = approxModel, Mesh = Mesh, approxType = "projection")
+            R = SFFM.MakeR(model=approxModel,mesh=mesh,approxType="projection",probTransform=false)
+            # All = SFFM.MakeAll(model = approxModel, mesh = mesh, approxType = "projection")
             # Ψ = SFFM.PsiFun(D = All.D)
 
             # the distribution of X when Y first returns to 0
-            ξ = SFFM.MakeXi(B = B.BDict, Ψ = Ψ, probTransform = false, Mesh=Mesh, model=approxModel)
+            ξ = SFFM.MakeXi(B = B.BDict, Ψ = Ψ, probTransform = false, mesh=mesh, model=approxModel)
 
             marginalX, p, K = SFFM.MakeLimitDistMatrices(;
                 B = B.BDict,
@@ -73,7 +73,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
                 R = R.RDict,
                 Ψ = Ψ,
                 ξ = ξ,
-                Mesh = Mesh,
+                mesh = mesh,
                 probTransform = false,
                 model=approxModel
             )
@@ -81,7 +81,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         # convert marginalX to a distribution for analysis
         DGStationaryDist = SFFM.Coeffs2Dist(
             model = approxModel,
-            Mesh = Mesh,
+            mesh = mesh,
             Coeffs = marginalX,
             type = "probability",
             probTransform = false,
@@ -92,8 +92,8 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         analyticX = (
             pm = [pₓ[:]; 0; 0],
             distribution =
-                Πₓ(Matrix(Mesh.Nodes[2:end]')) - Πₓ(Matrix(Mesh.Nodes[1:end-1]')),
-            x = Mesh.Nodes[1:end-1] + Mesh.Δ / 2,
+                Πₓ(Matrix(mesh.Nodes[2:end]')) - Πₓ(Matrix(mesh.Nodes[1:end-1]')),
+            x = mesh.Nodes[1:end-1] + mesh.Δ / 2,
             type = "probability",
         )
 

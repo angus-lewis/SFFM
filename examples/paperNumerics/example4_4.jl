@@ -31,7 +31,7 @@ let
 
         Basis = "lagrange"
         NBases = 2
-        Mesh = SFFM.MakeMesh(
+        mesh = SFFM.MakeMesh(
             model = tempModel,
             Nodes = Nodes,
             NBases = NBases,
@@ -39,7 +39,7 @@ let
         )
 
         # compute the marginal via DG
-        All = SFFM.MakeAll(model = tempModel, Mesh = Mesh, approxType = "projection")
+        All = SFFM.MakeAll(model = tempModel, mesh = mesh, approxType = "projection")
         Ψ = SFFM.PsiFun(D=All.D)
 
         # the distribution of X when Y first returns to 0
@@ -51,7 +51,7 @@ let
             R = All.R.RDict,
             Ψ = Ψ,
             ξ = ξ,
-            Mesh = Mesh,
+            mesh = mesh,
         )
         println("For γ₂ = ",
             γ₂, ", χ⁰ = ",
@@ -64,11 +64,11 @@ let
         )
         tempDist = SFFM.Coeffs2Dist(
             model = tempModel,
-            Mesh = Mesh,
+            mesh = mesh,
             Coeffs = marginalX,
             type="density",
         )
-        temp = zeros(Mesh.NBases,Mesh.NIntervals,2)
+        temp = zeros(mesh.NBases,mesh.NIntervals,2)
         temp[:,:,1] = tempDist.distribution[:,:,1]+tempDist.distribution[:,:,2]
         temp[:,:,2] = tempDist.distribution[:,:,3]+tempDist.distribution[:,:,4]
         q = plot!(
@@ -117,7 +117,7 @@ let
         # )
         #
         # # plot it
-        # q = SFFM.PlotSFM!(q;model=tempModel,Mesh=Mesh,
+        # q = SFFM.PlotSFM!(q;model=tempModel,mesh=mesh,
         #     Dist = Dist,
         #     color = colours[c],
         #     label = "α₂: "*string(γ₂),

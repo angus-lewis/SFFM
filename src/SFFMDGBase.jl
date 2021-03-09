@@ -23,7 +23,7 @@ Constructs a Mesh object (a tuple with fields which describe the DG mesh).
     the `"legendre"` basis
 
 # Output
-- a MakeMesh tuple with keys:
+- a Mesh object with fieldnames:
     - `:NBases`: the number of bases in each cell
     - `:CellNodes`: Array of nodal points (cell edges + GLL points)
     - `:Fil`: As described in the arguments
@@ -113,18 +113,18 @@ function MakeMesh(;
         end
     end
 
-    out = (
-        NBases = NBases,
-        CellNodes = CellNodes,
-        Fil = Fil,
-        Δ = Δ,
-        NIntervals = NIntervals,
-        Nodes = Nodes,
-        TotalNBases = TotalNBases,
-        Basis = Basis,
+    mesh = SFFM.Mesh(
+        NBases,
+        CellNodes,
+        Fil,
+        Δ,
+        NIntervals,
+        Nodes,
+        TotalNBases,
+        Basis,
     )
-    println("UPDATE: Mesh object created with fields ",keys(out))
-    return out
+    println("UPDATE: Mesh object created with fields ", fieldnames(SFFM.Mesh))
+    return mesh
 end
 
 """
@@ -178,51 +178,29 @@ end
 Constructs a block diagonal matrix from blocks
 
     MakeBlockDiagonalMatrix(;
-        Mesh::NamedTuple{
-            (
-                :NBases,
-                :CellNodes,
-                :Fil,
-                :Δ,
-                :NIntervals,
-                :Nodes,
-                :TotalNBases,
-                :Basis,
-            ),
-        },
+        mesh::Mesh,
         Blocks::Array{Float64,2},
         Factors::Array,
     )
 
 # Aguments
-- `Mesh`: A tuple from MakeMesh
-- `Blocks::Array{Float64,2}`: a `Mesh.NBases×Mesh.NBases` block to put along the
+- `mesh`: A Mesh object
+- `Blocks::Array{Float64,2}`: a `mesh.NBases×mesh.NBases` block to put along the
         diagonal
-- `Factors::Array{<:Real,1}`: a `Mesh.NIntervals×1` vector of factors which multiply blocks
+- `Factors::Array{<:Real,1}`: a `mesh.NIntervals×1` vector of factors which multiply blocks
 
 # Output
-- `BlockMatrix::Array{Float64,2}`: `Mesh.TotalNBases×Mesh.TotalNBases` the
+- `BlockMatrix::Array{Float64,2}`: `mesh.TotalNBases×mesh.TotalNBases` the
         block matrix
 """
 function MakeBlockDiagonalMatrix(;
-    Mesh::NamedTuple{
-        (
-            :NBases,
-            :CellNodes,
-            :Fil,
-            :Δ,
-            :NIntervals,
-            :Nodes,
-            :TotalNBases,
-            :Basis,
-        ),
-    },
+    mesh::Mesh,
     Blocks::Array{Float64,2},
     Factors::Array,
 )
-    BlockMatrix = SparseArrays.spzeros(Float64, Mesh.TotalNBases, Mesh.TotalNBases)
-    for i = 1:Mesh.NIntervals
-        idx = (1:Mesh.NBases) .+ (i - 1) * Mesh.NBases
+    BlockMatrix = SparseArrays.spzeros(Float64, mesh.TotalNBases, mesh.TotalNBases)
+    for i = 1:mesh.NIntervals
+        idx = (1:mesh.NBases) .+ (i - 1) * mesh.NBases
         BlockMatrix[idx, idx] = Blocks * Factors[i]
     end
     return (BlockMatrix = BlockMatrix)
@@ -232,18 +210,7 @@ end
 Constructs the flux matrices for DG
 
     MakeFluxMatrix(;
-        Mesh::NamedTuple{
-            (
-                :NBases,
-                :CellNodes,
-                :Fil,
-                :Δ,
-                :NIntervals,
-                :Nodes,
-                :TotalNBases,
-                :Basis,
-            ),
-        },
+        mesh::Mesh,
         model::Model,
         Phi,
         Dw,
@@ -251,7 +218,7 @@ Constructs the flux matrices for DG
     )
 
 # Arguments
-- `Mesh`: a Mesh tuple from MakeMesh
+- `mesh`: a Mesh object
 - `Phi::Array{Float64,2}`: where `Phi[1,:]` and `Phi[1,:]` are the basis
     function evaluated at the left-hand and right-hand edge of a cell,
     respectively
@@ -265,18 +232,7 @@ Constructs the flux matrices for DG
     flux matrices for `model.C[i]>0` and `model.C[i]<0`, respectively.
 """
 function MakeFluxMatrix(;
-    Mesh::NamedTuple{
-        (
-            :NBases,
-            :CellNodes,
-            :Fil,
-            :Δ,
-            :NIntervals,
-            :Nodes,
-            :TotalNBases,
-            :Basis,
-        ),
-    },
+    mesh::Mesh,
     Phi,
     Dw,
     probTransform::Bool=true,
@@ -290,36 +246,36 @@ function MakeFluxMatrix(;
     ## Construct global block diagonal matrix
     F = Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}}()
     for i = ["+","-"]
-        F[i] = SparseArrays.spzeros(Float64, Mesh.TotalNBases, Mesh.TotalNBases)
-        for k = 1:Mesh.NIntervals
-            idx = (1:Mesh.NBases) .+ (k - 1) * Mesh.NBases
+        F[i] = SparseArrays.spzeros(Float64, mesh.TotalNBases, mesh.TotalNBases)
+        for k = 1:mesh.NIntervals
+            idx = (1:mesh.NBases) .+ (k - 1) * mesh.NBases
             if i=="+"
                 F[i][idx, idx] = PosDiagBlock
             elseif i=="-"
                 F[i][idx, idx] = NegDiagBlock
             end # end if C[i]
             if k > 1
-                idxup = (1:Mesh.NBases) .+ (k - 2) * Mesh.NBases
+                idxup = (1:mesh.NBases) .+ (k - 2) * mesh.NBases
                 if i=="+"
                     # the legendre basis works in density world so there are no etas
-                    if Mesh.Basis == "legendre"
+                    if mesh.Basis == "legendre"
                         η = 1
-                    elseif Mesh.Basis == "lagrange"
+                    elseif mesh.Basis == "lagrange"
                         if !probTransform
                             η = 1
                         else
-                            η = Mesh.Δ[k] / Mesh.Δ[k-1]
+                            η = mesh.Δ[k] / mesh.Δ[k-1]
                         end
                     end
                     F[i][idxup, idx] = UpDiagBlock * η
                 elseif i=="-"
-                    if Mesh.Basis == "legendre"
+                    if mesh.Basis == "legendre"
                         η = 1
-                    elseif Mesh.Basis == "lagrange"
+                    elseif mesh.Basis == "lagrange"
                         if !probTransform
                             η = 1
                         else
-                            η = Mesh.Δ[k-1] / Mesh.Δ[k]
+                            η = mesh.Δ[k-1] / mesh.Δ[k]
                         end
                     end
                     F[i][idx, idxup] = LowDiagBlock * η
@@ -336,24 +292,13 @@ Creates the Local and global mass, stiffness and flux matrices to compute `B`.
 
     MakeMatrices(;
         model::Model,
-        Mesh::NamedTuple{
-            (
-                :NBases,
-                :CellNodes,
-                :Fil,
-                :Δ,
-                :NIntervals,
-                :Nodes,
-                :TotalNBases,
-                :Basis,
-            ),
-        },
+        mesh::Mesh,
         probTransform::Bool=true,
     )
 
 # Arguments
 - `model`: A Model object
-- `Mesh`: A mesh tuple from MakeMesh
+- `mesh`: A Mesh object
 - `probTransform::Bool=true`: an (optional) specification for the lagrange basis
     to specify whether transform to probability coefficients.
 
@@ -379,33 +324,22 @@ Creates the Local and global mass, stiffness and flux matrices to compute `B`.
 """
 function MakeMatrices(;
     model::Model,
-    Mesh::NamedTuple{
-        (
-            :NBases,
-            :CellNodes,
-            :Fil,
-            :Δ,
-            :NIntervals,
-            :Nodes,
-            :TotalNBases,
-            :Basis,
-        ),
-    },
+    mesh::Mesh,
     probTransform::Bool=true,
 )
     ## Construct local blocks
-    V = vandermonde(NBases = Mesh.NBases)
-    if Mesh.Basis == "legendre"
+    V = vandermonde(NBases = mesh.NBases)
+    if mesh.Basis == "legendre"
         Dw = (
-            DwInv = LinearAlgebra.diagm(0 => ones(Float64, Mesh.NBases)),
-            Dw = LinearAlgebra.diagm(0 => ones(Float64, Mesh.NBases)),
+            DwInv = LinearAlgebra.diagm(0 => ones(Float64, mesh.NBases)),
+            Dw = LinearAlgebra.diagm(0 => ones(Float64, mesh.NBases)),
         ) # function weights are not available for legendre basis as this is
         # in density land
-        MLocal = Matrix{Float64}(LinearAlgebra.I(Mesh.NBases))
+        MLocal = Matrix{Float64}(LinearAlgebra.I(mesh.NBases))
         GLocal = V.inv * V.D
-        MInvLocal = Matrix{Float64}(LinearAlgebra.I(Mesh.NBases))
+        MInvLocal = Matrix{Float64}(LinearAlgebra.I(mesh.NBases))
         Phi = V.V[[1; end], :]
-    elseif Mesh.Basis == "lagrange"
+    elseif mesh.Basis == "lagrange"
         if !probTransform
             Dw = (
                 DwInv = LinearAlgebra.I,
@@ -427,17 +361,17 @@ function MakeMatrices(;
 
     ## Assemble into global block diagonal matrices
     G = SFFM.MakeBlockDiagonalMatrix(
-        Mesh = Mesh,
+        mesh = mesh,
         Blocks = GLocal,
-        Factors = ones(Mesh.NIntervals),
+        Factors = ones(mesh.NIntervals),
     )
-    M = SFFM.MakeBlockDiagonalMatrix(Mesh = Mesh, Blocks = MLocal, Factors = Mesh.Δ * 0.5)
+    M = SFFM.MakeBlockDiagonalMatrix(mesh = mesh, Blocks = MLocal, Factors = mesh.Δ * 0.5)
     MInv = SFFM.MakeBlockDiagonalMatrix(
-        Mesh = Mesh,
+        mesh = mesh,
         Blocks = MInvLocal,
-        Factors = 2.0 ./ Mesh.Δ,
+        Factors = 2.0 ./ mesh.Δ,
     )
-    F = SFFM.MakeFluxMatrix(Mesh = Mesh, Phi = Phi, Dw = Dw, probTransform = probTransform)
+    F = SFFM.MakeFluxMatrix(mesh = mesh, Phi = Phi, Dw = Dw, probTransform = probTransform)
 
     ## Assemble the DG drift operator
     Q = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,model.NPhases)
@@ -463,25 +397,14 @@ Creates the DG approximation to the generator `B`.
 
     MakeB(;
         model::Model,
-        Mesh::NamedTuple{
-            (
-                :NBases,
-                :CellNodes,
-                :Fil,
-                :Δ,
-                :NIntervals,
-                :Nodes,
-                :TotalNBases,
-                :Basis,
-            ),
-        },
+        mesh::Mesh,
         Matrices::NamedTuple,
         probTransform::Bool=true,
     )
 
 # Arguments
 - `model`: A Model object
-- `Mesh`: A Mesh tuple from `MakeMesh`
+- `mesh`: A Mesh object
 - `Matrices`: A Matrices tuple from `MakeMatrices`
 - `probTransform::Bool=true`: an (optional) specification for the lagrange basis
     to specify whether transform to probability coefficients.
@@ -491,26 +414,15 @@ Creates the DG approximation to the generator `B`.
     - `:BDict::Dict{String,Array{Float64,2}}`: a dictionary storing Bᵢⱼˡᵐ with
         keys string(i,j,ℓ,m), and values Bᵢⱼˡᵐ, i.e. `B.BDict["12+-"]` = B₁₂⁺⁻
     - `:B::SparseArrays.SparseMatrixCSC{Float64,Int64}`:
-        `model.NPhases*Mesh.TotalNBases×model.NPhases*Mesh.TotalNBases`, the
+        `model.NPhases*mesh.TotalNBases×model.NPhases*mesh.TotalNBases`, the
         global approximation to `B`
-    - `:QBDidx::Array{Int64,1}`: `model.NPhases*Mesh.TotalNBases×1` vector of
+    - `:QBDidx::Array{Int64,1}`: `model.NPhases*mesh.TotalNBases×1` vector of
         integers such such that `:B[QBDidx,QBDidx]` puts all the blocks relating
         to cell `k` next to each other
 """
 function MakeB(;
     model::Model,
-    Mesh::NamedTuple{
-        (
-            :NBases,
-            :CellNodes,
-            :Fil,
-            :Δ,
-            :NIntervals,
-            :Nodes,
-            :TotalNBases,
-            :Basis,
-        ),
-    },
+    mesh::Mesh,
     Matrices::NamedTuple,
     probTransform::Bool=true,
 )
@@ -519,24 +431,24 @@ function MakeB(;
     N₋ = sum(model.C .<= 0)
     B = SparseArrays.spzeros(
         Float64,
-        model.NPhases * Mesh.TotalNBases + N₋ + N₊,
-        model.NPhases * Mesh.TotalNBases + N₋ + N₊,
+        model.NPhases * mesh.TotalNBases + N₋ + N₊,
+        model.NPhases * mesh.TotalNBases + N₋ + N₊,
     )
-    Id = SparseArrays.sparse(LinearAlgebra.I, Mesh.TotalNBases, Mesh.TotalNBases)
+    Id = SparseArrays.sparse(LinearAlgebra.I, mesh.TotalNBases, mesh.TotalNBases)
     for i = 1:model.NPhases
-        idx = ((i-1)*Mesh.TotalNBases+1:i*Mesh.TotalNBases) .+ N₋
+        idx = ((i-1)*mesh.TotalNBases+1:i*mesh.TotalNBases) .+ N₋
         B[idx, idx] = Matrices.Global.Q[i]
     end
     B[(N₋+1):(end-N₊), (N₋+1):(end-N₊)] =
         B[(N₋+1):(end-N₊), (N₋+1):(end-N₊)] + LinearAlgebra.kron(model.T, Id)
 
     # Boundary behaviour
-    if Mesh.Basis == "legendre"
-        η = Mesh.Δ[[1; end]] ./ 2 # this is the inverse of the η=Mesh.Δ/2 bit
+    if mesh.Basis == "legendre"
+        η = mesh.Δ[[1; end]] ./ 2 # this is the inverse of the η=mesh.Δ/2 bit
         # below there are no η's for the legendre basis
-    elseif Mesh.Basis == "lagrange"
+    elseif mesh.Basis == "lagrange"
         if !probTransform
-            η = Mesh.Δ[[1; end]] ./ 2
+            η = mesh.Δ[[1; end]] ./ 2
         else
             η = [1; 1]
         end
@@ -546,16 +458,16 @@ function MakeB(;
     # At boundary
     B[1:N₋, 1:N₋] = model.T[model.C.<=0, model.C.<=0]
     # Out of boundary
-    idxup = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(model.C .> 0) .- 1)')[:] .+ N₋
+    idxup = ((1:mesh.NBases).+mesh.TotalNBases*(findall(model.C .> 0) .- 1)')[:] .+ N₋
     B[1:N₋, idxup] = kron(
         model.T[model.C.<=0, model.C.>0],
         Matrices.Local.Phi[1, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv ./ η[1],
     )
     # Into boundary
-    idxdown = ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(model.C .<= 0) .- 1)')[:] .+ N₋
+    idxdown = ((1:mesh.NBases).+mesh.TotalNBases*(findall(model.C .<= 0) .- 1)')[:] .+ N₋
     B[idxdown, 1:N₋] = LinearAlgebra.kron(
         LinearAlgebra.diagm(0 => model.C[model.C.<=0]),
-        -Matrices.Local.Dw.DwInv * 2.0 ./ Mesh.Δ[1] * Matrices.Local.Phi[1, :] * η[1],
+        -Matrices.Local.Dw.DwInv * 2.0 ./ mesh.Δ[1] * Matrices.Local.Phi[1, :] * η[1],
     )
 
     # Upper boundary
@@ -563,19 +475,19 @@ function MakeB(;
     B[(end-N₊+1):end, (end-N₊+1):end] = model.T[model.C.>=0, model.C.>=0]
     # Out of boundary
     idxdown =
-        ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(model.C .< 0) .- 1)')[:] .+
-        (N₋ + Mesh.TotalNBases - Mesh.NBases)
+        ((1:mesh.NBases).+mesh.TotalNBases*(findall(model.C .< 0) .- 1)')[:] .+
+        (N₋ + mesh.TotalNBases - mesh.NBases)
     B[(end-N₊+1):end, idxdown] = kron(
         model.T[model.C.>=0, model.C.<0],
         Matrices.Local.Phi[end, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv  ./ η[end],
     )
     # Into boundary
     idxup =
-        ((1:Mesh.NBases).+Mesh.TotalNBases*(findall(model.C .>= 0) .- 1)')[:] .+
-        (N₋ + Mesh.TotalNBases - Mesh.NBases)
+        ((1:mesh.NBases).+mesh.TotalNBases*(findall(model.C .>= 0) .- 1)')[:] .+
+        (N₋ + mesh.TotalNBases - mesh.NBases)
     B[idxup, (end-N₊+1):end] = LinearAlgebra.kron(
         LinearAlgebra.diagm(0 => model.C[model.C.>=0]),
-        Matrices.Local.Dw.DwInv * 2.0 ./ Mesh.Δ[end] * Matrices.Local.Phi[end, :] * η[end],
+        Matrices.Local.Dw.DwInv * 2.0 ./ mesh.Δ[end] * Matrices.Local.Phi[end, :] * η[end],
     )
 
     ## Make a Dictionary so that the blocks of B are easy to access
@@ -584,58 +496,58 @@ function MakeB(;
     qpositions = cumsum(model.C .>= 0)
     for ℓ in ["+", "-", "0"], m in ["+", "-", "0"]
         for i = 1:model.NPhases, j = 1:model.NPhases
-            FilBases = repeat(Mesh.Fil[string(i, ℓ)]', Mesh.NBases, 1)[:]
+            FilBases = repeat(mesh.Fil[string(i, ℓ)]', mesh.NBases, 1)[:]
             pitemp = falses(N₋)
             qitemp = falses(N₊)
             pjtemp = falses(N₋)
             qjtemp = falses(N₊)
             if model.C[i] <= 0
-                pitemp[ppositions[i]] = Mesh.Fil["p"*string(i)*ℓ][1]
+                pitemp[ppositions[i]] = mesh.Fil["p"*string(i)*ℓ][1]
             end
             if model.C[j] <= 0
-                pjtemp[ppositions[j]] = Mesh.Fil["p"*string(j)*m][1]
+                pjtemp[ppositions[j]] = mesh.Fil["p"*string(j)*m][1]
             end
             if model.C[i] >= 0
-                qitemp[qpositions[i]] = Mesh.Fil["q"*string(i)*ℓ][1]
+                qitemp[qpositions[i]] = mesh.Fil["q"*string(i)*ℓ][1]
             end
             if model.C[j] >= 0
-                qjtemp[qpositions[j]] = Mesh.Fil["q"*string(j)*m][1]
+                qjtemp[qpositions[j]] = mesh.Fil["q"*string(j)*m][1]
             end
             i_idx = [
                 pitemp
-                falses((i - 1) * Mesh.TotalNBases)
+                falses((i - 1) * mesh.TotalNBases)
                 FilBases
-                falses(model.NPhases * Mesh.TotalNBases - i * Mesh.TotalNBases)
+                falses(model.NPhases * mesh.TotalNBases - i * mesh.TotalNBases)
                 qitemp
             ]
-            FjmBases = repeat(Mesh.Fil[string(j, m)]', Mesh.NBases, 1)[:]
+            FjmBases = repeat(mesh.Fil[string(j, m)]', mesh.NBases, 1)[:]
             j_idx = [
                 pjtemp
-                falses((j - 1) * Mesh.TotalNBases)
+                falses((j - 1) * mesh.TotalNBases)
                 FjmBases
-                falses(model.NPhases * Mesh.TotalNBases - j * Mesh.TotalNBases)
+                falses(model.NPhases * mesh.TotalNBases - j * mesh.TotalNBases)
                 qjtemp
             ]
             BDict[string(i, j, ℓ, m)] = B[i_idx, j_idx]
         end
-        # note: below we need to use repeat(Mesh.Fil[ℓ]', Mesh.NBases, 1)[:] to
-        # expand the index Mesh.Fil[ℓ] from cells to all basis function
+        # note: below we need to use repeat(mesh.Fil[ℓ]', mesh.NBases, 1)[:] to
+        # expand the index mesh.Fil[ℓ] from cells to all basis function
         FlBases =
-            [Mesh.Fil["p"*ℓ]; repeat(Mesh.Fil[ℓ]', Mesh.NBases, 1)[:]; Mesh.Fil["q"*ℓ]]
+            [mesh.Fil["p"*ℓ]; repeat(mesh.Fil[ℓ]', mesh.NBases, 1)[:]; mesh.Fil["q"*ℓ]]
         FmBases =
-            [Mesh.Fil["p"*m]; repeat(Mesh.Fil[m]', Mesh.NBases, 1)[:]; Mesh.Fil["q"*m]]
+            [mesh.Fil["p"*m]; repeat(mesh.Fil[m]', mesh.NBases, 1)[:]; mesh.Fil["q"*m]]
         BDict[ℓ*m] = B[FlBases, FmBases]
     end
 
     ## Make QBD index
     c = N₋
-    QBDidx = zeros(Int, model.NPhases * Mesh.TotalNBases + N₊ + N₋)
-    for k = 1:Mesh.NIntervals, i = 1:model.NPhases, n = 1:Mesh.NBases
+    QBDidx = zeros(Int, model.NPhases * mesh.TotalNBases + N₊ + N₋)
+    for k = 1:mesh.NIntervals, i = 1:model.NPhases, n = 1:mesh.NBases
         c += 1
-        QBDidx[c] = (i - 1) * Mesh.TotalNBases + (k - 1) * Mesh.NBases + n + N₋
+        QBDidx[c] = (i - 1) * mesh.TotalNBases + (k - 1) * mesh.NBases + n + N₋
     end
     QBDidx[1:N₋] = 1:N₋
-    QBDidx[(end-N₊+1):end] = (model.NPhases * Mesh.TotalNBases + N₋) .+ (1:N₊)
+    QBDidx[(end-N₊+1):end] = (model.NPhases * mesh.TotalNBases + N₋) .+ (1:N₊)
 
     out = (BDict = BDict, B = B, QBDidx = QBDidx)
     println("UPDATE: B object created with keys ", keys(out))
@@ -647,25 +559,14 @@ end
 
     MakeR(;
         model::Model,
-        Mesh::NamedTuple{
-            (
-                :NBases,
-                :CellNodes,
-                :Fil,
-                :Δ,
-                :NIntervals,
-                :Nodes,
-                :TotalNBases,
-                :Basis,
-            ),
-        },
+        mesh::Mesh,
         approxType::String = "projection",
         probTransform::Bool = true,
     )
 
 # Arguments
 - `Model`: a Model object
-- `Mesh`: a mesh object from MakeMesh
+- `Mmesh`: a Mesh object
 - `approxType::String`: (optional) either "interpolation" or
     "projection" (default).
 - `probTransform::Bool=true`: an (optional) specification for the lagrange basis
@@ -683,40 +584,29 @@ end
 """
 function MakeR(;
     model::Model,
-    Mesh::NamedTuple{
-        (
-            :NBases,
-            :CellNodes,
-            :Fil,
-            :Δ,
-            :NIntervals,
-            :Nodes,
-            :TotalNBases,
-            :Basis,
-        ),
-    },
+    mesh::Mesh,
     approxType::String = "projection",
     probTransform::Bool = true,
 )
-    V = SFFM.vandermonde(NBases=Mesh.NBases)
+    V = SFFM.vandermonde(NBases=mesh.NBases)
 
-    EvalR = 1.0 ./ model.r.a(Mesh.CellNodes[:])
+    EvalR = 1.0 ./ model.r.a(mesh.CellNodes[:])
 
     N₋ = sum(model.C .<= 0)
     N₊ = sum(model.C .>= 0)
 
     R = SparseArrays.spzeros(
         Float64,
-        N₋ + N₊ + Mesh.TotalNBases * model.NPhases,
-        N₋ + N₊ + Mesh.TotalNBases * model.NPhases,
+        N₋ + N₊ + mesh.TotalNBases * model.NPhases,
+        N₋ + N₊ + mesh.TotalNBases * model.NPhases,
     )
     # at the boundaries
     R[1:N₋, 1:N₋] = (1.0 ./ model.r.a(model.Bounds[1,1])[model.C .<= 0]).*LinearAlgebra.I(N₋)
     R[(end-N₊+1):end, (end-N₊+1):end] =  (1.0 ./ model.r.a(model.Bounds[1,end])[model.C .>= 0]).* LinearAlgebra.I(N₊)
 
     # on the interior
-    for n = 1:(Mesh.NIntervals*model.NPhases)
-        if Mesh.Basis == "legendre"
+    for n = 1:(mesh.NIntervals*model.NPhases)
+        if mesh.Basis == "legendre"
             if approxType == "interpolation"
                 leftM = V.V'
                 rightM = V.inv'
@@ -724,25 +614,25 @@ function MakeR(;
                 leftM = V.V' * LinearAlgebra.diagm(V.w)
                 rightM = V.V
             end
-            temp = leftM*LinearAlgebra.diagm(EvalR[Mesh.NBases*(n-1).+(1:Mesh.NBases)])*rightM
-        elseif Mesh.Basis == "lagrange"
+            temp = leftM*LinearAlgebra.diagm(EvalR[mesh.NBases*(n-1).+(1:mesh.NBases)])*rightM
+        elseif mesh.Basis == "lagrange"
             if approxType == "interpolation"
-                temp = LinearAlgebra.diagm(EvalR[Mesh.NBases*(n-1).+(1:Mesh.NBases)])
+                temp = LinearAlgebra.diagm(EvalR[mesh.NBases*(n-1).+(1:mesh.NBases)])
             elseif approxType == "projection"
-                # the first term, LinearAlgebra.diagm(EvalR[Mesh.NBases*(n-1).+(1:Mesh.NBases)])
+                # the first term, LinearAlgebra.diagm(EvalR[mesh.NBases*(n-1).+(1:mesh.NBases)])
                 # is the quadrature approximation of M^r. The quadrature weights to not
                 # appear since they cancel when we transform to integral/probability
                 # representation. The second term V.V*V.V' is Minv. The last term
                 # LinearAlgebra.diagm(V.w)is a result of the conversion to probability
                 # / integral representation.
                 if probTransform
-                    temp = LinearAlgebra.diagm(EvalR[Mesh.NBases*(n-1).+(1:Mesh.NBases)])*V.V*V.V'*LinearAlgebra.diagm(V.w)
+                    temp = LinearAlgebra.diagm(EvalR[mesh.NBases*(n-1).+(1:mesh.NBases)])*V.V*V.V'*LinearAlgebra.diagm(V.w)
                 elseif !probTransform
-                    temp = LinearAlgebra.diagm(V.w)*LinearAlgebra.diagm(EvalR[Mesh.NBases*(n-1).+(1:Mesh.NBases)])*V.V*V.V'
+                    temp = LinearAlgebra.diagm(V.w)*LinearAlgebra.diagm(EvalR[mesh.NBases*(n-1).+(1:mesh.NBases)])*V.V*V.V'
                 end
             end
         end
-        R[Mesh.NBases*(n-1).+(1:Mesh.NBases).+N₋, Mesh.NBases*(n-1).+(1:Mesh.NBases).+N₋] = temp
+        R[mesh.NBases*(n-1).+(1:mesh.NBases).+N₋, mesh.NBases*(n-1).+(1:mesh.NBases).+N₋] = temp
     end
 
     # construc the dictionary
@@ -751,26 +641,26 @@ function MakeR(;
     qpositions = cumsum(model.C .>= 0)
     for ℓ in ["+", "-"]
         for i = 1:model.NPhases
-            FilBases = repeat(Mesh.Fil[string(i, ℓ)]', Mesh.NBases, 1)[:]
+            FilBases = repeat(mesh.Fil[string(i, ℓ)]', mesh.NBases, 1)[:]
             pitemp = falses(N₋)
             qitemp = falses(N₊)
             if model.C[i] <= 0
-                pitemp[ppositions[i]] = Mesh.Fil["p"*string(i)*ℓ][1]
+                pitemp[ppositions[i]] = mesh.Fil["p"*string(i)*ℓ][1]
             end
             if model.C[i] >= 0
-                qitemp[qpositions[i]] = Mesh.Fil["q"*string(i)*ℓ][1]
+                qitemp[qpositions[i]] = mesh.Fil["q"*string(i)*ℓ][1]
             end
             i_idx = [
                 pitemp
-                falses((i - 1) * Mesh.TotalNBases)
+                falses((i - 1) * mesh.TotalNBases)
                 FilBases
-                falses(model.NPhases * Mesh.TotalNBases - i * Mesh.TotalNBases)
+                falses(model.NPhases * mesh.TotalNBases - i * mesh.TotalNBases)
                 qitemp
             ]
             RDict[string(i, ℓ)] = R[i_idx, i_idx]
         end
         FlBases =
-            [Mesh.Fil["p"*ℓ]; repeat(Mesh.Fil[ℓ]', Mesh.NBases, 1)[:]; Mesh.Fil["q"*ℓ]]
+            [mesh.Fil["p"*ℓ]; repeat(mesh.Fil[ℓ]', mesh.NBases, 1)[:]; mesh.Fil["q"*ℓ]]
         RDict[ℓ] = R[FlBases, FlBases]
     end
 
@@ -786,25 +676,14 @@ Construct the operator `D(s)` from `B, R`.
         R,
         B,
         model::Model,
-        Mesh::NamedTuple{
-            (
-                :NBases,
-                :CellNodes,
-                :Fil,
-                :Δ,
-                :NIntervals,
-                :Nodes,
-                :TotalNBases,
-                :Basis,
-            ),
-        },
+        mesh::Mesh,
     )
 
 # Arguments
 - `R`: a tuple as constructed by MakeR
 - `B`: a tuple as constructed by MakeB
 - `Model`: a Model object
-- `Mesh`: a mesh object as constructed by MakeMesh
+- `mesh`: a Mesh object
 
 # Output
 - `DDict::Dict{String,Function(s::Real)}`: a dictionary of functions. Keys are
@@ -815,27 +694,16 @@ function MakeD(;
     R::NamedTuple{(:R, :RDict)},
     B::NamedTuple{(:BDict, :B, :QBDidx)},
     model::Model,
-    Mesh::NamedTuple{
-        (
-            :NBases,
-            :CellNodes,
-            :Fil,
-            :Δ,
-            :NIntervals,
-            :Nodes,
-            :TotalNBases,
-            :Basis,
-        ),
-    },
+    mesh::Mesh,
 )
     DDict = Dict{String,Any}()
     for ℓ in ["+", "-"], m in ["+", "-"]
-        nℓ = sum(Mesh.Fil["p"*ℓ]) + sum(Mesh.Fil[ℓ]) * Mesh.NBases + sum(Mesh.Fil["q"*ℓ])
+        nℓ = sum(mesh.Fil["p"*ℓ]) + sum(mesh.Fil[ℓ]) * mesh.NBases + sum(mesh.Fil["q"*ℓ])
         Idℓ = SparseArrays.sparse(LinearAlgebra.I,nℓ,nℓ)
-        if any(Mesh.Fil["p0"]) || any(Mesh.Fil["0"]) || any(Mesh.Fil["q0"]) # in("0", model.Signs)
-            n0 = sum(Mesh.Fil["p0"]) +
-                sum(Mesh.Fil["0"]) * Mesh.NBases +
-                sum(Mesh.Fil["q0"])
+        if any(mesh.Fil["p0"]) || any(mesh.Fil["0"]) || any(mesh.Fil["q0"]) # in("0", model.Signs)
+            n0 = sum(mesh.Fil["p0"]) +
+                sum(mesh.Fil["0"]) * mesh.NBases +
+                sum(mesh.Fil["q0"])
             Id0 = SparseArrays.sparse(LinearAlgebra.I,n0,n0)
             DDict[ℓ*m] = function (; s::Real = 0)
                 return if (ℓ == m)
@@ -969,18 +837,7 @@ Convert from a vector of coefficients for the DG system to a distribution.
 
     Coeffs2Dist(;
         model::Model,
-        Mesh::NamedTuple{
-            (
-                :NBases,
-                :CellNodes,
-                :Fil,
-                :Δ,
-                :NIntervals,
-                :Nodes,
-                :TotalNBases,
-                :Basis,
-            ),
-        },
+        mesh::Mesh,
         Coeffs,
         type::String = "probability",
         probTransform::Bool = true,
@@ -988,13 +845,13 @@ Convert from a vector of coefficients for the DG system to a distribution.
 
 # Arguments
 - `Model`: a Model object
-- `Mesh`: a mesh object as output from MakeMesh
+- `mesh`: a Mesh object as output from MakeMesh
 - `Coeffs::Array`: a vector of coefficients from the DG method
 - `type::String`: an (optional) declaration of what type of distribution you
     want to convert to. Options are `"probability"` to return the probabilities
     ``P(X(t)∈ D_k, φ(t) = i)`` where ``D_k``is the kth cell, `"cumulative"` to
     return the CDF evaluated at cell edges, or `"density"` to return an
-    approximation to the density ar at the Mesh.CellNodes.
+    approximation to the density ar at the mesh.CellNodes.
 - `probTransform::Bool` a boolean value specifying whether to transform to a
     probabilistic interpretation or not. Valid only for lagrange basis.
 
@@ -1029,77 +886,66 @@ Convert from a vector of coefficients for the DG system to a distribution.
 """
 function Coeffs2Dist(;
     model::Model,
-    Mesh::NamedTuple{
-        (
-            :NBases,
-            :CellNodes,
-            :Fil,
-            :Δ,
-            :NIntervals,
-            :Nodes,
-            :TotalNBases,
-            :Basis,
-        ),
-    },
+    mesh::Mesh,
     Coeffs::Array,
     type::String = "probability",
     probTransform::Bool = true,
 )
-    V = SFFM.vandermonde(NBases = Mesh.NBases)
+    V = SFFM.vandermonde(NBases = mesh.NBases)
     N₋ = sum(model.C .<= 0)
     N₊ = sum(model.C .>= 0)
     if !probTransform
-        temp = reshape(Coeffs[N₋+1:end-N₊], Mesh.NBases, Mesh.NIntervals, model.NPhases)
-        temp = V.w.*temp.*(Mesh.Δ./2.0)'
+        temp = reshape(Coeffs[N₋+1:end-N₊], mesh.NBases, mesh.NIntervals, model.NPhases)
+        temp = V.w.*temp.*(mesh.Δ./2.0)'
         Coeffs = [Coeffs[1:N₋]; temp[:]; Coeffs[end-N₊+1:end]]
     end
     if type == "density"
-        xvals = Mesh.CellNodes
-        if Mesh.Basis == "legendre"
-            yvals = reshape(Coeffs[N₋+1:end-N₊], Mesh.NBases, Mesh.NIntervals, model.NPhases)
+        xvals = mesh.CellNodes
+        if mesh.Basis == "legendre"
+            yvals = reshape(Coeffs[N₋+1:end-N₊], mesh.NBases, mesh.NIntervals, model.NPhases)
             for i in 1:model.NPhases
                 yvals[:,:,i] = V.V * yvals[:,:,i]
             end
             pm = [Coeffs[1:N₋]; Coeffs[end-N₊+1:end]]
-        elseif Mesh.Basis == "lagrange"
+        elseif mesh.Basis == "lagrange"
             yvals =
-                Coeffs[N₋+1:end-N₊] .* repeat(1.0 ./ V.w, Mesh.NIntervals * model.NPhases) .*
-                (repeat(2.0 ./ Mesh.Δ, 1, Mesh.NBases * model.NPhases)'[:])
-            yvals = reshape(yvals, Mesh.NBases, Mesh.NIntervals, model.NPhases)
+                Coeffs[N₋+1:end-N₊] .* repeat(1.0 ./ V.w, mesh.NIntervals * model.NPhases) .*
+                (repeat(2.0 ./ mesh.Δ, 1, mesh.NBases * model.NPhases)'[:])
+            yvals = reshape(yvals, mesh.NBases, mesh.NIntervals, model.NPhases)
             pm = [Coeffs[1:N₋]; Coeffs[end-N₊+1:end]]
         end
-        if Mesh.NBases == 1
+        if mesh.NBases == 1
             yvals = [1;1].*yvals
-            xvals = [Mesh.CellNodes-Mesh.Δ'/2;Mesh.CellNodes+Mesh.Δ'/2]
+            xvals = [mesh.CellNodes-mesh.Δ'/2;mesh.CellNodes+mesh.Δ'/2]
         end
     elseif type == "probability"
-        if Mesh.NBases > 1
-            xvals = Mesh.CellNodes[1, :] + (Mesh.Δ ./ 2)
+        if mesh.NBases > 1
+            xvals = mesh.CellNodes[1, :] + (mesh.Δ ./ 2)
         else
-            xvals = Mesh.CellNodes
+            xvals = mesh.CellNodes
         end
-        if Mesh.Basis == "legendre"
-            yvals = (reshape(Coeffs[N₋+1:Mesh.NBases:end-N₊], 1, Mesh.NIntervals, model.NPhases).*Mesh.Δ')./sqrt(2)
+        if mesh.Basis == "legendre"
+            yvals = (reshape(Coeffs[N₋+1:mesh.NBases:end-N₊], 1, mesh.NIntervals, model.NPhases).*mesh.Δ')./sqrt(2)
             pm = [Coeffs[1:N₋]; Coeffs[end-N₊+1:end]]
-        elseif Mesh.Basis == "lagrange"
+        elseif mesh.Basis == "lagrange"
             yvals = sum(
-                reshape(Coeffs[N₋+1:end-N₊], Mesh.NBases, Mesh.NIntervals, model.NPhases),
+                reshape(Coeffs[N₋+1:end-N₊], mesh.NBases, mesh.NIntervals, model.NPhases),
                 dims = 1,
             )
             pm = [Coeffs[1:N₋]; Coeffs[end-N₊+1:end]]
         end
     elseif type == "cumulative"
-        if Mesh.NBases > 1
-            xvals = Mesh.CellNodes[[1;end], :]
+        if mesh.NBases > 1
+            xvals = mesh.CellNodes[[1;end], :]
         else
-            xvals = [Mesh.CellNodes-Mesh.Δ'/2;Mesh.CellNodes+Mesh.Δ'/2]
+            xvals = [mesh.CellNodes-mesh.Δ'/2;mesh.CellNodes+mesh.Δ'/2]
         end
-        if Mesh.Basis == "legendre"
-            tempDist = (reshape(Coeffs[N₋+1:Mesh.NBases:end-N₊], 1, Mesh.NIntervals, model.NPhases).*Mesh.Δ')./sqrt(2)
+        if mesh.Basis == "legendre"
+            tempDist = (reshape(Coeffs[N₋+1:mesh.NBases:end-N₊], 1, mesh.NIntervals, model.NPhases).*mesh.Δ')./sqrt(2)
             pm = [Coeffs[1:N₋]; Coeffs[end-N₊+1:end]]
-        elseif Mesh.Basis == "lagrange"
+        elseif mesh.Basis == "lagrange"
             tempDist = sum(
-                reshape(Coeffs[N₋+1:end-N₊], Mesh.NBases, Mesh.NIntervals, model.NPhases),
+                reshape(Coeffs[N₋+1:end-N₊], mesh.NBases, mesh.NIntervals, model.NPhases),
                 dims = 1,
             )
             pm = [Coeffs[1:N₋]; Coeffs[end-N₊+1:end]]
@@ -1108,7 +954,7 @@ function Coeffs2Dist(;
         temppm = zeros(Float64,1,2,model.NPhases)
         temppm[:,1,model.C.<=0] = pm[1:N₋]
         temppm[:,2,model.C.>=0] = pm[N₊+1:end]
-        yvals = zeros(Float64,2,Mesh.NIntervals,model.NPhases)
+        yvals = zeros(Float64,2,mesh.NIntervals,model.NPhases)
         yvals[1,2:end,:] = tempDist[1,1:end-1,:]
         yvals[2,:,:] = tempDist
         yvals = yvals .+ reshape(temppm[1,1,:],1,1,model.NPhases)
@@ -1126,25 +972,14 @@ coefficients.
 
     Dist2Coeffs(;
         model::Model,
-        Mesh::NamedTuple{
-            (
-                :NBases,
-                :CellNodes,
-                :Fil,
-                :Δ,
-                :NIntervals,
-                :Nodes,
-                :TotalNBases,
-                :Basis,
-            ),
-        },
+        mesh::Mesh,
         Distn::NamedTuple{(:pm, :distribution, :x, :type)},
         probTransform::Bool = true,
     )
 
 # Arguments
 - `Model`: a Model object
-- `Mesh`: a model object as output from MakeMesh
+- `mesh`: a Mesh object as output from MakeMesh
 - `Distn::NamedTuple{(:pm, :distribution, :x, :type)}`: a distribution object
     i.e. a `NamedTuple` with fields
     - `pm::Array{Float64}`: a vector containing the point masses, the first
@@ -1176,30 +1011,19 @@ coefficients.
 """
 function Dist2Coeffs(;
     model::Model,
-    Mesh::NamedTuple{
-        (
-            :NBases,
-            :CellNodes,
-            :Fil,
-            :Δ,
-            :NIntervals,
-            :Nodes,
-            :TotalNBases,
-            :Basis,
-        ),
-    },
+    mesh::Mesh,
     Distn::NamedTuple{(:pm, :distribution, :x, :type)},
     probTransform::Bool = true,
 )
-    V = SFFM.vandermonde(NBases = Mesh.NBases)
+    V = SFFM.vandermonde(NBases = mesh.NBases)
     theDistribution =
-        zeros(Float64, Mesh.NBases, Mesh.NIntervals, model.NPhases)
-    if Mesh.Basis == "legendre"
+        zeros(Float64, mesh.NBases, mesh.NIntervals, model.NPhases)
+    if mesh.Basis == "legendre"
         if Distn.type == "probability"
             # for the legendre basis the first basis function is ϕ(x)=Δ√2 and
             # all other basis functions are orthogonal to this. Hence, we map
             # the cell probabilities to the first basis function only.
-            theDistribution[1, :, :] = Distn.distribution./Mesh.Δ'.*sqrt(2)
+            theDistribution[1, :, :] = Distn.distribution./mesh.Δ'.*sqrt(2)
         elseif Distn.type == "density"
             # if given density coefficients in lagrange form
             theDistribution = Distn.distribution
@@ -1213,10 +1037,10 @@ function Dist2Coeffs(;
             theDistribution[:]
             Distn.pm[sum(model.C .<= 0)+1:end]
         ]
-    elseif Mesh.Basis == "lagrange"
+    elseif mesh.Basis == "lagrange"
         theDistribution .= Distn.distribution
         if !probTransform
-            theDistribution = (1.0./V.w) .* theDistribution .* (2.0./Mesh.Δ')
+            theDistribution = (1.0./V.w) .* theDistribution .* (2.0./mesh.Δ')
         end
         if Distn.type == "probability"
             # convert to probability coefficients by multiplying by the
@@ -1225,7 +1049,7 @@ function Dist2Coeffs(;
         elseif Distn.type == "density"
             # convert to probability coefficients by multiplying by the
             # weights in V.w/2 and cell widths Δ
-            theDistribution = ((V.w .* theDistribution).*(Mesh.Δ / 2)')[:]
+            theDistribution = ((V.w .* theDistribution).*(mesh.Δ / 2)')[:]
         end
         # also put the point masses on the ends
         coeffs = [

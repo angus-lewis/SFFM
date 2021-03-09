@@ -31,21 +31,21 @@ Fil = Dict{String,BitArray{1}}("1+" => Bool[1, 1, 0, 0, 0],
 #                                 "2+" => Bool[0, 0, 1, 1, 1],
 #                                 "2-" => Bool[1, 1, 0, 0, 0],
 #                                 "1-" => Bool[0, 0, 1, 1, 1])
-#Dict{String,BitArray{1}}("1+" => r(Mesh.CellNodes[:])[2:NBases:end,1].>0, #trues(length(Nodes)-1),# 0],
-#                                "10" => r(Mesh.CellNodes[:])[2:NBases:end,1].==0,
-#                                "2+" => r(Mesh.CellNodes[:])[2:NBases:end,2].>0,
-#                                "20" => r(Mesh.CellNodes[:])[2:NBases:end,2].==0, #falses(length(Nodes)-1),#, 1],
-#                                "2-" => r(Mesh.CellNodes[:])[2:NBases:end,2].<0, #trues(length(Nodes)-1),#, 0],
-#                                "1-" => r(Mesh.CellNodes[:])[2:NBases:end,1].<0) #falses(length(Nodes)-1) )#, 1])
+#Dict{String,BitArray{1}}("1+" => r(mesh.CellNodes[:])[2:NBases:end,1].>0, #trues(length(Nodes)-1),# 0],
+#                                "10" => r(mesh.CellNodes[:])[2:NBases:end,1].==0,
+#                                "2+" => r(mesh.CellNodes[:])[2:NBases:end,2].>0,
+#                                "20" => r(mesh.CellNodes[:])[2:NBases:end,2].==0, #falses(length(Nodes)-1),#, 1],
+#                                "2-" => r(mesh.CellNodes[:])[2:NBases:end,2].<0, #trues(length(Nodes)-1),#, 0],
+#                                "1-" => r(mesh.CellNodes[:])[2:NBases:end,1].<0) #falses(length(Nodes)-1) )#, 1])
 NBases = 2
 
-Mesh = SFFM.MakeMesh(model=model,Nodes=Nodes,NBases=NBases,Fil=Fil)
-Matrices = SFFM.MakeMatrices(model=model,Mesh=Mesh,Basis="legendre")
-MatricesR = SFFM.MakeMatricesR(model=model,Mesh=Mesh)
-B = SFFM.MakeB(model=model,Mesh=Mesh,Matrices=Matrices)
-R = SFFM.MakeR(model=model,Mesh=Mesh)
-D = SFFM.MakeD(model=model,Mesh=Mesh,R=R,B=B)
-DR = SFFM.MakeDR(Matrices=Matrices,MatricesR=MatricesR,model=model,Mesh=Mesh,R=R,B=B)
+mesh = SFFM.MakeMesh(model=model,Nodes=Nodes,NBases=NBases,Fil=Fil)
+Matrices = SFFM.MakeMatrices(model=model,mesh=mesh,Basis="legendre")
+MatricesR = SFFM.MakeMatricesR(model=model,mesh=mesh)
+B = SFFM.MakeB(model=model,mesh=mesh,Matrices=Matrices)
+R = SFFM.MakeR(model=model,mesh=mesh)
+D = SFFM.MakeD(model=model,mesh=mesh,R=R,B=B)
+DR = SFFM.MakeDR(Matrices=Matrices,MatricesR=MatricesR,model=model,mesh=mesh,R=R,B=B)
 # [D["++"]() D["+-"](); D["-+"]() D["--"]()]
 display(D["++"](s=0))
 display(DR.D(0))
@@ -90,10 +90,10 @@ end
 display(Psi) #
 
 ## lagrange
-Matrices = SFFM.MakeMatrices(model=model,Mesh=Mesh,Basis="lagrange")
-B = SFFM.MakeB(model=model,Mesh=Mesh,Matrices=Matrices)
-R = SFFM.MakeR(model=model,Mesh=Mesh)
-D = SFFM.MakeD(model=model,Mesh=Mesh,R=R,B=B)
+Matrices = SFFM.MakeMatrices(model=model,mesh=mesh,Basis="lagrange")
+B = SFFM.MakeB(model=model,mesh=mesh,Matrices=Matrices)
+R = SFFM.MakeR(model=model,mesh=mesh)
+D = SFFM.MakeD(model=model,mesh=mesh,R=R,B=B)
 
 Ψlagrange = SFFM.PsiFun(D=D,MaxIters=MaxIters,s=0)
 
@@ -112,11 +112,11 @@ display(sum(VinvtΨlegendreVinv,dims=2))
 
 ##
 for NBases in 1:4
-    Mesh = SFFM.MakeMesh(model=model,Nodes=Nodes,NBases=NBases,Fil=Fil)
-    Matrices = SFFM.MakeMatrices(model=model,Mesh=Mesh,Basis="legendre")
-    B = SFFM.MakeB(model=model,Mesh=Mesh,Matrices=Matrices)
-    R = SFFM.MakeR(model=model,Mesh=Mesh)
-    D = SFFM.MakeD(model=model,Mesh=Mesh,R=R,B=B)
+    mesh = SFFM.MakeMesh(model=model,Nodes=Nodes,NBases=NBases,Fil=Fil)
+    Matrices = SFFM.MakeMatrices(model=model,mesh=mesh,Basis="legendre")
+    B = SFFM.MakeB(model=model,mesh=mesh,Matrices=Matrices)
+    R = SFFM.MakeR(model=model,mesh=mesh)
+    D = SFFM.MakeD(model=model,mesh=mesh,R=R,B=B)
     #display(D["--"]()[(NBases+1):(2*NBases),(NBases+1):(2*NBases)])
     Ψ = SFFM.PsiFun(D=D,MaxIters=MaxIters)
     display(Ψ[1:NBases,1:NBases])
@@ -199,35 +199,35 @@ Fil = Dict{String,BitArray{1}}(
     "q3+" => trues(1),
 )
 NBases = 6
-Mesh = SFFM.MakeMesh(model = model, Nodes = Nodes, NBases = NBases, Fil = Fil)
+mesh = SFFM.MakeMesh(model = model, Nodes = Nodes, NBases = NBases, Fil = Fil)
 
 ## Construct all DG operators
-All = SFFM.MakeAll(model = model, Mesh = Mesh, Basis = "legendre")
+All = SFFM.MakeAll(model = model, mesh = mesh, Basis = "legendre")
 Matrices = All.Matrices
 MatricesR = All.MatricesR
 B = All.B
 R = All.R
 D = All.D
 DR = All.DR
-MyD = SFFM.MakeMyD(model = model, Mesh = Mesh, MatricesR = MatricesR, B = B)
+MyD = SFFM.MakeMyD(model = model, mesh = mesh, MatricesR = MatricesR, B = B)
 
 ## initial condition
 # x0 = Matrix(
 #     [
 #         zeros(sum(model.C.<=0)) # LHS point mass
-#         zeros(Mesh.NBases * Mesh.NIntervals * 1 ÷ 2) # phase 1
+#         zeros(mesh.NBases * mesh.NIntervals * 1 ÷ 2) # phase 1
 #         1 # phase 1
 #         zeros(NBases - 1) # phase 1
-#         zeros(Mesh.NBases * Mesh.NIntervals * 1 ÷ 2 - NBases) # phase 1
-#         zeros(Mesh.TotalNBases * 2) # phases 2 and 3
+#         zeros(mesh.NBases * mesh.NIntervals * 1 ÷ 2 - NBases) # phase 1
+#         zeros(mesh.TotalNBases * 2) # phases 2 and 3
 #         zeros(sum(model.C.>=0)) # RHS point mass
 #     ]',
 # )
 x0 = Matrix(
     [
         zeros(sum(model.C .<= 0)) # LHS point mass
-        repeat([1.0; zeros(Float64, NBases-1)], model.NPhases * Mesh.NIntervals, 1) ./
-        (model.NPhases * Mesh.NIntervals)
+        repeat([1.0; zeros(Float64, NBases-1)], model.NPhases * mesh.NIntervals, 1) ./
+        (model.NPhases * mesh.NIntervals)
         zeros(sum(model.C .>= 0)) # RHS point mass
     ]',
 )
@@ -263,13 +263,13 @@ YR = zeros((length(Nodes) - 1), model.NPhases)
 MyY = zeros((length(Nodes) - 1), model.NPhases)
 let cum = 0
     for i = 1:model.NPhases
-        idx = findall(.!Fil[string(i)*"0"]) .- cum .+ (i - 1) * Mesh.NIntervals .+
+        idx = findall(.!Fil[string(i)*"0"]) .- cum .+ (i - 1) * mesh.NIntervals .+
             sum(model.C .<= 0)
         cum = cum + sum(Fil[string(i)*"0"])*NBases
         p = plot!(
             (
-                Mesh.CellNodes[1, .!Fil[string(i)*"0"]][:] +
-                Mesh.CellNodes[end, .!Fil[string(i)*"0"]][:]
+                mesh.CellNodes[1, .!Fil[string(i)*"0"]][:] +
+                mesh.CellNodes[end, .!Fil[string(i)*"0"]][:]
             ) / 2,
             yvals[idx],
             label = "φ=" * string(i) * " - D",
@@ -278,8 +278,8 @@ let cum = 0
         Y[:, i] = yvals[idx]
         # p = plot!(
         #     (
-        #         Mesh.CellNodes[1, .!Fil[string(i)*"0"]][:] +
-        #         Mesh.CellNodes[end, .!Fil[string(i)*"0"]][:]
+        #         mesh.CellNodes[1, .!Fil[string(i)*"0"]][:] +
+        #         mesh.CellNodes[end, .!Fil[string(i)*"0"]][:]
         #     ) / 2,
         #     yvalsR[idx],
         #     label = "φ=" * string(i) * " - DR",
@@ -288,8 +288,8 @@ let cum = 0
         # YR[:, i] = yvalsR[idx]
         p = plot!(
             (
-                Mesh.CellNodes[1, .!Fil[string(i)*"0"]][:] +
-                Mesh.CellNodes[end, .!Fil[string(i)*"0"]][:]
+                mesh.CellNodes[1, .!Fil[string(i)*"0"]][:] +
+                mesh.CellNodes[end, .!Fil[string(i)*"0"]][:]
             ) / 2,
             MyDyvals[idx],
             label = "φ=" * string(i) * " - MyD",
@@ -301,9 +301,9 @@ end
 p = plot!(subplot = 1, legend = :topright)
 pmdata = [
     [Nodes[1] * ones(sum(model.C .<= 0)); Nodes[end] * ones(sum(model.C .>= 0))]'
-    yvals[[.!Mesh.Fil["p0"]; falses(model.NPhases * Mesh.NIntervals); .!Mesh.Fil["q0"]]]'
-    yvalsR[[.!Mesh.Fil["p0"]; falses(model.NPhases * Mesh.NIntervals); .!Mesh.Fil["q0"]]]'
-    MyDyvals[[.!Mesh.Fil["p0"]; falses(model.NPhases * Mesh.NIntervals); .!Mesh.Fil["q0"]]]'
+    yvals[[.!mesh.Fil["p0"]; falses(model.NPhases * mesh.NIntervals); .!mesh.Fil["q0"]]]'
+    yvalsR[[.!mesh.Fil["p0"]; falses(model.NPhases * mesh.NIntervals); .!mesh.Fil["q0"]]]'
+    MyDyvals[[.!mesh.Fil["p0"]; falses(model.NPhases * mesh.NIntervals); .!mesh.Fil["q0"]]]'
     [(sum(repeat(sims.X,1,model.NPhases).*(sims.φ.==[1 2 3]).==Nodes[1],dims=1)./NSim)[model.C.<=0];
     (sum(repeat(sims.X,1,model.NPhases).*(sims.φ.==[1 2 3]).==Nodes[end],dims=1)./NSim)[model.C.>=0]]'
 ]
@@ -341,7 +341,7 @@ for whichφ = 1:model.NPhases
         (Nodes[1:end-1] + Nodes[2:end]) / 2,
         h,
         alpha = 0.2,
-        bar_width = Mesh.Δ,
+        bar_width = mesh.Δ,
         label = "sims",
         subplot = whichφ,
     )

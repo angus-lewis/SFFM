@@ -56,10 +56,10 @@ Nodes = collect(Bounds[1, 1]:Δ:Bounds[1, 2])
 # )
 NBases = 1
 Basis = "lagrange"
-Mesh = SFFM.MakeMesh(model = model, Nodes = Nodes, NBases = NBases, Basis=Basis)
+mesh = SFFM.MakeMesh(model = model, Nodes = Nodes, NBases = NBases, Basis=Basis)
 
 ## Construct all DG operators
-All = SFFM.MakeAll(model = model, Mesh = Mesh, approxType = "projection")
+All = SFFM.MakeAll(model = model, mesh = mesh, approxType = "projection")
 Matrices = All.Matrices
 MatricesR = All.MatricesR
 B = All.B
@@ -72,11 +72,11 @@ initpm = [
     zeros(sum(model.C.<=0)) # LHS point mass
     zeros(sum(model.C.>=0)) # RHS point mass
 ]
-initprobs = zeros(Float64,1,Mesh.NIntervals,model.NPhases)
-initprobs[1,(1+Mesh.NIntervals)÷2+1,1] = 1
-initdist = (pm = initpm, distribution = initprobs, x = Matrix(Mesh.CellNodes[1,:]'+Mesh.Δ'/2), type = "probability")
-x0 = SFFM.Dist2Coeffs(model = model, Mesh = Mesh, Distn = initdist)
-# p = SFFM.PlotSFM(model=model,Mesh=Mesh,Dist=initdist)
+initprobs = zeros(Float64,1,mesh.NIntervals,model.NPhases)
+initprobs[1,(1+mesh.NIntervals)÷2+1,1] = 1
+initdist = (pm = initpm, distribution = initprobs, x = Matrix(mesh.CellNodes[1,:]'+mesh.Δ'/2), type = "probability")
+x0 = SFFM.Dist2Coeffs(model = model, mesh = mesh, Distn = initdist)
+# p = SFFM.PlotSFM(model=model,mesh=mesh,Dist=initdist)
 
 ## approximations to exp(Dy)
 h = 0.0001
@@ -84,25 +84,25 @@ h = 0.0001
 
 # convert to densities
 # densities
-simdensity = SFFM.Sims2Dist(model=model,Mesh=Mesh,sims=sims,type="density")
-DGdensity = SFFM.Coeffs2Dist(model=model,Mesh=Mesh,Coeffs=yvals,type="density")
+simdensity = SFFM.Sims2Dist(model=model,mesh=mesh,sims=sims,type="density")
+DGdensity = SFFM.Coeffs2Dist(model=model,mesh=mesh,Coeffs=yvals,type="density")
 
 # convert to probabilities
 # get estimates of probabilities
-simprobs = SFFM.Sims2Dist(model=model,Mesh=Mesh,sims=sims,type="probability")
-probs = SFFM.Coeffs2Dist(model=model,Mesh=Mesh,Coeffs=yvals,type="probability")
+simprobs = SFFM.Sims2Dist(model=model,mesh=mesh,sims=sims,type="probability")
+probs = SFFM.Coeffs2Dist(model=model,mesh=mesh,Coeffs=yvals,type="probability")
 
 ## plots
 # plot solutions
 # densities
-p = SFFM.PlotSFM(model=model,Mesh=Mesh,Dist=DGdensity,color=7)
+p = SFFM.PlotSFM(model=model,mesh=mesh,Dist=DGdensity,color=7)
 # plot sims
-p = SFFM.PlotSFM!(p;model=model,Mesh=Mesh,Dist=simdensity,color=4)
+p = SFFM.PlotSFM!(p;model=model,mesh=mesh,Dist=simdensity,color=4)
 
 # probabilities
-p = SFFM.PlotSFM(model=model,Mesh=Mesh,Dist=probs)
+p = SFFM.PlotSFM(model=model,mesh=mesh,Dist=probs)
 # plot sims
-p = SFFM.PlotSFM!(p;model=model,Mesh=Mesh,Dist=simprobs,color=2)
+p = SFFM.PlotSFM!(p;model=model,mesh=mesh,Dist=simprobs,color=2)
 
 ## other analysis
 # compute errors
@@ -111,7 +111,7 @@ derrdensity = DGdensity.distribution - simdensity.distribution
 derrdist = (pm=derrpm,distribution=derrdensity,x=DGdensity.x,type="density")
 
 # plot
-p = SFFM.PlotSFM(model=model,Mesh=Mesh,Dist=derrdist)
+p = SFFM.PlotSFM(model=model,mesh=mesh,Dist=derrdist)
 
 # display point mass data
 pmdata = [
@@ -127,4 +127,4 @@ perrpm = probs.pm-simprobs.pm
 perrdensity = probs.distribution - simprobs.distribution
 perrdist = (pm=perrpm,distribution=perrdensity,x=probs.x,type="probability")
 
-p = SFFM.PlotSFM!(p;model=model,Mesh=Mesh,Dist=perrdist)
+p = SFFM.PlotSFM!(p;model=model,mesh=mesh,Dist=perrdist)

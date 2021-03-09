@@ -72,7 +72,7 @@ struct Model
             TDict[ℓ*m] = T[SDict[ℓ], SDict[m]]
         end
     
-        println("UPDATE: Model object created with fields ", fieldnames(Model))
+        println("UPDATE: Model object created with fields ", fieldnames(SFFM.Model))
         return new(
             T,
             C,
@@ -83,6 +83,43 @@ struct Model
             TDict,
         )
     end
+end 
+
+"""
+A constructor for a Mesh object
+    
+    Mesh(
+        NBases::Int,
+        CellNodes::Array{<:Real,2},
+        Fil::Dict{String,BitArray{1}},
+        Δ::Array{Float64,1},
+        NIntervals::Int,
+        Nodes::Array{Float64,1},
+        TotalNBases::Int,
+        Basis::String,
+    )
+
+See function `MakeMesh` for constructor method
+Output is
+    - a Mesh object with keys:
+    - `:NBases`: the number of bases in each cell
+    - `:CellNodes`: Array of nodal points (cell edges + GLL points)
+    - `:Fil`: As described in the arguments
+    - `:Δ`:A vector of mesh widths, Δ[k] = x_{k+1} - x_k
+    - `:NIntervals`: The number of cells
+    - `:Nodes`: the cell edges
+    - `:TotalNBases`: `NIntervals*NBases`
+    - `:Basis`: a string specifying whether the
+"""
+struct Mesh 
+    NBases::Int
+    CellNodes::Array{<:Real,2}
+    Fil::Dict{String,BitArray{1}}
+    Δ::Array{Float64,1}
+    NIntervals::Int
+    Nodes::Array{Float64,1}
+    TotalNBases::Int
+    Basis::String
 end 
 
 include("SFFMPlots.jl")
@@ -101,15 +138,13 @@ Construct all the DG operators.
 
     MakeAll(;
         model::Model,
-        Mesh::NamedTuple{
-            (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
-        },
+        mesh::Mesh,
         approxType::String = "projection"
     )
 
 # Arguments
 - `model`: a model object as output from Model
-- `Mesh`: a mesh object as output from MakeMesh
+- `mesh`: a Mesh object
 - `approxType::String`: (optional) argument specifying how to approximate R (in
     `MakeR()`)
 
@@ -124,22 +159,20 @@ Construct all the DG operators.
 """
 function MakeAll(;
     model::Model,
-    Mesh::NamedTuple{
-        (:NBases, :CellNodes, :Fil, :Δ, :NIntervals, :Nodes, :TotalNBases, :Basis),
-    },
+    mesh::Mesh,
     approxType::String = "projection"
 )
 
-    Matrices = MakeMatrices(model = model, Mesh = Mesh)
-    # MatricesR = MakeMatricesR(model = model, Mesh = Mesh)
-    B = MakeB(model = model, Mesh = Mesh, Matrices = Matrices)
-    R = MakeR(model = model, Mesh = Mesh, approxType = approxType)
-    D = MakeD(model = model, Mesh = Mesh, R = R, B = B)
+    Matrices = MakeMatrices(model = model, mesh = mesh)
+    # MatricesR = MakeMatricesR(model = model, mesh = mesh)
+    B = MakeB(model = model, mesh = mesh, Matrices = Matrices)
+    R = MakeR(model = model, mesh = mesh, approxType = approxType)
+    D = MakeD(model = model, mesh = mesh, R = R, B = B)
     # DR = MakeDR(
     #     Matrices = Matrices,
     #     MatricesR = MatricesR,
     #     model = model,
-    #     Mesh = Mesh,
+    #     mesh = mesh,
     #     B = B,
     # )
     return (

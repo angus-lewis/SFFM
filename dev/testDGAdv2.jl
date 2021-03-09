@@ -20,37 +20,37 @@ model = SFFM.Model(T = T, C = C, r = r, Bounds = Bounds)
 Nodes = collect(Bounds[1,1]:Δ:Bounds[1,2])
 NBases = 3
 Basis = "lagrange"
-Mesh = SFFM.MakeMesh(model = model, Nodes = Nodes, NBases = NBases, Basis=Basis)
+mesh = SFFM.MakeMesh(model = model, Nodes = Nodes, NBases = NBases, Basis=Basis)
 
 V = SFFM.vandermonde(NBases=NBases)
-Matrices2 = SFFM.MakeMatrices2(model=model, Mesh=Mesh)
-MatricesR = SFFM.MakeMatricesR(model=model, Mesh=Mesh)
-MR = SparseArrays.spzeros(Float64, model.NPhases * Mesh.TotalNBases, model.NPhases * Mesh.TotalNBases)
+Matrices2 = SFFM.MakeMatrices2(model=model, mesh=mesh)
+MatricesR = SFFM.MakeMatricesR(model=model, mesh=mesh)
+MR = SparseArrays.spzeros(Float64, model.NPhases * mesh.TotalNBases, model.NPhases * mesh.TotalNBases)
 Minv =
-    SparseArrays.spzeros(Float64, model.NPhases * Mesh.TotalNBases, model.NPhases * Mesh.TotalNBases)
-FGR = SparseArrays.spzeros(Float64, model.NPhases * Mesh.TotalNBases, model.NPhases * Mesh.TotalNBases)
+    SparseArrays.spzeros(Float64, model.NPhases * mesh.TotalNBases, model.NPhases * mesh.TotalNBases)
+FGR = SparseArrays.spzeros(Float64, model.NPhases * mesh.TotalNBases, model.NPhases * mesh.TotalNBases)
 for i in 1:model.NPhases
-    idx = (1:Mesh.TotalNBases) .+ (i-1)*Mesh.TotalNBases
+    idx = (1:mesh.TotalNBases) .+ (i-1)*mesh.TotalNBases
     MR[idx,idx] = MatricesR.Global.M[i]
     Minv[idx,idx] = Matrices2.Global.MInv
     FGR[idx,idx] = model.C[i]*(MatricesR.Global.F[i]+MatricesR.Global.G[i])
 end
 
-T = SparseArrays.kron(model.T, SparseArrays.sparse(LinearAlgebra.I,Mesh.TotalNBases,Mesh.TotalNBases))
+T = SparseArrays.kron(model.T, SparseArrays.sparse(LinearAlgebra.I,mesh.TotalNBases,mesh.TotalNBases))
 DR = MR * T * Minv + FGR * Minv
 
 
 
 
-All = SFFM.MakeAll(model = model, Mesh = Mesh, approxType = "interpolation")
-Matrices = SFFM.MakeMatrices(model=model,Mesh=Mesh,probTransform=false)
-MatricesR = SFFM.MakeMatricesR(model=model,Mesh=Mesh)
-B = SFFM.MakeB(model=model,Mesh=Mesh,Matrices=Matrices,probTransform=false)
+All = SFFM.MakeAll(model = model, mesh = mesh, approxType = "interpolation")
+Matrices = SFFM.MakeMatrices(model=model,mesh=mesh,probTransform=false)
+MatricesR = SFFM.MakeMatricesR(model=model,mesh=mesh)
+B = SFFM.MakeB(model=model,mesh=mesh,Matrices=Matrices,probTransform=false)
 Dr = SFFM.MakeDR(
     Matrices=Matrices,
     MatricesR=MatricesR,
     model=model,
-    Mesh=Mesh,
+    mesh=mesh,
     B=B,
 )
 

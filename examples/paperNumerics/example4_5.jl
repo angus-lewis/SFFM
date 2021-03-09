@@ -31,21 +31,21 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         # define the mesh for each iteration
         NBases = NBasesRange[n]
         Δ = Δs[d]
-        println("Mesh details; h = ", Δ, " NBases = ", NBases)
+        println("mesh details; h = ", Δ, " NBases = ", NBases)
 
         # collect time and memory stats
         ~, times[d, n], mems[d, n], gctimes[d, n], alloc[d, n] = @timed begin
             Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
-            Mesh = SFFM.MakeMesh(
+            mesh = SFFM.MakeMesh(
                 model = approxModel,
                 Nodes = Nodes,
                 NBases = NBases,
                 Basis = Basis,
             )
-            approxSpec[d, n] = (Δ, NBases, Mesh.TotalNBases * approxModel.NPhases)
+            approxSpec[d, n] = (Δ, NBases, mesh.TotalNBases * approxModel.NPhases)
 
             # compute the marginal via DG
-            All = SFFM.MakeAll(model = approxModel, Mesh = Mesh, approxType = "projection")
+            All = SFFM.MakeAll(model = approxModel, mesh = mesh, approxType = "projection")
             Ψ = SFFM.PsiFun(D = All.D)
 
             # the distribution of X when Y first returns to 0
@@ -57,13 +57,13 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
                 R = All.R.RDict,
                 Ψ = Ψ,
                 ξ = ξ,
-                Mesh = Mesh,
+                mesh = mesh,
             )
         end
         # convert marginalX to a distribution for analysis
         DGStationaryDist = SFFM.Coeffs2Dist(
             model = approxModel,
-            Mesh = Mesh,
+            mesh = mesh,
             Coeffs = marginalX,
             type = "probability",
         )
@@ -73,8 +73,8 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         analyticX = (
             pm = [pₓ[:]; 0; 0],
             distribution =
-                Πₓ(Matrix(Mesh.Nodes[2:end]')) - Πₓ(Matrix(Mesh.Nodes[1:end-1]')),
-            x = Mesh.Nodes[1:end-1] + Mesh.Δ / 2,
+                Πₓ(Matrix(mesh.Nodes[2:end]')) - Πₓ(Matrix(mesh.Nodes[1:end-1]')),
+            x = mesh.Nodes[1:end-1] + mesh.Δ / 2,
             type = "probability",
         )
 
@@ -84,10 +84,10 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
 ##      ## now do Ψ
         ## turn sims into a cdf
         simprobs =
-            SFFM.Sims2Dist(model = simModel, Mesh = Mesh, sims = sims, type = "probability")
+            SFFM.Sims2Dist(model = simModel, mesh = mesh, sims = sims, type = "probability")
 
         # do DG for Ψ
-        theNodes = Mesh.CellNodes[:, convert(Int, ceil(5 / Δ))]
+        theNodes = mesh.CellNodes[:, convert(Int, ceil(5 / Δ))]
         basisValues = zeros(length(theNodes))
         for n = 1:length(theNodes)
             basisValues[n] =
@@ -98,18 +98,18 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
             zeros(sum(approxModel.C .<= 0)) # LHS point mass
             zeros(sum(approxModel.C .>= 0)) # RHS point mass
         ]
-        initprobs = zeros(Float64, Mesh.NBases, Mesh.NIntervals, approxModel.NPhases)
+        initprobs = zeros(Float64, mesh.NBases, mesh.NIntervals, approxModel.NPhases)
         initprobs[:, convert(Int, ceil(5 / Δ)), 3] =
             basisValues' * All.Matrices.Local.V.V * All.Matrices.Local.V.V' .* 2 / Δ
         initdist =
-            (pm = initpm, distribution = initprobs, x = Mesh.CellNodes, type = "density") # convert to a distribution object so we can apply Dist2Coeffs
+            (pm = initpm, distribution = initprobs, x = mesh.CellNodes, type = "density") # convert to a distribution object so we can apply Dist2Coeffs
         # convert to Coeffs α in the DG context
-        x0 = SFFM.Dist2Coeffs(model = approxModel, Mesh = Mesh, Distn = initdist)
+        x0 = SFFM.Dist2Coeffs(model = approxModel, mesh = mesh, Distn = initdist)
         # the initial condition on Ψ is restricted to + states so find the + states
         plusIdx = [
-            Mesh.Fil["p+"]
-            repeat(Mesh.Fil["+"]', Mesh.NBases, 1)[:]
-            Mesh.Fil["q+"]
+            mesh.Fil["p+"]
+            repeat(mesh.Fil["+"]', mesh.NBases, 1)[:]
+            mesh.Fil["q+"]
         ]
         # get the elements of x0 in + states only
         x0 = x0[plusIdx]'
@@ -118,14 +118,14 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         w = x0 * Ψ
         # this can occur in - states only, so find the - states
         minusIdx = [
-            Mesh.Fil["p-"]
-            repeat(Mesh.Fil["-"]', Mesh.NBases, 1)[:]
-            Mesh.Fil["q-"]
+            mesh.Fil["p-"]
+            repeat(mesh.Fil["-"]', mesh.NBases, 1)[:]
+            mesh.Fil["q-"]
         ]
         # then map to the whole state space for analysis
         z = zeros(
             Float64,
-            Mesh.NBases * Mesh.NIntervals * approxModel.NPhases +
+            mesh.NBases * mesh.NIntervals * approxModel.NPhases +
             sum(approxModel.C .<= 0) +
             sum(approxModel.C .>= 0),
         )
@@ -134,7 +134,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         # convert to a distribution object
         DGΨProbs = SFFM.Coeffs2Dist(
             model = approxModel,
-            Mesh = Mesh,
+            mesh = mesh,
             Coeffs = z,
             type = "probability",
         )

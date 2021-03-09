@@ -10,7 +10,7 @@ include("exampleModelDef.jl")
 Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
 NBases = 2
 Basis = "lagrange"
-Mesh = SFFM.MakeMesh(
+mesh = SFFM.MakeMesh(
     model = approxModel,
     Nodes = Nodes,
     NBases = NBases,
@@ -26,15 +26,15 @@ let q = SFFM.PlotSFM(model = approxModel)
     # evaluate the distribution
     analyticX = (
         pm = [pₓ[:];0;0],
-        distribution = πₓ(Mesh.CellNodes),
-        x = Mesh.CellNodes,
+        distribution = πₓ(mesh.CellNodes),
+        x = mesh.CellNodes,
         type = "density"
     )
 
     # plot it
     q = SFFM.PlotSFM!(q;
         model=approxModel,
-        Mesh=Mesh,
+        mesh=mesh,
         Dist = analyticX,
         color = :red,
         label = "Analytic",
@@ -48,7 +48,7 @@ let q = SFFM.PlotSFM(model = approxModel)
     colours = [:green;:blue]
     for NBases in 1:2
         c = c+1
-        Mesh = SFFM.MakeMesh(
+        mesh = SFFM.MakeMesh(
             model = approxModel,
             Nodes = Nodes,
             NBases = NBases,
@@ -56,7 +56,7 @@ let q = SFFM.PlotSFM(model = approxModel)
         )
 
         # compute the marginal via DG
-        All = SFFM.MakeAll(model = approxModel, Mesh = Mesh, approxType = "projection")
+        All = SFFM.MakeAll(model = approxModel, mesh = mesh, approxType = "projection")
         Ψ = SFFM.PsiFun(D=All.D)
 
         # the distribution of X when Y first returns to 0
@@ -68,17 +68,17 @@ let q = SFFM.PlotSFM(model = approxModel)
             R = All.R.RDict,
             Ψ = Ψ,
             ξ = ξ,
-            Mesh = Mesh,
+            mesh = mesh,
         )
         # convert marginalX to a distribution for plotting
         Dist = SFFM.Coeffs2Dist(
             model = approxModel,
-            Mesh = Mesh,
+            mesh = mesh,
             Coeffs = marginalX,
             type="density",
         )
         # plot it
-        q = SFFM.PlotSFM!(q;model=approxModel,Mesh=Mesh,
+        q = SFFM.PlotSFM!(q;model=approxModel,mesh=mesh,
             Dist = Dist,
             color = colours[c],
             label = "DG: N_k = "*string(NBases),
@@ -98,7 +98,7 @@ let q = SFFM.PlotSFM(model = approxModel)
         # # convert w to a distribution
         # eigDist = SFFM.Coeffs2Dist(
         #     model = approxModel,
-        #     Mesh = Mesh,
+        #     mesh = mesh,
         #     Coeffs = w,
         #     type="density",
         # )
@@ -106,7 +106,7 @@ let q = SFFM.PlotSFM(model = approxModel)
         # # plot it
         # q = SFFM.PlotSFM!(q;
         #     model = approxModel,
-        #     Mesh = Mesh,
+        #     mesh = mesh,
         #     Dist = eigDist,
         #     color = NBases+10,
         #     label = "DG eigen: "*string(NBases),
