@@ -3,7 +3,7 @@ Simulates a SFM defined by `Model` until the `StoppingTime` has occured,
 given the `InitialCondition` on (φ(0),X(0)).
 
     SimSFM(;
-        model::Model,
+        model::SFFM.Model,
         StoppingTime::Function,
         InitCondition::NamedTuple{(:φ, :X)},
     )
@@ -38,7 +38,7 @@ given the `InitialCondition` on (φ(0),X(0)).
         transitions of `φ` at the `StoppingTime`
 """
 function SimSFM(;
-    model::Model,
+    model::SFFM.Model,
     StoppingTime::Function,
     InitCondition::NamedTuple{(:φ, :X)},
 )
@@ -79,7 +79,7 @@ Simulates a SFFM defined by `model` until the `StoppingTime` has occured,
 given the `InitialCondition` on (φ(0),X(0),Y(0)).
 
     SimSFFM(;
-        model::Model,
+        model::SFFM.Model,
         StoppingTime::Function,
         InitCondition::NamedTuple{(:φ, :X, :Y)},
     )
@@ -117,7 +117,7 @@ given the `InitialCondition` on (φ(0),X(0),Y(0)).
         transitions of `φ` at the `StoppingTime`
 """
 function SimSFFM(;
-    model::Model,
+    model::SFFM.Model,
     StoppingTime::Function,
     InitCondition::NamedTuple{(:φ, :X, :Y)},
 )
@@ -172,7 +172,7 @@ Returns ``X(t+S) = min(max(X(t) + cᵢS,0),U)`` where ``U`` is some upper bound
 on the process.
 
     UpdateXt(;
-        model::Model,
+        model::SFFM.Model,
         SFM0::NamedTuple,
         S::Real,
     )
@@ -185,7 +185,7 @@ on the process.
 - `S::Real`: an elapsed amount of time to evaluate ``X`` at, i.e. ``X(t+S)``.
 """
 function UpdateXt(;
-    model::Model,
+    model::SFFM.Model,
     SFM0::NamedTuple,
     S::Real,
 )
@@ -202,7 +202,7 @@ end
 Returns ``Y(t+S)`` given ``Y(t)``.
 
     UpdateYt(;
-        model::Model,
+        model::SFFM.Model,
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
         S::Real,
     )
@@ -215,7 +215,7 @@ Returns ``Y(t+S)`` given ``Y(t)``.
 - `S::Real`: an elapsed amount of time to evaluate ``X`` at, i.e. ``X(t+S)``.
 """
 function UpdateYt(;
-    model::Model,
+    model::SFFM.Model,
     SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     S::Real,
 )
@@ -255,12 +255,12 @@ Constructs the `StoppingTime` ``1(t>T)``
 # Output
 - `FixedTimeFun`: a function with two methods
     - `FixedTimeFun(
-        model::Model,
+        model::SFFM.Model,
         SFM::NamedTuple{(:t, :φ, :X, :n)},
         SFM0::NamedTuple{(:t, :φ, :X, :n)},
     )`: a stopping time for a SFM.
     - `FixedTimeFun(
-        model::Model,
+        model::SFFM.Model,
         SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )`: a stopping time for a SFFM
@@ -269,7 +269,7 @@ function FixedTime(; T::Real)
     # Defines a simple stopping time, 1(t>T).
     # SFM method
     function FixedTimeFun(
-        model::Model,
+        model::SFFM.Model,
         SFM::NamedTuple{(:t, :φ, :X, :n)},
         SFM0::NamedTuple{(:t, :φ, :X, :n)},
     )
@@ -283,7 +283,7 @@ function FixedTime(; T::Real)
     end
     # SFFM METHOD
     function FixedTimeFun(
-        model::Model,
+        model::SFFM.Model,
         SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )
@@ -311,12 +311,12 @@ jumps of ``φ`` by time ``t``.
 # Output
 - `NJumpsFun`: a function with two methods
     - `NJumpsFun(
-        model::Model,
+        model::SFFM.Model,
         SFM::NamedTuple{(:t, :φ, :X, :n)},
         SFM0::NamedTuple{(:t, :φ, :X, :n)},
     )`: a stopping time for a SFM.
     - `NJumpsFun(
-        model::Model,
+        model::SFFM.Model,
         SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )`: a stopping time for a SFFM
@@ -325,7 +325,7 @@ function NJumps(; N::Int)
     # Defines a simple stopping time, 1(n>N), where n is the number of jumps of φ.
     # SFM method
     function NJumpsFun(
-        model::Model,
+        model::SFFM.Model,
         SFM::NamedTuple{(:t, :φ, :X, :n)},
         SFM0::NamedTuple{(:t, :φ, :X, :n)},
     )
@@ -334,7 +334,7 @@ function NJumps(; N::Int)
     end
     # SFFM method
     function NJumpsFun(
-        model::Model,
+        model::SFFM.Model,
         SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )
@@ -357,12 +357,12 @@ from the interval ``[u,v]``.
 # Output
 - `FirstExitXFun`: a function with two methods
     - `FirstExitXFun(
-        model::Model,
+        model::SFFM.Model,
         SFM::NamedTuple{(:t, :φ, :X, :n)},
         SFM0::NamedTuple{(:t, :φ, :X, :n)},
     )`: a stopping time for a SFM.
     - `FirstExitXFun(
-        model::Model,
+        model::SFFM.Model,
         SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )`: a stopping time for a SFFM
@@ -370,7 +370,7 @@ from the interval ``[u,v]``.
 function FirstExitX(; u::Real, v::Real)
     # SFM Method
     function FirstExitXFun(
-        model::Model,
+        model::SFFM.Model,
         SFM::NamedTuple{(:t, :φ, :X, :n)},
         SFM0::NamedTuple{(:t, :φ, :X, :n)},
     )
@@ -423,7 +423,7 @@ from the interval ``[u,v]``. ASSUMES ``Y(t)`` is monotonic between jumps.
 # Output
 - `FirstExitYFun`: a function with one method
     - `FirstExitYFun(
-        model::Model,
+        model::SFFM.Model,
         SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )`: a stopping time for a SFFM
@@ -431,7 +431,7 @@ from the interval ``[u,v]``. ASSUMES ``Y(t)`` is monotonic between jumps.
 function FirstExitY(; u::Real, v::Real)
     # SFFM Method
     function FirstExitYFun(
-        model::Model,
+        model::SFFM.Model,
         SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )
@@ -481,8 +481,8 @@ end
 Convert from simulations of a SFM or SFFM to a distribution.
 
     Sims2Dist(;
-        model::Model,
-        mesh::Mesh,
+        model::SFFM.Model,
+        mesh::SFFM.Mesh,
         sims::NamedTuple,
         type::String = "density",
     )
@@ -527,8 +527,8 @@ Convert from simulations of a SFM or SFFM to a distribution.
     - `type`: as input in arguments.
 """
 function Sims2Dist(;
-    model::Model,
-    mesh::Mesh,
+    model::SFFM.Model,
+    mesh::SFFM.Mesh,
     sims::NamedTuple,
     type::String = "density",
 )

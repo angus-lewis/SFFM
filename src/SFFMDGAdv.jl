@@ -1,5 +1,5 @@
 # function MakeMatrices2(;
-#     model::Model,
+#     model::SFFM.Model,
 #     mesh::NamedTuple{
 #         (
 #             :NBases,
@@ -73,8 +73,8 @@
 Constructs a block diagonal matrix from blocks
 
     MakeBlockDiagonalMatrixR(;
-        model::Model,
-        mesh::Mesh,
+        model::SFFM.Model,
+        mesh::SFFM.Mesh,
         Blocks,
         Factors::Array,
     )
@@ -93,8 +93,8 @@ Constructs a block diagonal matrix from blocks
         block matrix
 """
 function MakeBlockDiagonalMatrixR(;
-    model::Model,
-    mesh::Mesh,
+    model::SFFM.Model,
+    mesh::SFFM.Mesh,
     Blocks,
     Factors::Array,
 )
@@ -113,8 +113,8 @@ end
 Constructs the flux matrices for DG
 
     MakeFluxMatrixR(;
-        mesh::Mesh,
-        model::Model,
+        mesh::SFFM.Mesh,
+        model::SFFM.Model,
         Phi,
     )
 
@@ -131,8 +131,8 @@ Constructs the flux matrices for DG
     `TotalNBases×TotalNBases` flux matrices for phase `i`.
 """
 function MakeFluxMatrixR(;
-    mesh::Mesh,
-    model::Model,
+    mesh::SFFM.Mesh,
+    model::SFFM.Model,
     Phi,
 )
     ## Create the blocks
@@ -181,8 +181,8 @@ Creates the Local and global mass, stiffness and flux matrices to compute `D(s)`
 directly.
 
     MakeMatricesR(;
-        model::Model,
-        mesh::Mesh,
+        model::SFFM.Model,
+        mesh::SFFM.Mesh,
     )
 
 # Arguments
@@ -214,8 +214,8 @@ directly.
       - `:V::NamedTuple`: as output from SFFM.vandermonde
  """
 function MakeMatricesR(;
-    model::Model,
-    mesh::Mesh,
+    model::SFFM.Model,
+    mesh::SFFM.Mesh,
 )
     ## Construct blocks
     V = vandermonde(NBases = mesh.NBases)
@@ -307,8 +307,8 @@ Construct the operator `D(s)` directly.
     MakeDR(;
         Matrices,
         MatricesR,
-        model::Model,
-        mesh::Mesh,
+        model::SFFM.Model,
+        mesh::SFFM.Mesh,
         B,
     )
 
@@ -333,8 +333,8 @@ Construct the operator `D(s)` directly.
 function MakeDR(;
     Matrices,
     MatricesR,
-    model::Model,
-    mesh::Mesh,
+    model::SFFM.Model,
+    mesh::SFFM.Mesh,
     B,
 )
     N₊ = sum(model.C .>= 0)

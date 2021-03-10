@@ -76,7 +76,7 @@ NOTE: IMPLEMENTED FOR LAGRANGE BASIS ONLY
         R::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
         Ψ::Array{<:Real},
         ξ::Array{<:Real},
-        mesh::Mesh,
+        mesh::SFFM.Mesh,
     )
 
 # Arguments
@@ -102,7 +102,7 @@ function MakeLimitDistMatrices(;
     R::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
     Ψ::Array{<:Real},
     ξ::Array{<:Real},
-    mesh::Mesh,
+    mesh::SFFM.Mesh,
     probTransform::Bool = true,
     model=1,
 )

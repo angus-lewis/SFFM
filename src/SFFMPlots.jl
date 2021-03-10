@@ -2,8 +2,8 @@
 Add to a figure a plot of a SFM distribution.
 
     PlotSFM!(p;
-        model::Model,
-        mesh::Mesh,
+        model::SFFM.Model,
+        mesh::SFFM.Mesh,
         Dist::NamedTuple{(:pm, :distribution, :x, :type)},
         color = 1,
     )
@@ -16,8 +16,8 @@ Add to a figure a plot of a SFM distribution.
 - `color`: (optional) a colour specifier for the plot
 """
 function PlotSFM!(p;
-    model::Model,
-    mesh::Mesh,
+    model::SFFM.Model,
+    mesh::SFFM.Mesh,
     Dist::NamedTuple{(:pm, :distribution, :x, :type)},
     color = 1,
     label = false,
@@ -122,8 +122,8 @@ end # end PlotSFM!
 Initialise and plot a SFM distribution.
 
     PlotSFM(
-        model::Model,
-        mesh::Mesh,
+        model::SFFM.Model,
+        mesh::SFFM.Mesh,
         Dist::NamedTuple{(:pm, :distribution, :x, :type)},
         color = 1,
     )
@@ -139,8 +139,8 @@ Initialise and plot a SFM distribution.
     containing a plot of the distribution for each phase.
 """
 function PlotSFM(;
-    model::Model,
-    mesh::Mesh = SFFM.Mesh(
+    model::SFFM.Model,
+    mesh::SFFM.Mesh = SFFM.Mesh(
         0,
         Array{Real,2}(undef,0,0),
         Dict{String,BitArray{1}}(),

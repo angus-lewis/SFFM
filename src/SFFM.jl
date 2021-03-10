@@ -139,8 +139,8 @@ end
 Construct all the DG operators.
 
     MakeAll(;
-        model::Model,
-        mesh::Mesh,
+        model::SFFM.Model,
+        mesh::SFFM.Mesh,
         approxType::String = "projection"
     )
 
@@ -160,8 +160,8 @@ Construct all the DG operators.
     - `DR`: see `MakeDR`
 """
 function MakeAll(;
-    model::Model,
-    mesh::Mesh,
+    model::SFFM.Model,
+    mesh::SFFM.Mesh,
     approxType::String = "projection"
 )
 

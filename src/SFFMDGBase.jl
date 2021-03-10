@@ -2,7 +2,7 @@
 Constructs a Mesh object (a tuple with fields which describe the DG mesh).
 
     MakeMesh(;
-        model::Model,
+        model::SFFM.Model,
         Nodes::Array{Float64,1},
         NBases::Int,
         Fil::Dict{String,BitArray{1}}=Dict{String,BitArray{1}}(),
@@ -37,7 +37,7 @@ Constructs a Mesh object (a tuple with fields which describe the DG mesh).
 TBC
 """
 function MakeMesh(;
-    model::Model,
+    model::SFFM.Model,
     Nodes::Array{<:Real,1},
     NBases::Int,
     Fil::Dict{String,BitArray{1}}=Dict{String,BitArray{1}}(),
@@ -178,7 +178,7 @@ end
 Constructs a block diagonal matrix from blocks
 
     MakeBlockDiagonalMatrix(;
-        mesh::Mesh,
+        mesh::SFFM.Mesh,
         Blocks::Array{Float64,2},
         Factors::Array,
     )
@@ -194,7 +194,7 @@ Constructs a block diagonal matrix from blocks
         block matrix
 """
 function MakeBlockDiagonalMatrix(;
-    mesh::Mesh,
+    mesh::SFFM.Mesh,
     Blocks::Array{Float64,2},
     Factors::Array,
 )
@@ -210,8 +210,8 @@ end
 Constructs the flux matrices for DG
 
     MakeFluxMatrix(;
-        mesh::Mesh,
-        model::Model,
+        mesh::SFFM.Mesh,
+        model::SFFM.Model,
         Phi,
         Dw,
         probTransform::Bool=true,
@@ -232,7 +232,7 @@ Constructs the flux matrices for DG
     flux matrices for `model.C[i]>0` and `model.C[i]<0`, respectively.
 """
 function MakeFluxMatrix(;
-    mesh::Mesh,
+    mesh::SFFM.Mesh,
     Phi,
     Dw,
     probTransform::Bool=true,
@@ -291,8 +291,8 @@ end
 Creates the Local and global mass, stiffness and flux matrices to compute `B`.
 
     MakeMatrices(;
-        model::Model,
-        mesh::Mesh,
+        model::SFFM.Model,
+        mesh::SFFM.Mesh,
         probTransform::Bool=true,
     )
 
@@ -323,8 +323,8 @@ Creates the Local and global mass, stiffness and flux matrices to compute `B`.
       - `:V::NamedTuple`: as output from SFFM.vandermonde
 """
 function MakeMatrices(;
-    model::Model,
-    mesh::Mesh,
+    model::SFFM.Model,
+    mesh::SFFM.Mesh,
     probTransform::Bool=true,
 )
     ## Construct local blocks
@@ -396,8 +396,8 @@ end
 Creates the DG approximation to the generator `B`.
 
     MakeB(;
-        model::Model,
-        mesh::Mesh,
+        model::SFFM.Model,
+        mesh::SFFM.Mesh,
         Matrices::NamedTuple,
         probTransform::Bool=true,
     )
@@ -421,8 +421,8 @@ Creates the DG approximation to the generator `B`.
         to cell `k` next to each other
 """
 function MakeB(;
-    model::Model,
-    mesh::Mesh,
+    model::SFFM.Model,
+    mesh::SFFM.Mesh,
     Matrices::NamedTuple,
     probTransform::Bool=true,
 )
@@ -558,8 +558,8 @@ end
 # Construct the DG approximation to the operator `R`.
 
     MakeR(;
-        model::Model,
-        mesh::Mesh,
+        model::SFFM.Model,
+        mesh::SFFM.Mesh,
         approxType::String = "projection",
         probTransform::Bool = true,
     )
@@ -583,8 +583,8 @@ end
         `"-"` for cells in ``∪ᵢFᵢ⁻``.
 """
 function MakeR(;
-    model::Model,
-    mesh::Mesh,
+    model::SFFM.Model,
+    mesh::SFFM.Mesh,
     approxType::String = "projection",
     probTransform::Bool = true,
 )
@@ -675,8 +675,8 @@ Construct the operator `D(s)` from `B, R`.
     MakeD(;
         R,
         B,
-        model::Model,
-        mesh::Mesh,
+        model::SFFM.Model,
+        mesh::SFFM.Mesh,
     )
 
 # Arguments
@@ -693,8 +693,8 @@ Construct the operator `D(s)` from `B, R`.
 function MakeD(;
     R::NamedTuple{(:R, :RDict)},
     B::NamedTuple{(:BDict, :B, :QBDidx)},
-    model::Model,
-    mesh::Mesh,
+    model::SFFM.Model,
+    mesh::SFFM.Mesh,
 )
     DDict = Dict{String,Any}()
     for ℓ in ["+", "-"], m in ["+", "-"]
@@ -836,8 +836,8 @@ end
 Convert from a vector of coefficients for the DG system to a distribution.
 
     Coeffs2Dist(;
-        model::Model,
-        mesh::Mesh,
+        model::SFFM.Model,
+        mesh::SFFM.Mesh,
         Coeffs,
         type::String = "probability",
         probTransform::Bool = true,
@@ -885,8 +885,8 @@ Convert from a vector of coefficients for the DG system to a distribution.
     - `type`: as input in arguments.
 """
 function Coeffs2Dist(;
-    model::Model,
-    mesh::Mesh,
+    model::SFFM.Model,
+    mesh::SFFM.Mesh,
     Coeffs::Array,
     type::String = "probability",
     probTransform::Bool = true,
@@ -971,8 +971,8 @@ Converts a distribution as output from `Coeffs2Dist()` to a vector of DG
 coefficients.
 
     Dist2Coeffs(;
-        model::Model,
-        mesh::Mesh,
+        model::SFFM.Model,
+        mesh::SFFM.Mesh,
         Distn::NamedTuple{(:pm, :distribution, :x, :type)},
         probTransform::Bool = true,
     )
@@ -1010,8 +1010,8 @@ coefficients.
     phase. Used to premultiply operators such as B from `MakeB()`
 """
 function Dist2Coeffs(;
-    model::Model,
-    mesh::Mesh,
+    model::SFFM.Model,
+    mesh::SFFM.Mesh,
     Distn::NamedTuple{(:pm, :distribution, :x, :type)},
     probTransform::Bool = true,
 )
