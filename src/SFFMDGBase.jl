@@ -434,7 +434,7 @@ function MakeB(;
         model.NPhases * mesh.TotalNBases + N₋ + N₊,
         model.NPhases * mesh.TotalNBases + N₋ + N₊,
     )
-    Id = SparseArrays.sparse(LinearAlgebra.I, mesh.TotalNBases, mesh.TotalNBases)
+    Id = SparseArrays.I(mesh.TotalNBases)
     for i = 1:model.NPhases
         idx = ((i-1)*mesh.TotalNBases+1:i*mesh.TotalNBases) .+ N₋
         B[idx, idx] = Matrices.Global.Q[i]

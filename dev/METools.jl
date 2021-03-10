@@ -27,7 +27,9 @@ Inputs:
 struct ME 
     a::Array{<:Real,2}
     S::Array{<:Real,2}
-    s::Array{<:Real,1}
+    s::Union{Array{<:Real,1},Array{<:Real,2}}
+    f::Function
+    F::Function
     function ME(a,S,s) 
         s1 = size(a,1)
         s2 = size(a,2)
@@ -39,7 +41,9 @@ struct ME
         if test
             error("Dimensions of ME representation not consistent")
         else
-            return new(a,S,s)
+            f(x) = a*exp(S)*s
+            F(x) = 1-sum(a*exp(S))
+            return new(a,S,s,f,F)
         end
     end
 end
@@ -69,7 +73,7 @@ function MakeME(params; mean = 1)
     end
     Q = Q.*sum(-α*Q^-1)./mean
     q = -sum(Q,dims=2)
-    return (α = α, Q = Q, q = q)
+    return SFFM.ME(α,Q,q)
 end
 
 function MakeErlang(order; mean = 1)
@@ -79,7 +83,7 @@ function MakeErlang(order; mean = 1)
     Q = zeros(order,order)
     Q = Q + diagm(0=>repeat(-[λ],order), 1=>repeat([λ],order-1))
     q = -sum(Q,dims=2)
-    return (α = α, Q = Q, q = q)
+    return SFFM.ME(α,Q,q)
 end
 
 function MakeSomeCoxian(order; mean = 1)
@@ -91,7 +95,7 @@ function MakeSomeCoxian(order; mean = 1)
     Q = diagm(0=>d, 1=>-p*d[1:end-1])
     Q = Q.*sum(-α*Q^-1)./mean
     q = -sum(Q,dims=2)
-    return (α = α, Q = Q, q = q)
+    return SFFM.ME(α,Q,q)
 end
 
 function MakeSomePH(order; mean = 1)
@@ -142,11 +146,11 @@ function MakeSomePH(order; mean = 1)
     # Q = Q - diagm(sum(Q,dims=2)[:]) - diagm([zeros(order-1);1])
     # Q = Q.*sum(-α*Q^-1)./mean
     # q = -sum(Q,dims=2)
-    return (α = α, Q = Q, q = q)
+    return SFFM.ME(α,Q,q)
 end
 
-function reversal(PH)
-    α, Q = PH
+function reversal(me)
+    α, Q = me.a, me.S
     πPH = -α*Q^-1
     μ = sum(πPH)
     πPH = πPH./μ
@@ -183,6 +187,88 @@ function jumpMatrixD(PH)
     # display(D*Q*D^-1)
     # display(reversal(PH).Q)
     return (D)
+end
+
+function MakeFRAPApprox(;model::SFFM.Model, mesh::SFFM.Mesh, me::SFFM.ME, D)
+    N₊ = sum(model.C .>= 0)
+    N₋ = sum(model.C .<= 0)
+
+    F = Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}}()
+    UpDiagBlock = me.s*me.a
+    LowDiagBlock = me.s*me.a
+    for i = ["+","-"]
+        F[i] = SparseArrays.spzeros(Float64, mesh.TotalNBases, mesh.TotalNBases)
+        for k = 1:mesh.NIntervals
+            idx = (1:mesh.NBases) .+ (k - 1) * mesh.NBases
+            if k > 1
+                idxup = (1:mesh.NBases) .+ (k - 2) * mesh.NBases
+                if i=="+"
+                    F[i][idxup, idx] = UpDiagBlock
+                elseif i=="-"
+                    F[i][idx, idxup] = LowDiagBlock
+                end # end if C[i]
+            end # end if k>1
+        end # for k in ...
+    end # for i in ...
+
+    Q = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,model.NPhases)
+    for i = 1:model.NPhases
+        Q[i] = abs(model.C[i]) * me.S
+    end
+
+    signChangeIndex = (sign.(model.C)*sign.(model.C)').<=0
+    signChangeIndex = signChangeIndex - diagm(diag(signChangeIndex))
+    B = SparseArrays.spzeros(
+        Float64,
+        model.NPhases * mesh.TotalNBases + N₋ + N₊,
+        model.NPhases * mesh.TotalNBases + N₋ + N₊,
+    )
+    B[N₋+1:end-N₊,N₋+1:end-N₊] = SparseArrays.kron(
+            model.T.*signChangeIndex,
+            SparseArrays.kron(SparseArrays.I(mesh.NIntervals),D)
+        ) + SparseArrays.kron(
+            model.T.*(1 .- signChangeIndex),
+            SparseArrays.I(mesh.TotalNBases)
+        )
+    
+    # Boundary conditions
+    T₋₋ = model.T[model.C.<=0,model.C.<=0]
+    T₊₋ = model.T[model.C.>=0,:].*((model.C.<0)')
+    T₋₊ = model.T[model.C.<=0,:].*((model.C.>0)')
+    T₊₊ = model.T[model.C.>=0,model.C.>=0]
+    # yuck
+    inLower = [
+        LinearAlgebra.kron(LinearAlgebra.diagm(abs.(model.C).*(model.C.<=0)),me.s)[:,model.C.<=0]; 
+        LinearAlgebra.zeros((mesh.NIntervals-1)*model.NPhases*mesh.NBases,N₋)
+    ]
+    outLower = [
+        LinearAlgebra.kron(1,kron(T₋₊,me.a)) LinearAlgebra.zeros(N₋,N₊+(mesh.NIntervals-1)*model.NPhases*mesh.NBases)
+    ]
+    inUpper = [
+        LinearAlgebra.zeros((mesh.NIntervals-1)*model.NPhases*mesh.NBases,N₊);
+        LinearAlgebra.kron(LinearAlgebra.diagm(abs.(model.C).*(model.C.>=0)),me.s)[:,model.C.>=0]
+    ]
+    outUpper = [
+        LinearAlgebra.zeros(N₊,N₋+(mesh.NIntervals-1)*model.NPhases*mesh.NBases) LinearAlgebra.kron(1,kron(T₊₋,me.a))
+    ]
+    
+    B[1:N₋,:] = [T₋₋ outLower]
+    B[end-N₊+1:end,:] = [outUpper T₊₊]
+    B[N₋+1:end-N₊,1:N₋] = inLower
+    B[N₋+1:end-N₊,(end-N₊+1):end] = inUpper
+    for i = 1:model.NPhases
+        idx = ((i-1)*mesh.TotalNBases+1:i*mesh.TotalNBases) .+ N₋
+        if model.C[i] > 0
+            B[idx, idx] += abs(model.C[i]) * SparseArrays.kron(
+                    SparseArrays.I(mesh.NIntervals),me.S
+                    ) + F["+"]
+        elseif model.C[i] < 0
+            B[idx, idx] += abs(model.C[i]) * SparseArrays.kron(
+                SparseArrays.I(mesh.NIntervals),me.S
+                ) + F["-"]
+        end
+    end
+    return B
 end
 
 function MakeGlobalApprox(;NCells = 3,up, down,T,C,bkwd=false,D=[],plusI = false)

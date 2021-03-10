@@ -3,10 +3,10 @@ include("src/SFFM.jl")
 include("dev/METools.jl")
 
 # define SFM
-T = [-2.0 2.0; 1.0 -1.0]#[-2.0 2.0 0; 1.0 -2.0 1; 1 1 -2]
-C = [1.0; -2.0]#; -1]
-fn(x) = [ones(size(x)) ones(size(x))]# ones(size(x))]
-M = SFFM.Model(;T=T,C=C,r=(r=fn,R=fn),Bounds=[0 10;-Inf Inf])
+T =[-2.0 2.0 0; 1.0 -2.0 1; 4 3 -7]# [-2.0 2.0; 1.0 -1.0]#
+C = [1.0; 2.0; 0]
+fn(x) = [ones(size(x)) ones(size(x)) ones(size(x))]
+model = SFFM.Model(;T=T,C=C,r=(r=fn,R=fn),Bounds=[0 10;-Inf Inf])
 N₋ = sum(C.<=0)
 N₊ = sum(C.>=0)
 NPhases = length(C)
