@@ -16,34 +16,43 @@ ME constructor method
         a::Array{<:Real,2},
         S::Array{<:Real,2},
         s::Array{<:Real,1},
+        D="",
     )
 
 Inputs: 
  - `a` a 1 by p Array of reals
  - `S` a p by p Array of reals
  - `s` a p by 1 Array of reals
+ - `D` an optional argument, if empty then me.D is the identity, 
+    else is a p by p matrix
  Throws an error if the dimensions are inconsistent.
 """
 struct ME 
     a::Array{<:Real,2}
     S::Array{<:Real,2}
     s::Union{Array{<:Real,1},Array{<:Real,2}}
+    D::Union{Array{<:Real,2}}
     f::Function
     F::Function
-    function ME(a,S,s) 
+    function ME(a,S,s;D=[0])
+        if D==[0]
+            D = Array{Float64}(LinearAlgebra.I(size(S,1)))
+        end
         s1 = size(a,1)
         s2 = size(a,2)
         s3 = size(S,1)
         s4 = size(S,2)
         s5 = size(s,1)
         s6 = size(s,2)
-        test = (s1!=1) || (s6!=1) || any(([s2;s3;s4].-s5).!=0)
+        s7 = size(D,1)
+        s8 = size(D,2)
+        test = (s1!=1) || (s6!=1) || any(([s2;s3;s4;s7;s8].-s5).!=0)
         if test
             error("Dimensions of ME representation not consistent")
         else
             f(x) = a*exp(S)*s
             F(x) = 1-sum(a*exp(S))
-            return new(a,S,s,f,F)
+            return new(a,S,s,D,f,F)
         end
     end
 end
@@ -73,7 +82,7 @@ function MakeME(params; mean = 1)
     end
     Q = Q.*sum(-α*Q^-1)./mean
     q = -sum(Q,dims=2)
-    return SFFM.ME(α,Q,q)
+    return SFFM.ME(α,Q,q;D=params["D"])
 end
 
 function MakeErlang(order; mean = 1)
@@ -83,7 +92,8 @@ function MakeErlang(order; mean = 1)
     Q = zeros(order,order)
     Q = Q + diagm(0=>repeat(-[λ],order), 1=>repeat([λ],order-1))
     q = -sum(Q,dims=2)
-    return SFFM.ME(α,Q,q)
+    D = LinearAlgebra.I(order)[end:-1:1,:]
+    return SFFM.ME(α,Q,q;D=D)
 end
 
 function MakeSomeCoxian(order; mean = 1)
@@ -184,24 +194,6 @@ orbit(t,me::SFFM.ME; norm = 1) = begin
         orbits[i,:] = num./denom
     end
     return orbits
-end
-
-density(t,ME) = begin
-    pdf = zeros(length(t),1)
-    for i in 1:length(t)
-        num = me.a*exp(me.S*t[i])*sum(-me.S,dims=2)
-        pdf[i] = sum(num)
-    end
-    return pdf
-end
-intensity(t,me::SFFM.ME) = begin
-    intensity = zeros(length(t),1)
-    for i in 1:length(t)
-        num = me.a*exp(me.S*t[i])
-        denom = sum(num)
-        intensity[i] = sum(num*sum(-me.S,dims=2))/denom
-    end
-    return intensity
 end
 
 function renewalProperties(me::SFFM.ME)

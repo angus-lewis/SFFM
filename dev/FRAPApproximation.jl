@@ -1,4 +1,4 @@
-function MakeFRAPApprox(;model::SFFM.Model, mesh::SFFM.Mesh, me::SFFM.ME, D)
+function MakeFRAPApprox(;model::SFFM.Model, mesh::SFFM.Mesh, me::SFFM.ME)
     N₊ = sum(model.C .>= 0)
     N₋ = sum(model.C .<= 0)
 
@@ -34,7 +34,7 @@ function MakeFRAPApprox(;model::SFFM.Model, mesh::SFFM.Mesh, me::SFFM.ME, D)
     )
     B[N₋+1:end-N₊,N₋+1:end-N₊] = SparseArrays.kron(
             model.T.*signChangeIndex,
-            SparseArrays.kron(SparseArrays.I(mesh.NIntervals),D)
+            SparseArrays.kron(SparseArrays.I(mesh.NIntervals),me.D)
         ) + SparseArrays.kron(
             model.T.*(1 .- signChangeIndex),
             SparseArrays.I(mesh.TotalNBases)
