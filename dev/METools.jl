@@ -50,8 +50,8 @@ struct ME
         if test
             error("Dimensions of ME representation not consistent")
         else
-            f(x) = a*exp(S)*s
-            F(x) = 1-sum(a*exp(S))
+            f(x) = a*exp(S*x)*s
+            F(x) = 1-sum(a*exp(S*x))
             return new(a,S,s,D,f,F)
         end
     end
@@ -92,7 +92,7 @@ function MakeErlang(order; mean = 1)
     Q = zeros(order,order)
     Q = Q + diagm(0=>repeat(-[λ],order), 1=>repeat([λ],order-1))
     q = -sum(Q,dims=2)
-    D = LinearAlgebra.I(order)[end:-1:1,:]
+    D = Matrix(LinearAlgebra.I(order))[end:-1:1,:]
     return SFFM.ME(α,Q,q;D=D)
 end
 

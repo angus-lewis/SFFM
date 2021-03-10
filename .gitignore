@@ -5,6 +5,7 @@
 CMEParams.json
 CMEParams*.json
 CMEParams.jld2
+erlangDParams.jld2
 
 *~
 
