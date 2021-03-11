@@ -25,7 +25,7 @@ function MakeBFRAP(;model::SFFM.Model, mesh::SFFM.Mesh, me::SFFM.ME)
         Q[i] = abs(model.C[i]) * me.S
     end
 
-    signChangeIndex = (sign.(model.C)*sign.(model.C)').<=0
+    signChangeIndex = .!((sign.(model.C).<=0)*(sign.(model.C).<=0)')
     signChangeIndex = signChangeIndex - 
         LinearAlgebra.diagm(LinearAlgebra.diag(signChangeIndex))
     B = SparseArrays.spzeros(
@@ -40,6 +40,16 @@ function MakeBFRAP(;model::SFFM.Model, mesh::SFFM.Mesh, me::SFFM.ME)
             model.T.*(1 .- signChangeIndex),
             SparseArrays.I(mesh.TotalNBases)
         )
+    
+    ## Make QBD index
+    c = N₋
+    QBDidx = zeros(Int, model.NPhases * mesh.TotalNBases + N₊ + N₋)
+    for k = 1:mesh.NIntervals, i = 1:model.NPhases, n = 1:mesh.NBases
+        c += 1
+        QBDidx[c] = (i - 1) * mesh.TotalNBases + (k - 1) * mesh.NBases + n + N₋
+    end
+    QBDidx[1:N₋] = 1:N₋
+    QBDidx[(end-N₊+1):end] = (model.NPhases * mesh.TotalNBases + N₋) .+ (1:N₊)
     
     # Boundary conditions
     T₋₋ = model.T[model.C.<=0,model.C.<=0]
@@ -62,34 +72,24 @@ function MakeBFRAP(;model::SFFM.Model, mesh::SFFM.Mesh, me::SFFM.ME)
         LinearAlgebra.zeros(N₊,N₋+(mesh.NIntervals-1)*model.NPhases*mesh.NBases) LinearAlgebra.kron(1,kron(T₊₋,me.a))
     ]
     
-    B[1:N₋,:] = [T₋₋ outLower]
-    B[end-N₊+1:end,:] = [outUpper T₊₊]
-    B[N₋+1:end-N₊,1:N₋] = inLower
-    B[N₋+1:end-N₊,(end-N₊+1):end] = inUpper
+    B[1:N₋,QBDidx] = [T₋₋ outLower]
+    B[end-N₊+1:end,QBDidx] = [outUpper T₊₊]
+    B[QBDidx[N₋+1:end-N₊],1:N₋] = inLower
+    B[QBDidx[N₋+1:end-N₊],(end-N₊+1):end] = inUpper
     for i = 1:model.NPhases
         idx = ((i-1)*mesh.TotalNBases+1:i*mesh.TotalNBases) .+ N₋
         if model.C[i] > 0
-            B[idx, idx] += abs(model.C[i]) * SparseArrays.kron(
+            B[idx, idx] += model.C[i] * SparseArrays.kron(
                     SparseArrays.I(mesh.NIntervals),me.S
-                    ) + F["+"]
+                    ) + model.C[i]*F["+"]
         elseif model.C[i] < 0
             B[idx, idx] += abs(model.C[i]) * SparseArrays.kron(
                 SparseArrays.I(mesh.NIntervals),me.S
-                ) + F["-"]
+                ) + abs(model.C[i])*F["-"]
         end
     end
 
     BDict = MakeDict(B;model=model,mesh=mesh)
-
-    ## Make QBD index
-    c = N₋
-    QBDidx = zeros(Int, model.NPhases * mesh.TotalNBases + N₊ + N₋)
-    for k = 1:mesh.NIntervals, i = 1:model.NPhases, n = 1:mesh.NBases
-        c += 1
-        QBDidx[c] = (i - 1) * mesh.TotalNBases + (k - 1) * mesh.NBases + n + N₋
-    end
-    QBDidx[1:N₋] = 1:N₋
-    QBDidx[(end-N₊+1):end] = (model.NPhases * mesh.TotalNBases + N₋) .+ (1:N₊)
 
     return (BDict=BDict, B=B, QBDidx=QBDidx)
 end

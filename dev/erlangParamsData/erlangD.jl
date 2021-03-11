@@ -52,28 +52,27 @@ for n in keys(CMEParams)
     push!(N,n)
 end
 
+# tempDict = Dict()
+# open("dev/erlangParamsData/erlangDParams.json", "r") do f
+#     global tempDict
+#     tempDict=JSON.parse(f)  # parse and transform data
+# end
+
+# erlangDParams = Dict()
+# for k in keys(tempDict)
+#     Dtemp = zeros(parse(Int,k),parse(Int,k))
+#     for i in 1:parse(Int,k) 
+#         try
+#             Dtemp[:,i] = Float64.(tempDict[k][i])
+#         catch
+
+#         end
+#     end
+#     erlangDParams[k] = Dtemp
+# end
+
 open("dev/erlangParamsData/erlangDParams.json","w") do f
     JSON.print(f, erlangDParams)
 end
 
 @save "dev/erlangParamsData/erlangDParams.jld2" erlangDParams
-
-# let
-#     CMEKeys = sort(collect(keys(CMEParams)))
-#     a = 0
-#     filecounter = 1
-#     tempDict = Dict()
-#     for key in CMEKeys
-#         a += key^2*8
-#         tempDict[key] = CMEParams[key]
-#         if a > 2e7
-#             open(pwd()*"/dev/erlangParamsData/erlangDParams"*string(filecounter)*".json","w") do f
-#                 JSON.print(f, tempDict)
-#             end
-#             @save pwd()*"/dev/erlangParamsData/erlangDParams"*string(filecounter)*".jld2" tempDict
-#             tempDict = Dict()
-#             a = 0
-#             filecounter += 1
-#         end
-#     end
-# end

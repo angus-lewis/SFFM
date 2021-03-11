@@ -58,12 +58,12 @@ let
     p4 = plot()
 
     colours = [:black, :false ,:blue]
-    shapes = [:star5, :rtriangle, :star7, :ltriangle]
+    shapes = [:star5, :x, :star7, :+]
     ## DG
-    c = 0
+    c = -1
     styles = [:dashdot,:dash]
-    for NBases in 1:2:3
-        c = c+1
+    for NBases in [1;13]
+        c = c+2
         mesh = SFFM.MakeMesh(
             model = approxModel,
             Nodes = Nodes,
@@ -75,7 +75,8 @@ let
         Ψ = SFFM.PsiFun(D=All.D)
 
         # construct FRAP matrices
-        me = SFFM.MakeME(SFFM.CMEParams[NBases])
+        me = SFFM.MakeME(SFFM.CMEParams[NBases], mean = mesh.Δ[1])
+        # Rme = SFFM.MakeR(model=approxModel,mesh=mesh,approxType="interpolation",probTransform=false)
         B = SFFM.MakeBFRAP(model=approxModel,mesh=mesh,me=me)
         D = SFFM.MakeD(R=All.R,B=B,model=approxModel,mesh=mesh)
         Ψme = SFFM.PsiFun(D=D)
@@ -147,11 +148,13 @@ let
         )
         plot(zme)
         display(plot!(z))
+        
         meProbs = SFFM.Coeffs2Dist(
             model = approxModel,
             mesh = mesh,
             Coeffs = zme,
-            type="cumulative",
+            type = "cumulative",
+            probTransform = true,
         )
 
         # plot them
@@ -159,26 +162,26 @@ let
             DGProbs.x[:],
             DGProbs.distribution[:,:,2][:],
             label = "DG: N_k = "*string(NBases),
-            color = colours[NBases],
+            color = colours[c],
             xlims = (-0.1,2.1),
             seriestype = :scatter,
             # linestyle = styles[c],
-            markershape = shapes[NBases],
-            markercolor = colours[NBases],
-            markerstrokecolor = colours[NBases],
+            markershape = shapes[c],
+            markercolor = colours[c],
+            markerstrokecolor = colours[c],
             markersize=6,
         )
         p2 = plot!(p2,
             meProbs.x[:],
             meProbs.distribution[:,:,2][:],
             label = "me: N_k = "*string(NBases),
-            color = colours[NBases],
+            color = colours[c],
             xlims = (-0.1,2.1),
             seriestype = :scatter,
             # linestyle = styles[c],
-            markershape = shapes[NBases+1],
-            markercolor = colours[NBases],
-            markerstrokecolor = colours[NBases],
+            markershape = shapes[c+1],
+            markercolor = colours[c],
+            markerstrokecolor = colours[c],
             markersize=6,
         )
 
@@ -186,26 +189,26 @@ let
             DGProbs.x[:],
             DGProbs.distribution[:,:,4][:],
             label = "DG:  N_k = "*string(NBases),
-            color = colours[NBases],
+            color = colours[c],
             xlims = (-0.1,2.1),
             seriestype = :scatter,
             # linestyle = styles[c],
-            markershape = shapes[NBases],
-            markercolor = colours[NBases],
-            markerstrokecolor = colours[NBases],
+            markershape = shapes[c],
+            markercolor = colours[c],
+            markerstrokecolor = colours[c],
             markersize=6,
         )
         p4 = plot!(p4,
             meProbs.x[:],
             meProbs.distribution[:,:,4][:],
             label = "me:  N_k = "*string(NBases),
-            color = colours[NBases],
+            color = colours[c],
             xlims = (-0.1,2.1),
             seriestype = :scatter,
             # linestyle = styles[c],
-            markershape = shapes[NBases+1],
-            markercolor = colours[NBases],
-            markerstrokecolor = colours[NBases],
+            markershape = shapes[c+1],
+            markercolor = colours[c],
+            markerstrokecolor = colours[c],
             markersize=6,
         )
     end

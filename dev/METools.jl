@@ -1,16 +1,10 @@
 import JLD2, LinearAlgebra, JSON
 
-# erlangDParams = Dict()
-# open("dev/erlangParamsData/erlangDParams.json", "r") do f
-#     global erlangDParams
-#     erlangDParams=JSON.parse(f)  # parse and transform data
-# end
+erlangDParams = Dict()
+JLD2.@load pwd()*"/dev/erlangParamsData/erlangDParams.jld2" erlangDParams
 
 JLD2.@load pwd()*"/dev/CMEParamsData/CMEParams1.jld2" tempDict
 CMEParams = tempDict
-
-# @load pwd()*"/dev/erlangParamsData/erlangDParams.jld2" tempDict
-# erlangDParams = tempDict
 
 """
 ME constructor method
