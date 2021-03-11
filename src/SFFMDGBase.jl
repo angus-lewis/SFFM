@@ -380,6 +380,8 @@ function MakeMatrices(;
             Q[i] = model.C[i] * (G + F["+"]) * MInv
         elseif model.C[i] < 0
             Q[i] = model.C[i] * (G + F["-"]) * MInv
+        else
+            Q[i] = SparseArrays.spzeros(size(G,1),size(G,2))
         end
     end
 
@@ -490,55 +492,7 @@ function MakeB(;
         Matrices.Local.Dw.DwInv * 2.0 ./ mesh.Δ[end] * Matrices.Local.Phi[end, :] * η[end],
     )
 
-    ## Make a Dictionary so that the blocks of B are easy to access
-    BDict = Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}}()
-    ppositions = cumsum(model.C .<= 0)
-    qpositions = cumsum(model.C .>= 0)
-    for ℓ in ["+", "-", "0"], m in ["+", "-", "0"]
-        for i = 1:model.NPhases, j = 1:model.NPhases
-            FilBases = repeat(mesh.Fil[string(i, ℓ)]', mesh.NBases, 1)[:]
-            pitemp = falses(N₋)
-            qitemp = falses(N₊)
-            pjtemp = falses(N₋)
-            qjtemp = falses(N₊)
-            if model.C[i] <= 0
-                pitemp[ppositions[i]] = mesh.Fil["p"*string(i)*ℓ][1]
-            end
-            if model.C[j] <= 0
-                pjtemp[ppositions[j]] = mesh.Fil["p"*string(j)*m][1]
-            end
-            if model.C[i] >= 0
-                qitemp[qpositions[i]] = mesh.Fil["q"*string(i)*ℓ][1]
-            end
-            if model.C[j] >= 0
-                qjtemp[qpositions[j]] = mesh.Fil["q"*string(j)*m][1]
-            end
-            i_idx = [
-                pitemp
-                falses((i - 1) * mesh.TotalNBases)
-                FilBases
-                falses(model.NPhases * mesh.TotalNBases - i * mesh.TotalNBases)
-                qitemp
-            ]
-            FjmBases = repeat(mesh.Fil[string(j, m)]', mesh.NBases, 1)[:]
-            j_idx = [
-                pjtemp
-                falses((j - 1) * mesh.TotalNBases)
-                FjmBases
-                falses(model.NPhases * mesh.TotalNBases - j * mesh.TotalNBases)
-                qjtemp
-            ]
-            BDict[string(i, j, ℓ, m)] = B[i_idx, j_idx]
-        end
-        # note: below we need to use repeat(mesh.Fil[ℓ]', mesh.NBases, 1)[:] to
-        # expand the index mesh.Fil[ℓ] from cells to all basis function
-        FlBases =
-            [mesh.Fil["p"*ℓ]; repeat(mesh.Fil[ℓ]', mesh.NBases, 1)[:]; mesh.Fil["q"*ℓ]]
-        FmBases =
-            [mesh.Fil["p"*m]; repeat(mesh.Fil[m]', mesh.NBases, 1)[:]; mesh.Fil["q"*m]]
-        BDict[ℓ*m] = B[FlBases, FmBases]
-    end
-
+    BDict = MakeDict(B; model=model, mesh=mesh)
     ## Make QBD index
     c = N₋
     QBDidx = zeros(Int, model.NPhases * mesh.TotalNBases + N₊ + N₋)
@@ -554,6 +508,96 @@ function MakeB(;
     return out
 end
 
+function MakeDict(
+    B::Union{Array{<:Real,2},SparseArrays.SparseMatrixCSC{<:Real,Int64}}; 
+    model::SFFM.Model, 
+    mesh::SFFM.Mesh,
+    zero::Bool=true,
+    )
+
+    ## Make a Dictionary so that the blocks of B are easy to access
+    N₋ = sum(model.C.<=0)
+    N₊ = sum(model.C.<=0)
+
+    BDict = Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}}()
+    if zero
+        ppositions = cumsum(model.C .<= 0)
+        qpositions = cumsum(model.C .>= 0)
+        for ℓ in ["+", "-", "0"], m in ["+", "-", "0"]
+            for i = 1:model.NPhases, j = 1:model.NPhases
+                FilBases = repeat(mesh.Fil[string(i, ℓ)]', mesh.NBases, 1)[:]
+                pitemp = falses(N₋)
+                qitemp = falses(N₊)
+                pjtemp = falses(N₋)
+                qjtemp = falses(N₊)
+                if model.C[i] <= 0
+                    pitemp[ppositions[i]] = mesh.Fil["p"*string(i)*ℓ][1]
+                end
+                if model.C[j] <= 0
+                    pjtemp[ppositions[j]] = mesh.Fil["p"*string(j)*m][1]
+                end
+                if model.C[i] >= 0
+                    qitemp[qpositions[i]] = mesh.Fil["q"*string(i)*ℓ][1]
+                end
+                if model.C[j] >= 0
+                    qjtemp[qpositions[j]] = mesh.Fil["q"*string(j)*m][1]
+                end
+                i_idx = [
+                    pitemp
+                    falses((i - 1) * mesh.TotalNBases)
+                    FilBases
+                    falses(model.NPhases * mesh.TotalNBases - i * mesh.TotalNBases)
+                    qitemp
+                ]
+                FjmBases = repeat(mesh.Fil[string(j, m)]', mesh.NBases, 1)[:]
+                j_idx = [
+                    pjtemp
+                    falses((j - 1) * mesh.TotalNBases)
+                    FjmBases
+                    falses(model.NPhases * mesh.TotalNBases - j * mesh.TotalNBases)
+                    qjtemp
+                ]
+                BDict[string(i, j, ℓ, m)] = B[i_idx, j_idx]
+            end
+            # below we need to use repeat(mesh.Fil[ℓ]', mesh.NBases, 1)[:] to
+            # expand the index mesh.Fil[ℓ] from cells to all basis function
+            FlBases =
+                [mesh.Fil["p"*ℓ]; repeat(mesh.Fil[ℓ]', mesh.NBases, 1)[:]; mesh.Fil["q"*ℓ]]
+            FmBases =
+                [mesh.Fil["p"*m]; repeat(mesh.Fil[m]', mesh.NBases, 1)[:]; mesh.Fil["q"*m]]
+            BDict[ℓ*m] = B[FlBases, FmBases]
+        end
+    else
+        ppositions = cumsum(model.C .<= 0)
+        qpositions = cumsum(model.C .>= 0)
+        for ℓ in ["+", "-"]
+            for i = 1:model.NPhases
+                FilBases = repeat(mesh.Fil[string(i, ℓ)]', mesh.NBases, 1)[:]
+                pitemp = falses(N₋)
+                qitemp = falses(N₊)
+                if model.C[i] <= 0
+                    pitemp[ppositions[i]] = mesh.Fil["p"*string(i)*ℓ][1]
+                end
+                if model.C[i] >= 0
+                    qitemp[qpositions[i]] = mesh.Fil["q"*string(i)*ℓ][1]
+                end
+                i_idx = [
+                    pitemp
+                    falses((i - 1) * mesh.TotalNBases)
+                    FilBases
+                    falses(model.NPhases * mesh.TotalNBases - i * mesh.TotalNBases)
+                    qitemp
+                ]
+                BDict[string(i, ℓ)] = B[i_idx, i_idx]
+            end
+            FlBases =
+                [mesh.Fil["p"*ℓ]; repeat(mesh.Fil[ℓ]', mesh.NBases, 1)[:]; mesh.Fil["q"*ℓ]]
+            BDict[ℓ] = B[FlBases, FlBases]
+        end
+    end
+    return BDict
+end
+
 """
 # Construct the DG approximation to the operator `R`.
 
@@ -565,7 +609,7 @@ end
     )
 
 # Arguments
-- `Model`: a Model object
+- `model`: a Model object
 - `Mmesh`: a Mesh object
 - `approxType::String`: (optional) either "interpolation" or
     "projection" (default).
@@ -636,33 +680,7 @@ function MakeR(;
     end
 
     # construc the dictionary
-    RDict = Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}}()
-    ppositions = cumsum(model.C .<= 0)
-    qpositions = cumsum(model.C .>= 0)
-    for ℓ in ["+", "-"]
-        for i = 1:model.NPhases
-            FilBases = repeat(mesh.Fil[string(i, ℓ)]', mesh.NBases, 1)[:]
-            pitemp = falses(N₋)
-            qitemp = falses(N₊)
-            if model.C[i] <= 0
-                pitemp[ppositions[i]] = mesh.Fil["p"*string(i)*ℓ][1]
-            end
-            if model.C[i] >= 0
-                qitemp[qpositions[i]] = mesh.Fil["q"*string(i)*ℓ][1]
-            end
-            i_idx = [
-                pitemp
-                falses((i - 1) * mesh.TotalNBases)
-                FilBases
-                falses(model.NPhases * mesh.TotalNBases - i * mesh.TotalNBases)
-                qitemp
-            ]
-            RDict[string(i, ℓ)] = R[i_idx, i_idx]
-        end
-        FlBases =
-            [mesh.Fil["p"*ℓ]; repeat(mesh.Fil[ℓ]', mesh.NBases, 1)[:]; mesh.Fil["q"*ℓ]]
-        RDict[ℓ] = R[FlBases, FlBases]
-    end
+    RDict = MakeDict(R;model=model,mesh=mesh,zero=false)
 
     out = (R=R, RDict=RDict)
     println("UPDATE: R object created with keys ", keys(out))
@@ -682,7 +700,7 @@ Construct the operator `D(s)` from `B, R`.
 # Arguments
 - `R`: a tuple as constructed by MakeR
 - `B`: a tuple as constructed by MakeB
-- `Model`: a Model object
+- `model`: a Model object
 - `mesh`: a Mesh object
 
 # Output
@@ -844,7 +862,7 @@ Convert from a vector of coefficients for the DG system to a distribution.
     )
 
 # Arguments
-- `Model`: a Model object
+- `model`: a Model object
 - `mesh`: a Mesh object as output from MakeMesh
 - `Coeffs::Array`: a vector of coefficients from the DG method
 - `type::String`: an (optional) declaration of what type of distribution you
@@ -978,7 +996,7 @@ coefficients.
     )
 
 # Arguments
-- `Model`: a Model object
+- `model`: a Model object
 - `mesh`: a Mesh object as output from MakeMesh
 - `Distn::NamedTuple{(:pm, :distribution, :x, :type)}`: a distribution object
     i.e. a `NamedTuple` with fields

@@ -22,7 +22,7 @@ function integrateD(evals,order)
     v_LHS = ones(order)
     D = zeros(order,order)
     fct = factorial.(big.(0:order-1))
-    poly(x) = ((λ*x).^(0:order-1))./fct
+    poly(x) = convert.(Float64,((λ*x).^(0:order-1))./fct)
     for t in edges[2:end]
         vec = poly(t)
         orbit_RHS = vec./sum(vec)

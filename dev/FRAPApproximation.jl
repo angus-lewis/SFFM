@@ -1,4 +1,4 @@
-function MakeFRAPApprox(;model::SFFM.Model, mesh::SFFM.Mesh, me::SFFM.ME)
+function MakeBFRAP(;model::SFFM.Model, mesh::SFFM.Mesh, me::SFFM.ME)
     N₊ = sum(model.C .>= 0)
     N₋ = sum(model.C .<= 0)
 
@@ -26,7 +26,8 @@ function MakeFRAPApprox(;model::SFFM.Model, mesh::SFFM.Mesh, me::SFFM.ME)
     end
 
     signChangeIndex = (sign.(model.C)*sign.(model.C)').<=0
-    signChangeIndex = signChangeIndex - diagm(diag(signChangeIndex))
+    signChangeIndex = signChangeIndex - 
+        LinearAlgebra.diagm(LinearAlgebra.diag(signChangeIndex))
     B = SparseArrays.spzeros(
         Float64,
         model.NPhases * mesh.TotalNBases + N₋ + N₊,
@@ -77,7 +78,20 @@ function MakeFRAPApprox(;model::SFFM.Model, mesh::SFFM.Mesh, me::SFFM.ME)
                 ) + F["-"]
         end
     end
-    return B
+
+    BDict = MakeDict(B;model=model,mesh=mesh)
+
+    ## Make QBD index
+    c = N₋
+    QBDidx = zeros(Int, model.NPhases * mesh.TotalNBases + N₊ + N₋)
+    for k = 1:mesh.NIntervals, i = 1:model.NPhases, n = 1:mesh.NBases
+        c += 1
+        QBDidx[c] = (i - 1) * mesh.TotalNBases + (k - 1) * mesh.NBases + n + N₋
+    end
+    QBDidx[1:N₋] = 1:N₋
+    QBDidx[(end-N₊+1):end] = (model.NPhases * mesh.TotalNBases + N₋) .+ (1:N₊)
+
+    return (BDict=BDict, B=B, QBDidx=QBDidx)
 end
 
 function MakeGlobalApprox(;NCells = 3,up, down,T,C,bkwd=false,D=[],plusI = false)

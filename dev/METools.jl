@@ -1,13 +1,16 @@
-using JLD2, LinearAlgebra
+import JLD2, LinearAlgebra, JSON
 
-# CMEParams = Dict()
-# open("dev/CMEParams.json", "r") do f
-#     global CMEParams
-#     CMEParams=JSON.parse(f)  # parse and transform data
+# erlangDParams = Dict()
+# open("dev/erlangParamsData/erlangDParams.json", "r") do f
+#     global erlangDParams
+#     erlangDParams=JSON.parse(f)  # parse and transform data
 # end
 
-@load pwd()*"/dev/CMEParamsData/CMEParams1.jld2" tempDict
+JLD2.@load pwd()*"/dev/CMEParamsData/CMEParams1.jld2" tempDict
 CMEParams = tempDict
+
+# @load pwd()*"/dev/erlangParamsData/erlangDParams.jld2" tempDict
+# erlangDParams = tempDict
 
 """
 ME constructor method
@@ -16,7 +19,7 @@ ME constructor method
         a::Array{<:Real,2},
         S::Array{<:Real,2},
         s::Array{<:Real,1},
-        D="",
+        D::Array{<:Real}=[0],
     )
 
 Inputs: 
@@ -28,13 +31,19 @@ Inputs:
  Throws an error if the dimensions are inconsistent.
 """
 struct ME 
-    a::Array{<:Real,2}
-    S::Array{<:Real,2}
+    a::Union{Array{<:Real,1},Array{<:Real,2}}
+    S::Union{Array{<:Real,1},Array{<:Real,2}}
     s::Union{Array{<:Real,1},Array{<:Real,2}}
-    D::Union{Array{<:Real,2}}
+    D::Union{Array{<:Real,1},Array{<:Real,2}}
     f::Function
     F::Function
-    function ME(a,S,s;D=[0])
+    function ME(
+        a::Union{Array{<:Real,1},Array{<:Real,2}},
+        S::Union{Array{<:Real,1},Array{<:Real,2}},
+        s::Union{Array{<:Real,1},Array{<:Real,2}};
+        D::Union{Array{<:Real,1},Array{<:Real,2}}=[0],
+    )
+    
         if D==[0]
             D = Array{Float64}(LinearAlgebra.I(size(S,1)))
         end
@@ -82,6 +91,7 @@ function MakeME(params; mean = 1)
     end
     Q = Q.*sum(-α*Q^-1)./mean
     q = -sum(Q,dims=2)
+    display(params["D"])
     return SFFM.ME(α,Q,q;D=params["D"])
 end
 
@@ -90,7 +100,7 @@ function MakeErlang(order; mean = 1)
     α[1] = 1
     λ = order/mean
     Q = zeros(order,order)
-    Q = Q + diagm(0=>repeat(-[λ],order), 1=>repeat([λ],order-1))
+    Q = Q + LinearAlgebra.diagm(0=>repeat(-[λ],order), 1=>repeat([λ],order-1))
     q = -sum(Q,dims=2)
     D = Matrix(LinearAlgebra.I(order))[end:-1:1,:]
     return SFFM.ME(α,Q,q;D=D)
