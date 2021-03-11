@@ -53,7 +53,7 @@ struct ME
         if test
             error("Dimensions of ME representation not consistent")
         else
-            f(x) = a*exp(S*x)*s
+            f(x) = (a*exp(S*x)*s)[1]
             F(x) = 1-sum(a*exp(S*x))
             return new(a,S,s,D,f,F)
         end
