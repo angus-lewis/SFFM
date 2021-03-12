@@ -62,7 +62,7 @@ let
     ## DG
     c = -1
     styles = [:dashdot,:dash]
-    for NBases in [1;13]
+    for NBases in [1;5]
         c = c+2
         mesh = SFFM.MakeMesh(
             model = approxModel,
@@ -76,7 +76,6 @@ let
 
         # construct FRAP matrices
         me = SFFM.MakeME(SFFM.CMEParams[NBases], mean = mesh.Δ[1])
-        # Rme = SFFM.MakeR(model=approxModel,mesh=mesh,approxType="interpolation",probTransform=false)
         B = SFFM.MakeBFRAP(model=approxModel,mesh=mesh,me=me)
         D = SFFM.MakeD(R=All.R,B=B,model=approxModel,mesh=mesh)
         Ψme = SFFM.PsiFun(D=D)
@@ -146,8 +145,6 @@ let
             Coeffs = z,
             type="cumulative",
         )
-        plot(zme)
-        display(plot!(z))
         
         meProbs = SFFM.Coeffs2Dist(
             model = approxModel,
