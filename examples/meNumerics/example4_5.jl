@@ -109,7 +109,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         mesh = mesh,
         Coeffs = marginalXme,
         type = "probability",
-        probTransform = true,
+        probTransform = false,
     )
 
     ## stationary distirbution stuff
