@@ -21,7 +21,7 @@ Construct a SFFM model object.
         returns a `2×NPhases` array where the first row contains all the
         ``rᵢ(0)`` and row 2 all the ``rᵢ(1)`` values.
     - `:R(x::Array{Real})`: has the same structure/behaviour as ``:r`` but
-        returns the integral of ``:r``. i.e. `Rᵢ(x)=∫ˣrᵢ(x)`.
+        returns the integral of ``:r``. i.e. `Rᵢ(x)=∫ˣrᵢ(y)dy`.
 - `Bounds::Array{<:Real,2}`: contains the bounds for the model. The first row
     are the L and R bounds for ``X(t)`` and the second row the bounds for
     ``Y(t)`` (although the bounds for ``Y(t)`` don't actually do anything yet).

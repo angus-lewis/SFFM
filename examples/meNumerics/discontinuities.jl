@@ -1,29 +1,14 @@
 using Plots 
-include("/Users/a1627293/Documents/SFFM/src/SFFM.jl")
+include(pwd()*"/src/SFFM.jl")
+include(pwd()*"/examples/meNumerics/discontinuitiesModelDef.jl")
 
-## define a model
-T = [-0.05 0.05;
-    1 -1]
-C = [1; -24]
-
-r₁(x) = - (x.>1) + (x.<=1)
-r₂(x) = x.*0
-R₁(x) = (x.>1).*(x.-1) - (x.<=1).*x
-
-r = (
-    r = function (x)
-        [r₁(x) r₂(x)]
-    end,
-    R = function (x)
-        [R₁(x) r₂(x)]
-    end
-)
-
-bounds = [0 6; -Inf Inf]
-model = SFFM.Model(T = T, C = C, r = r, Bounds = bounds)
+@load pwd()*"/examples/meNumerics/discontinuitiesModelSims.jld2" sims_Psi sims_1
 
 ## mesh set up
-for order in [1;3;5]
+orders = [1;3;5]
+errors_1 = []
+errors_Psi = []
+for order in orders
 # order = 3
     display(order)
     Δ = 0.5 # the grid size; must have kΔ = 1 for some k due to discontinuity in r at 1
@@ -33,6 +18,27 @@ for order in [1;3;5]
         Nodes = nodes, 
         NBases = order,
         Basis = "lagrange",
+    )
+
+    simMesh = SFFM.MakeMesh(
+        model = simModel, 
+        Nodes = nodes, 
+        NBases = order,
+        Basis = "lagrange",
+    )
+
+    # simulated distributions 
+    simprobs_Psi = SFFM.Sims2Dist(
+        model = model, 
+        mesh = simMesh, 
+        sims = sims_Psi, 
+        type = "probability"
+    )
+    simprobs_1 = SFFM.Sims2Dist(
+        model = model,
+        mesh = simMesh, 
+        sims = sims_1, 
+        type = "probability"
     )
 
     # DG
@@ -49,6 +55,9 @@ for order in [1;3;5]
     #ME
     me = SFFM.MakeME(SFFM.CMEParams[order], mean = Δ)
     B_ME = SFFM.MakeBFRAP(model = model, mesh = mesh, me = me)
+    # Erlang
+    erlang = SFFM.MakeErlang(order, mean = Δ)
+    B_Erlang = SFFM.MakeBFRAP(model = model, mesh = mesh, me = erlang)
 
     # construct initial condition
     point = 0+eps()
@@ -90,6 +99,22 @@ for order in [1;3;5]
         # convert to Coeffs α in the DG context
         x0_ME = SFFM.Dist2Coeffs(model = model, mesh = mesh, Distn = initdist, probTransform = false)
     end
+    begin
+        initpm = [
+            zeros(sum(model.C.<=0)) # LHS point mass
+            zeros(sum(model.C.>=0)) # RHS point mass
+        ]
+        initprobs = zeros(Float64,mesh.NBases,mesh.NIntervals,model.NPhases)
+        initprobs[1,pointIdx,1] = 1
+        initdist = (
+            pm = initpm,
+            distribution = initprobs,
+            x = mesh.CellNodes,
+            type = "density"
+        ) # convert to a distribution object so we can apply Dist2Coeffs
+        # convert to Coeffs α in the DG context
+        x0_Erlang = SFFM.Dist2Coeffs(model = model, mesh = mesh, Distn = initdist, probTransform = false)
+    end
 
     toDist(x) = SFFM.Coeffs2Dist(
         model = model,
@@ -101,12 +126,22 @@ for order in [1;3;5]
     euler(B,x0) = SFFM.EulerDG(D = B, y = 1, x0 = x0, h = 0.001) |> toDist
     x1_DG = euler(B_DG.B, x0_DG)
     x1_ME = euler(B_ME.B, x0_ME)
+    x1_Erlang = euler(B_ME.B, x0_Erlang)
+
+    errVec_1 = (
+        SFFM.starSeminorm(d1 = x1_DG, d2 = simprobs_1),
+        SFFM.starSeminorm(d1 = x1_ME, d2 = simprobs_1),
+        SFFM.starSeminorm(d1 = x1_Erlang, d2 = simprobs_1),
+    )
+    push!(errors_1, errVec_1)
 
     p = SFFM.PlotSFM(model = model, mesh = mesh, Dist = x1_DG,
         color = 1, label = "DG")
     p = SFFM.PlotSFM!(p;model = model, mesh = mesh, Dist = x1_ME, 
         color = 2, label = "ME")
-    p = plot!(title = "approx dist at t=1; order = "*string(order))
+    SFFM.PlotSFM!(p;model = model, mesh = mesh, Dist = x1_Erlang, 
+        color = 3, label = "Erlang")
+    p = plot!(title = "approx dist at t=1; order = "*string(order), subplot = 1)
     display(p)
 
     # the initial condition on Ψ is restricted to + states so find the + states
@@ -118,9 +153,11 @@ for order in [1;3;5]
     # get the elements of x0_DG in + states only
     x0_Psi_DG = x0_DG[plusIdx]'
     x0_Psi_ME = x0_ME[plusIdx]'
+    x0_Psi_Erlang = x0_Erlang[plusIdx]'
     # check that it is equal to 1 (or at least close)
     println(sum(x0_Psi_DG))
     println(sum(x0_Psi_ME))
+    println(sum(x0_Psi_Erlang))
 
     ## Psi paths 
     R = SFFM.MakeR(model = model, mesh = mesh, approxType = "interpolation")
@@ -128,9 +165,11 @@ for order in [1;3;5]
     ΨFun(B) = SFFM.MakeD(R = R, B = B, model = model, mesh = mesh) |> D -> SFFM.PsiFun(D = D)
     Ψ_DG = ΨFun(B_DG)
     Ψ_ME = ΨFun(B_ME)
+    Ψ_Erlang = ΨFun(B_Erlang)
 
     w_DG = x0_Psi_DG*Ψ_DG
     w_ME = x0_Psi_ME*Ψ_ME
+    w_Erlang = x0_Psi_Erlang*Ψ_Erlang
 
     minusIdx = [
         mesh.Fil["p-"];
@@ -147,17 +186,34 @@ for order in [1;3;5]
         mesh.NBases*mesh.NIntervals * model.NPhases +
             sum(model.C.<=0) + sum(model.C.>=0)
     )
+
+    z_Erlang = zeros(
+        Float64,
+        mesh.NBases*mesh.NIntervals * model.NPhases +
+            sum(model.C.<=0) + sum(model.C.>=0)
+    )
     z_DG[minusIdx] = w_DG
     z_ME[minusIdx] = w_ME
+    z_Erlang[minusIdx] = w_Erlang
 
     returnDist_DG = toDist(z_DG)
     returnDist_ME = toDist(z_ME)
+    returnDist_Erlang = toDist(z_Erlang)
+
+    errVec_Psi = (
+        SFFM.starSeminorm(d1 = returnDist_DG, d2 = simprobs_Psi),
+        SFFM.starSeminorm(d1 = returnDist_ME, d2 = simprobs_Psi),
+        SFFM.starSeminorm(d1 = returnDist_Erlang, d2 = simprobs_Psi),
+    )
+    push!(errors_Psi, errVec_Psi)
 
     p = SFFM.PlotSFM(model = model, mesh = mesh, Dist = returnDist_DG,
         color = 1, label = "DG")
     p = SFFM.PlotSFM!(p;model = model, mesh = mesh, Dist = returnDist_ME, 
         color = 2, label = "ME")
-    p = plot!(title = "approx Ψ; order = "*string(order))
+    p = SFFM.PlotSFM!(p;model = model, mesh = mesh, Dist = returnDist_Erlang, 
+        color = 3, label = "Erlang")    
+    p = plot!(title = "approx Ψ; order = "*string(order), subplot = 1)
 
     display(p)
     display(order)

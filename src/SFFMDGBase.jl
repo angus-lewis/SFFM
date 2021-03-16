@@ -1098,7 +1098,7 @@ function starSeminorm(;
     d1::NamedTuple{(:pm, :distribution, :x, :type)},
     d2::NamedTuple{(:pm, :distribution, :x, :type)},
     )
-    if d1.type!="probability" || d2.type!="probability"
+    if ((d1.type!="probability") || (d2.type!="probability"))
         throw(ArgumentError("distributions need to be of type probability"))
     end
     return sum(abs.(d1.pm-d2.pm)) + sum(abs.(d1.distribution-d2.distribution))
