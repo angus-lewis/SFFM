@@ -197,7 +197,7 @@ begin
     data = log.(πnorms[:,n])
     println("DG rate of convergence for ", NBasesRange[n], " basis functions is ")
     display(
-        lm([ones(length(Δs[ind])) log.(Δs[ind])], data)
+        lm([ones(length(Δs)) log.(Δs)], data)
     )
     println("")
 

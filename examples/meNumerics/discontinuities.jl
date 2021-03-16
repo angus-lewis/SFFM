@@ -5,10 +5,10 @@ include(pwd()*"/examples/meNumerics/discontinuitiesModelDef.jl")
 @load pwd()*"/examples/meNumerics/discontinuitiesModelSims.jld2" sims_Psi sims_1
 
 ## mesh set up
-orders = [1;3;5]
+orders = [1;3;5;11;15]
 errors_1 = []
 errors_Psi = []
-for order in orders
+# for order in orders
 # order = 3
     println("order = "*string(order))
     Δ = 0.5 # the grid size; must have kΔ = 1 for some k due to discontinuity in r at 1
@@ -21,7 +21,7 @@ for order in orders
     )
 
     simMesh = SFFM.MakeMesh(
-        model = simModel, 
+        model = model, 
         Nodes = nodes, 
         NBases = order,
         Basis = "lagrange",
@@ -221,7 +221,7 @@ for order in orders
 
     display(p)
     display(order)
-end
+# end
 
 # aDist = SFFM.Coeffs2Dist(
 #         model = model,

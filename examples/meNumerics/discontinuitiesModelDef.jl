@@ -18,5 +18,3 @@ r = (
 
 bounds = [0 6; -Inf Inf]
 model = SFFM.Model(T = T, C = C, r = r, Bounds = bounds)
-simBounds = [0 Inf; -Inf Inf]
-simModel = SFFM.Model(T = T, C = C, r = r, Bounds = simBounds)
