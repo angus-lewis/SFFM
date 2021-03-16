@@ -277,13 +277,8 @@ npme = (log.(πnormsme[:, 1:end-1]) .- log.(πnormsme[:, 2:end])) ./
 stats = Array{Any}(undef,length(Δs)+1,length(NBasesRange)+1)
 statsme = Array{Any}(undef,length(Δs)+1,length(NBasesRange)+1)
 for n in 1:length(NBasesRange), d in 1:length(Δs)
-    if d + 2 * n <= 10
         stats[d+1,n+1] = (πnorms[d,n], times[d,n], mems[d,n]/(1024*1024), approxSpec[d,n][3])
         statsme[d+1,n+1] = (πnormsme[d,n], timesme[d,n], memsme[d,n]/(1024*1024), approxSpecme[d,n][3])
-    else
-        stats[d+1,n+1] = (0,0,0,0)
-        statsme[d+1,n+1] = (0,0,0,0)
-    end
 end
 stats[1,2:end] = NBasesRange
 stats[2:end,1] = Δs
@@ -320,7 +315,6 @@ begin
         )
         for n in 1:length(NBasesRange)
             println("&")
-            if d + 2 * n <= 10
                 println("
                 \\(\\begin{array}{l}
                     ", formatted(innards[d,n][1],fmt),"}
@@ -334,9 +328,6 @@ begin
                 \\\\",convert(Int,round(innardsme[d,n][4],digits=0)),"
             \\end{array}\\)"
                 )
-            else
-                println(" - ")
-            end
         end
         println("\\\\ \\hline")
     end
