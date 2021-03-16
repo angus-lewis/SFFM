@@ -5,8 +5,8 @@ using LinearAlgebra, Plots, JLD2
 include(pwd()*"/examples/meNumerics/discontinuitiesModelDef.jl")
 
 ## simulate Ψ paths for comparison
-innerNSim = 10^2
-NSim = 10^1 * innerNSim
+innerNSim = 10^4
+NSim = 10^2 * innerNSim
 
 # # we can do this in parallell
 using SharedArrays, Distributed
@@ -19,14 +19,14 @@ simsOuter_1 = SharedArray(zeros(NSim, 5))
 @time @sync @distributed for n = 1:(NSim÷innerNSim)
     IC = (φ = 1 .* ones(Int, innerNSim), X = zeros(innerNSim), Y = zeros(innerNSim))
     simsInner_Psi = SFFM.SimSFFM(
-        model = model,
+        model = simModel,
         StoppingTime = SFFM.FirstExitY(u = 0, v = Inf),
         InitCondition = IC,
     )
     simsOuter_Psi[1+(n-1)*innerNSim:n*innerNSim, :] =
         [simsInner_Psi.t simsInner_Psi.φ simsInner_Psi.X simsInner_Psi.Y simsInner_Psi.n]
     simsInner_1 = SFFM.SimSFFM(
-        model = model,
+        model = simModel,
         StoppingTime = SFFM.FixedTime(T = 1),
         InitCondition = IC,
     )
@@ -51,3 +51,4 @@ sims_1 = (
 )
 
 @save pwd()*"/examples/meNumerics/discontinuitiesModelSims.jld2" sims_Psi sims_1
+interrupt()

@@ -374,7 +374,7 @@ function FirstExitX(; u::Real, v::Real)
         SFM::NamedTuple{(:t, :φ, :X, :n)},
         SFM0::NamedTuple{(:t, :φ, :X, :n)},
     )
-        Ind = SFM.X > v || SFM.X < u
+        Ind = ((SFM.X > v) || (SFM.X < u))
         if Ind
             if SFM.X > v
                 X = v
@@ -393,9 +393,9 @@ function FirstExitX(; u::Real, v::Real)
         SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )
-        Ind = SFFM.X > v || SFFM.X < u
+        Ind = ((SFFM.X > v) || (SFFM.X < u))
         if Ind
-            if SFFM.X > v
+            if (SFFM.X > v)
                 X = v
             else
                 X = u
@@ -435,7 +435,7 @@ function FirstExitY(; u::Real, v::Real)
         SFFM::NamedTuple{(:t, :φ, :X, :Y, :n)},
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )
-        Ind = SFFM.Y < u || SFFM.Y > v
+        Ind = ((SFFM.Y < u) || (SFFM.Y > v))
         if Ind
             idx = [SFFM.Y < u; SFFM.Y > v]
             boundaryHit = [u;v][idx][1]
@@ -558,7 +558,11 @@ function Sims2Dist(;
                 h = h.weights ./ sum(h.weights) * totalprob
                 distribution[:, :, i] = h
             end
-            xvals = mesh.CellNodes[1, :] + mesh.Δ / 2
+            if mesh.NBases == 1
+                xvals = mesh.CellNodes
+            else
+                xvals = mesh.CellNodes[1, :] + mesh.Δ / 2
+            end
         elseif type == "density"
             if length(data)!=0
                 if model.Bounds[1, end] == Inf

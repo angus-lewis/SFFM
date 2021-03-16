@@ -1,4 +1,4 @@
-using Plots 
+using Plots, JLD2
 include(pwd()*"/src/SFFM.jl")
 include(pwd()*"/examples/meNumerics/discontinuitiesModelDef.jl")
 
@@ -10,7 +10,7 @@ errors_1 = []
 errors_Psi = []
 for order in orders
 # order = 3
-    display(order)
+    println("order = "*string(order))
     Δ = 0.5 # the grid size; must have kΔ = 1 for some k due to discontinuity in r at 1
     nodes = collect(0:Δ:bounds[1,2])
     mesh = SFFM.MakeMesh(
@@ -55,7 +55,7 @@ for order in orders
     #ME
     me = SFFM.MakeME(SFFM.CMEParams[order], mean = Δ)
     B_ME = SFFM.MakeBFRAP(model = model, mesh = mesh, me = me)
-    # Erlang
+    # Erlang (this is the erlang which is equivalent to DG)
     erlang = SFFM.MakeErlang(order, mean = Δ)
     B_Erlang = SFFM.MakeBFRAP(model = model, mesh = mesh, me = erlang)
 
@@ -141,6 +141,8 @@ for order in orders
         color = 2, label = "ME")
     SFFM.PlotSFM!(p;model = model, mesh = mesh, Dist = x1_Erlang, 
         color = 3, label = "Erlang")
+    SFFM.PlotSFM!(p;model = model, mesh = mesh, Dist = simprobs_1, 
+        color = 4, label = "Sim")
     p = plot!(title = "approx dist at t=1; order = "*string(order), subplot = 1)
     display(p)
 
@@ -212,7 +214,9 @@ for order in orders
     p = SFFM.PlotSFM!(p;model = model, mesh = mesh, Dist = returnDist_ME, 
         color = 2, label = "ME")
     p = SFFM.PlotSFM!(p;model = model, mesh = mesh, Dist = returnDist_Erlang, 
-        color = 3, label = "Erlang")    
+        color = 3, label = "Erlang")
+    p = SFFM.PlotSFM!(p;model = model, mesh = mesh, Dist = simprobs_Psi, 
+        color = 4, label = "Sim")    
     p = plot!(title = "approx Ψ; order = "*string(order), subplot = 1)
 
     display(p)
