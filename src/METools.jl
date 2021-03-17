@@ -85,7 +85,6 @@ function MakeME(params; mean = 1)
     end
     Q = Q.*sum(-α*Q^-1)./mean
     q = -sum(Q,dims=2)
-    display(params["D"])
     return SFFM.ME(α,Q,q;D=params["D"])
 end
 

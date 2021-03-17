@@ -82,7 +82,8 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         # compute the marginal via FRAP approx
         me = SFFM.MakeME(SFFM.CMEParams[NBases], mean = mesh.Δ[1])
         B = SFFM.MakeBFRAP(model=approxModel,mesh=mesh,me=me)
-        D = SFFM.MakeD(R=All.R,B=B,model=approxModel,mesh=mesh)
+        R = SFFM.MakeR(model = approxModel, mesh = mesh, approxType = "interpolation")
+        D = SFFM.MakeD(R=R,B=B,model=approxModel,mesh=mesh)
         Ψme = SFFM.PsiFun(D=D)
 
         # the distribution of X when Y first returns to 0
@@ -91,7 +92,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         marginalXme, pme, Kme = SFFM.MakeLimitDistMatrices(;
             B = B.BDict,
             D = D,
-            R = All.R.RDict,
+            R = R.RDict,
             Ψ = Ψme,
             ξ = ξme,
             mesh = mesh,
@@ -109,7 +110,6 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         mesh = mesh,
         Coeffs = marginalXme,
         type = "probability",
-        probTransform = false,
     )
 
     ## stationary distirbution stuff
@@ -301,7 +301,7 @@ begin
     println("\\begin{tabular}{ | c | l | l | l | l | l | }")
     println("\\hline")
     println("\\multirow{2}{*}{\\(\\Delta\\)} & \\multirow{2}{*}{}& \\multicolumn{4}{c|}{Number of basis functions, \\(N_k\\)} \\\\ \\cline{3-6}
-          &      & 1            & 2           & 3           & 4           \\\\\\hline"
+          &      & 1            & 3           & 5           & 7           \\\\\\hline"
         )
     for d in 1:length(Δs)
         println(Δs[d], " &")

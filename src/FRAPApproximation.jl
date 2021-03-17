@@ -20,14 +20,16 @@ function MakeBFRAP(;model::SFFM.Model, mesh::SFFM.Mesh, me::SFFM.ME)
         end # for k in ...
     end # for i in ...
 
-    Q = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,model.NPhases)
-    for i = 1:model.NPhases
-        Q[i] = abs(model.C[i]) * me.S
+    signChangeIndex = zeros(Bool,model.NPhases,model.NPhases)
+    for i in 1:model.NPhases, j in 1:model.NPhases
+        if ((sign(model.C[i])!=0) && (sign(model.C[j])!=0))
+            signChangeIndex[i,j] = (sign(model.C[i])!=sign(model.C[j]))
+        elseif (sign(model.C[i])==0)
+            signChangeIndex[i,j] = sign(model.C[j])>0
+        elseif (sign(model.C[j])==0)
+            signChangeIndex[i,j] = sign(model.C[i])>0            
+        end
     end
-
-    signChangeIndex = .!((sign.(model.C).<=0)*(sign.(model.C).<=0)')
-    signChangeIndex = signChangeIndex - 
-        LinearAlgebra.diagm(LinearAlgebra.diag(signChangeIndex))
     B = SparseArrays.spzeros(
         Float64,
         model.NPhases * mesh.TotalNBases + N₋ + N₊,
@@ -79,13 +81,13 @@ function MakeBFRAP(;model::SFFM.Model, mesh::SFFM.Mesh, me::SFFM.ME)
     for i = 1:model.NPhases
         idx = ((i-1)*mesh.TotalNBases+1:i*mesh.TotalNBases) .+ N₋
         if model.C[i] > 0
-            B[idx, idx] += model.C[i] * SparseArrays.kron(
-                    SparseArrays.I(mesh.NIntervals),me.S
-                    ) + model.C[i]*F["+"]
+            B[idx, idx] += model.C[i] * (SparseArrays.kron(
+                    SparseArrays.I(mesh.NIntervals), me.S
+                    ) + F["+"])
         elseif model.C[i] < 0
-            B[idx, idx] += abs(model.C[i]) * SparseArrays.kron(
-                SparseArrays.I(mesh.NIntervals),me.S
-                ) + abs(model.C[i])*F["-"]
+            B[idx, idx] += abs(model.C[i]) * (SparseArrays.kron(
+                SparseArrays.I(mesh.NIntervals), me.S
+                ) + F["-"])
         end
     end
 

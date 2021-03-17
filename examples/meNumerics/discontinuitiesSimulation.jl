@@ -27,7 +27,7 @@ simsOuter_1 = SharedArray(zeros(NSim, 5))
         [simsInner_Psi.t simsInner_Psi.φ simsInner_Psi.X simsInner_Psi.Y simsInner_Psi.n]
     simsInner_1 = SFFM.SimSFFM(
         model = model,
-        StoppingTime = SFFM.FixedTime(T = 1),
+        StoppingTime = SFFM.FixedTime(T = 1.2),
         InitCondition = IC,
     )
     simsOuter_1[1+(n-1)*innerNSim:n*innerNSim, :] =
