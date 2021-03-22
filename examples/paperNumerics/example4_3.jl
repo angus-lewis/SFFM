@@ -10,8 +10,8 @@ include("exampleModelDef.jl")
 Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
 NBases = 2
 Basis = "lagrange"
-mesh = SFFM.MakeMesh(
-    model = approxModel,
+mesh = SFFM.DGMesh(
+    approxModel,
     Nodes = Nodes,
     NBases = NBases,
     Basis = Basis,
@@ -48,8 +48,8 @@ let q = SFFM.PlotSFM(model = approxModel)
     colours = [:green;:blue]
     for NBases in 1:2
         c = c+1
-        mesh = SFFM.MakeMesh(
-            model = approxModel,
+        mesh = SFFM.DGMesh(
+            approxModel,
             Nodes = Nodes,
             NBases = NBases,
             Basis=Basis,

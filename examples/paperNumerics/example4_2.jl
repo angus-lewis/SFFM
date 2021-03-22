@@ -15,8 +15,8 @@ Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
 
 NBases = 1
 Basis = "lagrange"
-mesh = SFFM.MakeMesh(
-    model = approxModel,
+mesh = SFFM.DGMesh(
+    approxModel,
     Nodes = Nodes,
     NBases = NBases,
     Basis = Basis,
@@ -64,8 +64,8 @@ let
     styles = [:dashdot,:dash]
     for NBases in 1:2
         c = c+1
-        mesh = SFFM.MakeMesh(
-            model = approxModel,
+        mesh = SFFM.DGMesh(
+            approxModel,
             Nodes = Nodes,
             NBases = NBases,
             Basis = Basis,

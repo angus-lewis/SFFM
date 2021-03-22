@@ -31,8 +31,8 @@ let
 
         Basis = "lagrange"
         NBases = 2
-        mesh = SFFM.MakeMesh(
-            model = tempModel,
+        mesh = SFFM.DGMesh(
+            tempModel,
             Nodes = Nodes,
             NBases = NBases,
             Basis=Basis,

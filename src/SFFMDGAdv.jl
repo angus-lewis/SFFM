@@ -74,14 +74,14 @@ Constructs a block diagonal matrix from blocks
 
     MakeBlockDiagonalMatrixR(;
         model::SFFM.Model,
-        mesh::SFFM.Mesh,
+        mesh::DGMesh,
         Blocks,
         Factors::Array,
     )
 
 # Aguments
 - `model`: A Model object
-- `mesh`: A Mesh object from `MakeMesh()`
+- `mesh`: A DGMesh object from `DGMesh()`
 - `Blocks(x::Array{Float64}, i::Int)`: a function wich returns a
     `mesh.NBases×mesh.NBases` array to put along the diagonal. The input
     argument `x` is a column vector of corresponding to the nodes in each cell,
@@ -94,7 +94,7 @@ Constructs a block diagonal matrix from blocks
 """
 function MakeBlockDiagonalMatrixR(;
     model::SFFM.Model,
-    mesh::SFFM.Mesh,
+    mesh::DGMesh,
     Blocks,
     Factors::Array,
 )
@@ -113,7 +113,7 @@ end
 Constructs the flux matrices for DG
 
     MakeFluxMatrixR(;
-        mesh::SFFM.Mesh,
+        mesh::DGMesh,
         model::SFFM.Model,
         Phi,
     )
@@ -131,7 +131,7 @@ Constructs the flux matrices for DG
     `TotalNBases×TotalNBases` flux matrices for phase `i`.
 """
 function MakeFluxMatrixR(;
-    mesh::SFFM.Mesh,
+    mesh::DGMesh,
     model::SFFM.Model,
     Phi,
 )
@@ -182,7 +182,7 @@ directly.
 
     MakeMatricesR(;
         model::SFFM.Model,
-        mesh::SFFM.Mesh,
+        mesh::DGMesh,
     )
 
 # Arguments
@@ -215,7 +215,7 @@ directly.
  """
 function MakeMatricesR(;
     model::SFFM.Model,
-    mesh::SFFM.Mesh,
+    mesh::DGMesh,
 )
     ## Construct blocks
     V = vandermonde(NBases = mesh.NBases)
@@ -308,7 +308,7 @@ Construct the operator `D(s)` directly.
         Matrices,
         MatricesR,
         model::SFFM.Model,
-        mesh::SFFM.Mesh,
+        mesh::DGMesh,
         B,
     )
 
@@ -334,7 +334,7 @@ function MakeDR(;
     Matrices,
     MatricesR,
     model::SFFM.Model,
-    mesh::SFFM.Mesh,
+    mesh::DGMesh,
     B,
 )
     N₊ = sum(model.C .>= 0)

@@ -147,8 +147,8 @@ for order in orders
     )
     push!(errors_1, errVec_1)
 
-    # p = SFFM.PlotSFM(model = model, mesh = mesh, Dist = x1_DG,
-    #     color = 1, label = "DG")
+    p = SFFM.PlotSFM(model = model, mesh = mesh, Dist = x1_DG,
+        color = 1, label = "DG")
     p = SFFM.PlotSFM(model = model, mesh = mesh, Dist = x1_ME, 
         color = 2, label = "ME")
     SFFM.PlotSFM!(p;model = model, mesh = mesh, Dist = x1_Erlang, 

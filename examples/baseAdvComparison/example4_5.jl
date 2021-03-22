@@ -40,8 +40,8 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         # collect time and memory stats
         ~, times[d, n], mems[d, n], gctimes[d, n], alloc[d, n] = @timed begin
             Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
-            mesh = SFFM.MakeMesh(
-                model = approxModel,
+            mesh = SFFM.DGMesh(
+                approxModel,
                 Nodes = Nodes,
                 NBases = NBases,
                 Basis = Basis,

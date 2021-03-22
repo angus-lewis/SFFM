@@ -140,16 +140,7 @@ Initialise and plot a SFM distribution.
 """
 function PlotSFM(;
     model::SFFM.Model,
-    mesh::SFFM.Mesh = SFFM.Mesh(
-        0,
-        Array{Real,2}(undef,0,0),
-        Dict{String,BitArray{1}}(),
-        Array{Float64,1}(undef,0),
-        0,
-        Array{Float64,1}(undef,0),
-        0,
-        "",
-    ),
+    mesh::SFFM.Mesh = SFFM.DGMesh(),
     Dist::NamedTuple{(:pm, :distribution, :x, :type)} =
         (pm=Float64[],distribution=Float64[],x=Float64[],type=""),
     color = 1,

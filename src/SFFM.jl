@@ -86,40 +86,87 @@ struct Model
 end 
 
 """
-A constructor for a Mesh object
-    
-    Mesh(
-        NBases::Int,
-        CellNodes::Array{<:Real,2},
-        Fil::Dict{String,BitArray{1}},
-        Δ::Array{Float64,1},
-        NIntervals::Int,
-        Nodes::Array{Float64,1},
-        TotalNBases::Int,
-        Basis::String,
-    )
 
-See function `MakeMesh` for constructor method
-Output is
-    - a Mesh object with keys:
-    - `:NBases`: the number of bases in each cell
-    - `:CellNodes`: Array of nodal points (cell edges + GLL points)
-    - `:Fil`: As described in the arguments
-    - `:Δ`:A vector of mesh widths, Δ[k] = x_{k+1} - x_k
-    - `:NIntervals`: The number of cells
-    - `:Nodes`: the cell edges
-    - `:TotalNBases`: `NIntervals*NBases`
-    - `:Basis`: a string specifying whether the
+    Mesh 
+
+Abstract type representing a mesh for a numerical scheme. 
 """
-struct Mesh 
+abstract type Mesh end 
+
+struct FVMesh <: Mesh 
     NBases::Int
     CellNodes::Array{<:Real,2}
     Fil::Dict{String,BitArray{1}}
     Δ::Array{Float64,1}
     NIntervals::Int
     Nodes::Array{Float64,1}
-    TotalNBases::Int
     Basis::String
+    function FVMesh(
+        model::SFFM.Model;
+        Nodes::Array{Float64,1},
+        Fil::Dict{String,BitArray{1}}=Dict{String,BitArray{1}}(),
+    )
+        NBases = 1
+        NIntervals = length(Nodes) - 1 # the number of intervals
+        Δ = (Nodes[2:end] - Nodes[1:end-1]) # interval width
+        CellNodes = zeros(Float64, NBases, NIntervals)
+        for i = 1:NIntervals
+            CellNodes[:, i] .= (Nodes[i+1] + Nodes[i]) / 2 
+        end
+        TotalNBases = NBases * NIntervals 
+
+        ## Construct the sets Fᵐ = ⋃ᵢ Fᵢᵐ, global index for sets of type m
+        if isempty(Fil)
+            idxPlus = model.r.r(Nodes[1:end-1].+Δ[:]/2).>0
+            idxZero = model.r.r(Nodes[1:end-1].+Δ[:]/2).==0
+            idxMinus = model.r.r(Nodes[1:end-1].+Δ[:]/2).<0
+            for i in 1:model.NPhases
+                Fil[string(i)*"+"] = idxPlus[:,i]
+                Fil[string(i)*"0"] = idxZero[:,i]
+                Fil[string(i)*"-"] = idxMinus[:,i]
+                if model.C[i] .<= 0
+                    Fil["p"*string(i)*"+"] = [model.r.r(model.Bounds[1,1])[i]].>0
+                    Fil["p"*string(i)*"0"] = [model.r.r(model.Bounds[1,1])[i]].==0
+                    Fil["p"*string(i)*"-"] = [model.r.r(model.Bounds[1,1])[i]].<0
+                end
+                if model.C[i] .>= 0
+                    Fil["q"*string(i)*"+"] = [model.r.r(model.Bounds[1,end])[i]].>0
+                    Fil["q"*string(i)*"0"] = [model.r.r(model.Bounds[1,end])[i]].==0
+                    Fil["q"*string(i)*"-"] = [model.r.r(model.Bounds[1,end])[i]].<0
+                end
+            end
+        end
+        CurrKeys = keys(Fil)
+        for ℓ in ["+", "-", "0"], i = 1:model.NPhases
+            if !in(string(i) * ℓ, CurrKeys)
+                Fil[string(i)*ℓ] = falses(NIntervals)
+            end
+            if !in("p" * string(i) * ℓ, CurrKeys) && model.C[i] <= 0
+                Fil["p"*string(i)*ℓ] = falses(1)
+            end
+            if !in("p" * string(i) * ℓ, CurrKeys) && model.C[i] > 0
+                Fil["p"*string(i)*ℓ] = falses(0)
+            end
+            if !in("q" * string(i) * ℓ, CurrKeys) && model.C[i] >= 0
+                Fil["q"*string(i)*ℓ] = falses(1)
+            end
+            if !in("q" * string(i) * ℓ, CurrKeys) && model.C[i] < 0
+                Fil["q"*string(i)*ℓ] = falses(0)
+            end
+        end
+        for ℓ in ["+", "-", "0"]
+            Fil[ℓ] = falses(NIntervals * model.NPhases)
+            Fil["p"*ℓ] = trues(0)
+            Fil["q"*ℓ] = trues(0)
+            for i = 1:model.NPhases
+                idx = findall(Fil[string(i)*ℓ]) .+ (i - 1) * NIntervals
+                Fil[string(ℓ)][idx] .= true
+                Fil["p"*ℓ] = [Fil["p"*ℓ]; Fil["p"*string(i)*ℓ]]
+                Fil["q"*ℓ] = [Fil["q"*ℓ]; Fil["q"*string(i)*ℓ]]
+            end
+        end
+        new(NBases, CellNodes, Fil, Δ, NIntervals, Nodes, "Constant")
+    end
 end 
 
 include("SFFMPlots.jl")
@@ -140,7 +187,7 @@ Construct all the DG operators.
 
     MakeAll(;
         model::SFFM.Model,
-        mesh::SFFM.Mesh,
+        mesh::DGMesh,
         approxType::String = "projection"
     )
 
@@ -161,7 +208,7 @@ Construct all the DG operators.
 """
 function MakeAll(;
     model::SFFM.Model,
-    mesh::SFFM.Mesh,
+    mesh::DGMesh,
     approxType::String = "projection"
 )
 

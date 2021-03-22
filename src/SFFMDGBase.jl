@@ -1,7 +1,7 @@
 """
-Constructs a Mesh object (a tuple with fields which describe the DG mesh).
+Constructs a DGMesh composite type, a subtype of the abstract type Mesh.
 
-    MakeMesh(;
+    DGMesh(;
         model::SFFM.Model,
         Nodes::Array{Float64,1},
         NBases::Int,
@@ -36,96 +36,209 @@ Constructs a Mesh object (a tuple with fields which describe the DG mesh).
 # Examples
 TBC
 """
-function MakeMesh(;
-    model::SFFM.Model,
-    Nodes::Array{<:Real,1},
-    NBases::Int,
-    Fil::Dict{String,BitArray{1}}=Dict{String,BitArray{1}}(),
-    Basis::String = "legendre",
-)
-    ## Stencil specification
-    NIntervals = length(Nodes) - 1 # the number of intervals
-    Δ = (Nodes[2:end] - Nodes[1:end-1]) # interval width
-    CellNodes = zeros(Float64, NBases, NIntervals)
-    if NBases > 1
-        z = Jacobi.zglj(NBases, 0, 0) # the LGL nodes
-    elseif NBases == 1
-        z = 0.0
-    end
-    for i = 1:NIntervals
-        # Map the LGL nodes on [-1,1] to each cell
-        CellNodes[:, i] .= (Nodes[i+1] + Nodes[i]) / 2 .+ (Nodes[i+1] - Nodes[i]) / 2 * z
-    end
-    CellNodes[1,:] .+= sqrt(eps())
-    if NBases>1
-        CellNodes[end,:] .-= sqrt(eps())
-    end
-    TotalNBases = NBases * NIntervals # the total number of bases in the stencil
-
-    ## Construct the sets Fᵐ = ⋃ᵢ Fᵢᵐ, global index for sets of type m
-    if isempty(Fil)
-        idxPlus = model.r.r(Nodes[1:end-1].+Δ[:]/2).>0
-        idxZero = model.r.r(Nodes[1:end-1].+Δ[:]/2).==0
-        idxMinus = model.r.r(Nodes[1:end-1].+Δ[:]/2).<0
-        for i in 1:model.NPhases
-            Fil[string(i)*"+"] = idxPlus[:,i]
-            Fil[string(i)*"0"] = idxZero[:,i]
-            Fil[string(i)*"-"] = idxMinus[:,i]
-            if model.C[i] .<= 0
-                Fil["p"*string(i)*"+"] = [model.r.r(model.Bounds[1,1])[i]].>0
-                Fil["p"*string(i)*"0"] = [model.r.r(model.Bounds[1,1])[i]].==0
-                Fil["p"*string(i)*"-"] = [model.r.r(model.Bounds[1,1])[i]].<0
-            end
-            if model.C[i] .>= 0
-                Fil["q"*string(i)*"+"] = [model.r.r(model.Bounds[1,end])[i]].>0
-                Fil["q"*string(i)*"0"] = [model.r.r(model.Bounds[1,end])[i]].==0
-                Fil["q"*string(i)*"-"] = [model.r.r(model.Bounds[1,end])[i]].<0
-            end
-        end
-    end
-    CurrKeys = keys(Fil)
-    for ℓ in ["+", "-", "0"], i = 1:model.NPhases
-        if !in(string(i) * ℓ, CurrKeys)
-            Fil[string(i)*ℓ] = falses(NIntervals)
-        end
-        if !in("p" * string(i) * ℓ, CurrKeys) && model.C[i] <= 0
-            Fil["p"*string(i)*ℓ] = falses(1)
-        end
-        if !in("p" * string(i) * ℓ, CurrKeys) && model.C[i] > 0
-            Fil["p"*string(i)*ℓ] = falses(0)
-        end
-        if !in("q" * string(i) * ℓ, CurrKeys) && model.C[i] >= 0
-            Fil["q"*string(i)*ℓ] = falses(1)
-        end
-        if !in("q" * string(i) * ℓ, CurrKeys) && model.C[i] < 0
-            Fil["q"*string(i)*ℓ] = falses(0)
-        end
-    end
-    for ℓ in ["+", "-", "0"]
-        Fil[ℓ] = falses(NIntervals * model.NPhases)
-        Fil["p"*ℓ] = trues(0)
-        Fil["q"*ℓ] = trues(0)
-        for i = 1:model.NPhases
-            idx = findall(Fil[string(i)*ℓ]) .+ (i - 1) * NIntervals
-            Fil[string(ℓ)][idx] .= true
-            Fil["p"*ℓ] = [Fil["p"*ℓ]; Fil["p"*string(i)*ℓ]]
-            Fil["q"*ℓ] = [Fil["q"*ℓ]; Fil["q"*string(i)*ℓ]]
-        end
-    end
-
-    mesh = SFFM.Mesh(
-        NBases,
-        CellNodes,
-        Fil,
-        Δ,
-        NIntervals,
-        Nodes,
-        TotalNBases,
-        Basis,
+struct DGMesh <: Mesh 
+    NBases::Int
+    CellNodes::Array{<:Real,2}
+    Fil::Dict{String,BitArray{1}}
+    Δ::Array{Float64,1}
+    NIntervals::Int
+    Nodes::Array{Float64,1}
+    TotalNBases::Int
+    Basis::String
+    function DGMesh(
+        model::SFFM.Model;
+        Nodes::Array{<:Real,1},
+        NBases::Int,
+        Fil::Dict{String,BitArray{1}}=Dict{String,BitArray{1}}(),
+        Basis::String = "legendre",
     )
-    println("UPDATE: Mesh object created with fields ", fieldnames(SFFM.Mesh))
-    return mesh
-end
+        ## Stencil specification
+        NIntervals = length(Nodes) - 1 # the number of intervals
+        Δ = (Nodes[2:end] - Nodes[1:end-1]) # interval width
+        CellNodes = zeros(Float64, NBases, NIntervals)
+        if NBases > 1
+            z = Jacobi.zglj(NBases, 0, 0) # the LGL nodes
+        elseif NBases == 1
+            z = 0.0
+        end
+        for i = 1:NIntervals
+            # Map the LGL nodes on [-1,1] to each cell
+            CellNodes[:, i] .= (Nodes[i+1] + Nodes[i]) / 2 .+ (Nodes[i+1] - Nodes[i]) / 2 * z
+        end
+        CellNodes[1,:] .+= sqrt(eps())
+        if NBases>1
+            CellNodes[end,:] .-= sqrt(eps())
+        end
+        TotalNBases = NBases * NIntervals # the total number of bases in the stencil
+
+        ## Construct the sets Fᵐ = ⋃ᵢ Fᵢᵐ, global index for sets of type m
+        if isempty(Fil)
+            idxPlus = model.r.r(Nodes[1:end-1].+Δ[:]/2).>0
+            idxZero = model.r.r(Nodes[1:end-1].+Δ[:]/2).==0
+            idxMinus = model.r.r(Nodes[1:end-1].+Δ[:]/2).<0
+            for i in 1:model.NPhases
+                Fil[string(i)*"+"] = idxPlus[:,i]
+                Fil[string(i)*"0"] = idxZero[:,i]
+                Fil[string(i)*"-"] = idxMinus[:,i]
+                if model.C[i] .<= 0
+                    Fil["p"*string(i)*"+"] = [model.r.r(model.Bounds[1,1])[i]].>0
+                    Fil["p"*string(i)*"0"] = [model.r.r(model.Bounds[1,1])[i]].==0
+                    Fil["p"*string(i)*"-"] = [model.r.r(model.Bounds[1,1])[i]].<0
+                end
+                if model.C[i] .>= 0
+                    Fil["q"*string(i)*"+"] = [model.r.r(model.Bounds[1,end])[i]].>0
+                    Fil["q"*string(i)*"0"] = [model.r.r(model.Bounds[1,end])[i]].==0
+                    Fil["q"*string(i)*"-"] = [model.r.r(model.Bounds[1,end])[i]].<0
+                end
+            end
+        end
+        CurrKeys = keys(Fil)
+        for ℓ in ["+", "-", "0"], i = 1:model.NPhases
+            if !in(string(i) * ℓ, CurrKeys)
+                Fil[string(i)*ℓ] = falses(NIntervals)
+            end
+            if !in("p" * string(i) * ℓ, CurrKeys) && model.C[i] <= 0
+                Fil["p"*string(i)*ℓ] = falses(1)
+            end
+            if !in("p" * string(i) * ℓ, CurrKeys) && model.C[i] > 0
+                Fil["p"*string(i)*ℓ] = falses(0)
+            end
+            if !in("q" * string(i) * ℓ, CurrKeys) && model.C[i] >= 0
+                Fil["q"*string(i)*ℓ] = falses(1)
+            end
+            if !in("q" * string(i) * ℓ, CurrKeys) && model.C[i] < 0
+                Fil["q"*string(i)*ℓ] = falses(0)
+            end
+        end
+        for ℓ in ["+", "-", "0"]
+            Fil[ℓ] = falses(NIntervals * model.NPhases)
+            Fil["p"*ℓ] = trues(0)
+            Fil["q"*ℓ] = trues(0)
+            for i = 1:model.NPhases
+                idx = findall(Fil[string(i)*ℓ]) .+ (i - 1) * NIntervals
+                Fil[string(ℓ)][idx] .= true
+                Fil["p"*ℓ] = [Fil["p"*ℓ]; Fil["p"*string(i)*ℓ]]
+                Fil["q"*ℓ] = [Fil["q"*ℓ]; Fil["q"*string(i)*ℓ]]
+            end
+        end
+
+        mesh = new(
+            NBases,
+            CellNodes,
+            Fil,
+            Δ,
+            NIntervals,
+            Nodes,
+            TotalNBases,
+            Basis,
+        )
+        println("UPDATE: DGMesh object created with fields ", fieldnames(SFFM.DGMesh))
+        return mesh
+    end
+    function DGMesh()
+        new(
+            0,
+            Array{Real,2}(undef,0,0),
+            Dict{String,BitArray{1}}(),
+            Array{Float64,1}(undef,0),
+            0,
+            Array{Float64,1}(undef,0),
+            0,
+            ""
+        )
+    end
+end 
+
+# function DGMesh(;
+#     model::SFFM.Model,
+#     Nodes::Array{<:Real,1},
+#     NBases::Int,
+#     Fil::Dict{String,BitArray{1}}=Dict{String,BitArray{1}}(),
+#     Basis::String = "legendre",
+# )
+#     ## Stencil specification
+#     NIntervals = length(Nodes) - 1 # the number of intervals
+#     Δ = (Nodes[2:end] - Nodes[1:end-1]) # interval width
+#     CellNodes = zeros(Float64, NBases, NIntervals)
+#     if NBases > 1
+#         z = Jacobi.zglj(NBases, 0, 0) # the LGL nodes
+#     elseif NBases == 1
+#         z = 0.0
+#     end
+#     for i = 1:NIntervals
+#         # Map the LGL nodes on [-1,1] to each cell
+#         CellNodes[:, i] .= (Nodes[i+1] + Nodes[i]) / 2 .+ (Nodes[i+1] - Nodes[i]) / 2 * z
+#     end
+#     CellNodes[1,:] .+= sqrt(eps())
+#     if NBases>1
+#         CellNodes[end,:] .-= sqrt(eps())
+#     end
+#     TotalNBases = NBases * NIntervals # the total number of bases in the stencil
+
+#     ## Construct the sets Fᵐ = ⋃ᵢ Fᵢᵐ, global index for sets of type m
+#     if isempty(Fil)
+#         idxPlus = model.r.r(Nodes[1:end-1].+Δ[:]/2).>0
+#         idxZero = model.r.r(Nodes[1:end-1].+Δ[:]/2).==0
+#         idxMinus = model.r.r(Nodes[1:end-1].+Δ[:]/2).<0
+#         for i in 1:model.NPhases
+#             Fil[string(i)*"+"] = idxPlus[:,i]
+#             Fil[string(i)*"0"] = idxZero[:,i]
+#             Fil[string(i)*"-"] = idxMinus[:,i]
+#             if model.C[i] .<= 0
+#                 Fil["p"*string(i)*"+"] = [model.r.r(model.Bounds[1,1])[i]].>0
+#                 Fil["p"*string(i)*"0"] = [model.r.r(model.Bounds[1,1])[i]].==0
+#                 Fil["p"*string(i)*"-"] = [model.r.r(model.Bounds[1,1])[i]].<0
+#             end
+#             if model.C[i] .>= 0
+#                 Fil["q"*string(i)*"+"] = [model.r.r(model.Bounds[1,end])[i]].>0
+#                 Fil["q"*string(i)*"0"] = [model.r.r(model.Bounds[1,end])[i]].==0
+#                 Fil["q"*string(i)*"-"] = [model.r.r(model.Bounds[1,end])[i]].<0
+#             end
+#         end
+#     end
+#     CurrKeys = keys(Fil)
+#     for ℓ in ["+", "-", "0"], i = 1:model.NPhases
+#         if !in(string(i) * ℓ, CurrKeys)
+#             Fil[string(i)*ℓ] = falses(NIntervals)
+#         end
+#         if !in("p" * string(i) * ℓ, CurrKeys) && model.C[i] <= 0
+#             Fil["p"*string(i)*ℓ] = falses(1)
+#         end
+#         if !in("p" * string(i) * ℓ, CurrKeys) && model.C[i] > 0
+#             Fil["p"*string(i)*ℓ] = falses(0)
+#         end
+#         if !in("q" * string(i) * ℓ, CurrKeys) && model.C[i] >= 0
+#             Fil["q"*string(i)*ℓ] = falses(1)
+#         end
+#         if !in("q" * string(i) * ℓ, CurrKeys) && model.C[i] < 0
+#             Fil["q"*string(i)*ℓ] = falses(0)
+#         end
+#     end
+#     for ℓ in ["+", "-", "0"]
+#         Fil[ℓ] = falses(NIntervals * model.NPhases)
+#         Fil["p"*ℓ] = trues(0)
+#         Fil["q"*ℓ] = trues(0)
+#         for i = 1:model.NPhases
+#             idx = findall(Fil[string(i)*ℓ]) .+ (i - 1) * NIntervals
+#             Fil[string(ℓ)][idx] .= true
+#             Fil["p"*ℓ] = [Fil["p"*ℓ]; Fil["p"*string(i)*ℓ]]
+#             Fil["q"*ℓ] = [Fil["q"*ℓ]; Fil["q"*string(i)*ℓ]]
+#         end
+#     end
+
+#     mesh = SFFM.Mesh(
+#         NBases,
+#         CellNodes,
+#         Fil,
+#         Δ,
+#         NIntervals,
+#         Nodes,
+#         TotalNBases,
+#         Basis,
+#     )
+#     println("UPDATE: Mesh object created with fields ", fieldnames(SFFM.Mesh))
+#     return mesh
+# end
 
 """
 Construct a generalised vandermonde matrix.
@@ -178,7 +291,7 @@ end
 Constructs a block diagonal matrix from blocks
 
     MakeBlockDiagonalMatrix(;
-        mesh::SFFM.Mesh,
+        mesh::DGMesh,
         Blocks::Array{Float64,2},
         Factors::Array,
     )
@@ -194,7 +307,7 @@ Constructs a block diagonal matrix from blocks
         block matrix
 """
 function MakeBlockDiagonalMatrix(;
-    mesh::SFFM.Mesh,
+    mesh::DGMesh,
     Blocks::Array{Float64,2},
     Factors::Array,
 )
@@ -210,7 +323,7 @@ end
 Constructs the flux matrices for DG
 
     MakeFluxMatrix(;
-        mesh::SFFM.Mesh,
+        mesh::DGMesh,
         model::SFFM.Model,
         Phi,
         Dw,
@@ -232,7 +345,7 @@ Constructs the flux matrices for DG
     flux matrices for `model.C[i]>0` and `model.C[i]<0`, respectively.
 """
 function MakeFluxMatrix(;
-    mesh::SFFM.Mesh,
+    mesh::DGMesh,
     Phi,
     Dw,
     probTransform::Bool=true,
@@ -292,7 +405,7 @@ Creates the Local and global mass, stiffness and flux matrices to compute `B`.
 
     MakeMatrices(;
         model::SFFM.Model,
-        mesh::SFFM.Mesh,
+        mesh::DGMesh,
         probTransform::Bool=true,
     )
 
@@ -324,7 +437,7 @@ Creates the Local and global mass, stiffness and flux matrices to compute `B`.
 """
 function MakeMatrices(;
     model::SFFM.Model,
-    mesh::SFFM.Mesh,
+    mesh::DGMesh,
     probTransform::Bool=true,
 )
     ## Construct local blocks
@@ -399,7 +512,7 @@ Creates the DG approximation to the generator `B`.
 
     MakeB(;
         model::SFFM.Model,
-        mesh::SFFM.Mesh,
+        mesh::DGMesh,
         Matrices::NamedTuple,
         probTransform::Bool=true,
     )
@@ -424,7 +537,7 @@ Creates the DG approximation to the generator `B`.
 """
 function MakeB(;
     model::SFFM.Model,
-    mesh::SFFM.Mesh,
+    mesh::DGMesh,
     Matrices::NamedTuple,
     probTransform::Bool=true,
 )
@@ -603,7 +716,7 @@ end
 
     MakeR(;
         model::SFFM.Model,
-        mesh::SFFM.Mesh,
+        mesh::DGMesh,
         approxType::String = "projection",
         probTransform::Bool = true,
     )
@@ -628,7 +741,7 @@ end
 """
 function MakeR(;
     model::SFFM.Model,
-    mesh::SFFM.Mesh,
+    mesh::DGMesh,
     approxType::String = "projection",
     probTransform::Bool = true,
 )

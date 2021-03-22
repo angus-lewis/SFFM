@@ -21,7 +21,7 @@ function interp(nodes, evalPt)
 end
 
 
-function MakeFVMFlux(mesh::SFFM.Mesh, order::Int)
+function MakeFVFlux(mesh::SFFM.Mesh, order::Int)
     nNodes = length(mesh.CellNodes)
     F = zeros(Float64,nNodes,nNodes)
     ptsLHS = Int(ceil(order/2))
@@ -46,7 +46,7 @@ function MakeFVMFlux(mesh::SFFM.Mesh, order::Int)
     return F
 end
 
-function MakeBFVM(model::SFFM.Model, mesh::SFFM.Mesh, order::Int)
+function MakeBFV(model::SFFM.Model, mesh::SFFM.Mesh, order::Int)
     N₊ = sum(model.C .>= 0)
     N₋ = sum(model.C .<= 0)
 
