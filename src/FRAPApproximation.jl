@@ -64,14 +64,14 @@ function MakeBFRAP(;model::SFFM.Model, mesh::SFFM.Mesh, me::SFFM.ME)
         LinearAlgebra.zeros((mesh.NIntervals-1)*model.NPhases*mesh.NBases,N₋)
     ]
     outLower = [
-        LinearAlgebra.kron(1,kron(T₋₊,me.a)) LinearAlgebra.zeros(N₋,N₊+(mesh.NIntervals-1)*model.NPhases*mesh.NBases)
+        LinearAlgebra.kron(T₋₊,me.a) LinearAlgebra.zeros(N₋,N₊+(mesh.NIntervals-1)*model.NPhases*mesh.NBases)
     ]
     inUpper = [
         LinearAlgebra.zeros((mesh.NIntervals-1)*model.NPhases*mesh.NBases,N₊);
         LinearAlgebra.kron(LinearAlgebra.diagm(abs.(model.C).*(model.C.>=0)),me.s)[:,model.C.>=0]
     ]
     outUpper = [
-        LinearAlgebra.zeros(N₊,N₋+(mesh.NIntervals-1)*model.NPhases*mesh.NBases) LinearAlgebra.kron(1,kron(T₊₋,me.a))
+        LinearAlgebra.zeros(N₊,N₋+(mesh.NIntervals-1)*model.NPhases*mesh.NBases) LinearAlgebra.kron(T₊₋,me.a)
     ]
     
     B[1:N₋,QBDidx] = [T₋₋ outLower]
