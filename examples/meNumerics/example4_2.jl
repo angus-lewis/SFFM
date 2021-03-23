@@ -65,20 +65,20 @@ let
     for NBases in [1;5]
         c = c+2
         mesh = SFFM.MakeMesh(
-            model = approxModel,
-            Nodes = Nodes,
-            NBases = NBases,
+            approxModel,
+            Nodes,
+            NBases,
             Basis = Basis,
         )
         # construct DG matrices
-        All = SFFM.MakeAll(model = approxModel, mesh = mesh, approxType = "interpolation")
+        All = SFFM.MakeAll(approxModel, mesh, approxType = "interpolation")
         Ψ = SFFM.PsiFun(D=All.D)
 
         # construct FRAP matrices
         me = SFFM.MakeME(SFFM.CMEParams[NBases], mean = mesh.Δ[1])
-        B = SFFM.MakeBFRAP(model=approxModel,mesh=mesh,me=me)
-        D = SFFM.MakeD(R=All.R,B=B,model=approxModel,mesh=mesh)
-        Ψme = SFFM.PsiFun(D=D)
+        B = SFFM.MakeBFRAP( approxModel, mesh, me)
+        D = SFFM.MakeD( All.R, B, approxModel, mesh)
+        Ψme = SFFM.PsiFun( D)
         
         # construct initial condition
         theNodes = mesh.CellNodes[:,convert(Int,ceil(5/Δ))]
@@ -99,7 +99,7 @@ let
             type = "density"
         ) # convert to a distribution object so we can apply Dist2Coeffs
         # convert to Coeffs α in the DG context
-        x0 = SFFM.Dist2Coeffs(model = approxModel, mesh = mesh, Distn = initdist)
+        x0 = SFFM.Dist2Coeffs( approxModel, mesh, initdist)
         # the initial condition on Ψ is restricted to + states so find the + states
         plusIdx = [
             mesh.Fil["p+"];
@@ -140,16 +140,16 @@ let
 
         # convert to a distribution object for plotting
         DGProbs = SFFM.Coeffs2Dist(
-            model = approxModel,
-            mesh = mesh,
-            Coeffs = z,
+            approxModel,
+            mesh,
+            z,
             type="cumulative",
         )
         
         meProbs = SFFM.Coeffs2Dist(
-            model = approxModel,
-            mesh = mesh,
-            Coeffs = zme,
+            approxModel,
+            mesh,
+            zme,
             type = "cumulative",
             probTransform = true,
         )

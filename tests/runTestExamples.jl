@@ -17,10 +17,10 @@ using LinearAlgebra, Plots
         NBases,
         Basis = Basis,
     )
-    Ψₓ = SFFM.PsiFunX(model=model)
-    ξₓ = SFFM.MakeXiX(model=model, Ψ=Ψₓ)
+    Ψₓ = SFFM.PsiFunX(model)
+    ξₓ = SFFM.MakeXiX(model, Ψₓ)
 
-    pₓ, πₓ, Πₓ, Kₓ = SFFM.StationaryDistributionX(model=model, Ψ=Ψₓ, ξ=ξₓ)
+    pₓ, πₓ, Πₓ, Kₓ = SFFM.StationaryDistributionX(model, Ψₓ, ξₓ)
 
     analyticX = (
             pm = [pₓ[:];0;0],
@@ -40,7 +40,7 @@ using LinearAlgebra, Plots
             )
 
             # compute the marginal via DG
-            All = SFFM.MakeAll(model = model, mesh = mesh, approxType = "projection")
+            All = SFFM.MakeAll( model, mesh, approxType = "projection")
             @test isapprox(sum(All.B.B,dims=2), zeros(size(All.B.B,1)), atol = sqrt(eps()))
             @test -sum(All.B.BDict["++"],dims=2) ≈ sum(All.B.BDict["+-"],dims=2) + sum(All.B.BDict["+0"],dims=2)
             @test -sum(All.B.BDict["--"],dims=2) ≈ sum(All.B.BDict["-+"],dims=2) + sum(All.B.BDict["-0"],dims=2)
@@ -48,27 +48,28 @@ using LinearAlgebra, Plots
             @test -sum(All.D["++"](s=0),dims=2) ≈ sum(All.D["+-"](s=0),dims=2)
             @test sum(All.D["-+"](s=0),dims=2) ≈ -sum(All.D["--"](s=0),dims=2)
 
-            Ψ = SFFM.PsiFun(D=All.D)
+            Ψ = SFFM.PsiFun(All.D)
             @test sum(Ψ,dims=2) ≈ ones(size(Ψ,1))
 
             # the distribution of X when Y first returns to 0
-            ξ = SFFM.MakeXi(B=All.B.BDict, Ψ = Ψ)
+            ξ = SFFM.MakeXi(All.B.BDict, Ψ)
             @test sum(ξ) ≈ 1
 
-            marginalX, p, K = SFFM.MakeLimitDistMatrices(;
-                B = All.B.BDict,
-                D = All.D,
-                R = All.R.RDict,
-                Ψ = Ψ,
-                ξ = ξ,
-                mesh = mesh,
+            marginalX, p, K = SFFM.MakeLimitDistMatrices(
+                All.B.BDict,
+                All.D,
+                All.R.RDict,
+                Ψ,
+                ξ,
+                mesh,
+                model,
             )
             
             # convert marginalX to a distribution for plotting
             Dist = SFFM.Coeffs2Dist(
-                    model = model,
-                    mesh = mesh,
-                    Coeffs = marginalX,
+                    model,
+                    mesh,
+                    marginalX,
                     type="probability",
                 )
             @test sum(Dist.pm) + sum(Dist.distribution) ≈ 1

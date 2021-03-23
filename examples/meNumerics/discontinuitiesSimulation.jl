@@ -19,16 +19,16 @@ simsOuter_1 = SharedArray(zeros(NSim, 5))
 @time @sync @distributed for n = 1:(NSim÷innerNSim)
     IC = (φ = 1 .* ones(Int, innerNSim), X = zeros(innerNSim), Y = zeros(innerNSim))
     simsInner_Psi = SFFM.SimSFFM(
-        model = model,
-        StoppingTime = SFFM.FirstExitY(u = 0, v = Inf),
-        InitCondition = IC,
+        model,
+        SFFM.FirstExitY(u = 0, v = Inf),
+        IC,
     )
     simsOuter_Psi[1+(n-1)*innerNSim:n*innerNSim, :] =
         [simsInner_Psi.t simsInner_Psi.φ simsInner_Psi.X simsInner_Psi.Y simsInner_Psi.n]
     simsInner_1 = SFFM.SimSFFM(
-        model = model,
-        StoppingTime = SFFM.FixedTime(T = 1.2),
-        InitCondition = IC,
+        model,
+        SFFM.FixedTime(T = 1.2),
+        IC,
     )
     simsOuter_1[1+(n-1)*innerNSim:n*innerNSim, :] =
         [simsInner_1.t simsInner_1.φ simsInner_1.X simsInner_1.Y simsInner_1.n]

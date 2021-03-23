@@ -23,7 +23,7 @@ mesh = SFFM.DGMesh(
 )
 
 ## turn sims into a cdf
-simprobs = SFFM.Sims2Dist(model=simModel,mesh=mesh,sims=sims,type="cumulative")
+simprobs = SFFM.Sims2Dist(simModel,mesh,sims,type="cumulative")
 
 ## bootstrap to get CI
 function bootFun(sims; nBoot = 10)
@@ -35,7 +35,7 @@ function bootFun(sims; nBoot = 10)
             φ = sims.φ[sampleIdx],
             X = sims.X[sampleIdx],
         )
-        tempDist = SFFM.Sims2Dist(model=simModel,mesh=mesh,sims=tempData,type="cumulative").distribution[1,1:6,[2;4]]
+        tempDist = SFFM.Sims2Dist(simModel, mesh, tempData, type="cumulative").distribution[1,1:6,[2;4]]
         samplesBoot[n,:,:] = tempDist
     end
     ql = zeros(6,2)
@@ -71,8 +71,8 @@ let
             Basis = Basis,
         )
         # construct matrices
-        All = SFFM.MakeAll(model = approxModel, mesh = mesh, approxType = "projection")
-        Ψ = SFFM.PsiFun(D=All.D)
+        All = SFFM.MakeAll(approxModel, mesh, approxType = "projection")
+        Ψ = SFFM.PsiFun(All.D)
 
         # construct initial condition
         theNodes = mesh.CellNodes[:,convert(Int,ceil(5/Δ))]
@@ -94,7 +94,7 @@ let
         ) # convert to a distribution object so we can apply Dist2Coeffs
         # convert to Coeffs α in the DG context
 
-        x0 = SFFM.Dist2Coeffs(model = approxModel, mesh = mesh, Distn = initdist)
+        x0 = SFFM.Dist2Coeffs(approxModel, mesh, initdist)
         # the initial condition on Ψ is restricted to + states so find the + states
         plusIdx = [
             mesh.Fil["p+"];
@@ -126,9 +126,9 @@ let
 
         # convert to a distribution object for plotting
         DGProbs = SFFM.Coeffs2Dist(
-            model = approxModel,
-            mesh = mesh,
-            Coeffs = z,
+            approxModel,
+            mesh,
+            z,
             type="cumulative",
         )
 
@@ -170,17 +170,17 @@ let
             Basis = Basis,
         )
         # construct matrices
-        Matrices = SFFM.MakeMatrices(model=approxModel,mesh=mesh,probTransform=false)
-        MatricesR = SFFM.MakeMatricesR(model=approxModel,mesh=mesh)
-        B = SFFM.MakeB(model=approxModel,mesh=mesh,Matrices=Matrices,probTransform=false)
+        Matrices = SFFM.MakeMatrices(approxModel, mesh,probTransform=false)
+        MatricesR = SFFM.MakeMatricesR(approxModel, mesh)
+        B = SFFM.MakeB( approxModel, mesh, Matrices,probTransform=false)
         Dr = SFFM.MakeDR(
-            Matrices=Matrices,
-            MatricesR=MatricesR,
-            model=approxModel,
-            mesh=mesh,
-            B=B,
+            Matrices,
+            MatricesR,
+            approxModel,
+            mesh,
+            B,
         )
-        Ψ = SFFM.PsiFun(D=Dr.DDict)
+        Ψ = SFFM.PsiFun(Dr.DDict)
 
         # construct initial condition
         theNodes = mesh.CellNodes[:,convert(Int,ceil(5/Δ))]
@@ -188,7 +188,7 @@ let
         for n in 1:length(theNodes)
             basisValues[n] = prod(5.0.-theNodes[[1:n-1;n+1:end]])./prod(theNodes[n].-theNodes[[1:n-1;n+1:end]])
         end
-        V = SFFM.vandermonde(NBases=NBases)
+        V = SFFM.vandermonde(NBases)
         initpm = [
             zeros(sum(approxModel.C.<=0)) # LHS point mass
             zeros(sum(approxModel.C.>=0)) # RHS point mass
@@ -201,7 +201,7 @@ let
             x = mesh.CellNodes,
             type = "density"
         ) # convert to a distribution object so we can apply Dist2Coeffs
-        x0 = SFFM.Dist2Coeffs(model = approxModel, mesh = mesh, Distn = initdist, probTransform = false)#[0;0;initdist.distribution[:];0;0]'
+        x0 = SFFM.Dist2Coeffs( approxModel, mesh, initdist, probTransform = false)#[0;0;initdist.distribution[:];0;0]'
         # the initial condition on Ψ is restricted to + states so find the + states
         plusIdx = [
             mesh.Fil["p+"];
@@ -233,9 +233,9 @@ let
 
         # convert to a distribution object for plotting
         DGProbs = SFFM.Coeffs2Dist(
-            model = approxModel,
-            mesh = mesh,
-            Coeffs = z,
+            approxModel,
+            mesh,
+            z,
             type="cumulative",
             probTransform = false,
         )

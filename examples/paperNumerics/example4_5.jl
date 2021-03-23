@@ -9,9 +9,9 @@ include("exampleModelDef.jl")
 
 ## analytic X distribution for comparison
 # construction
-Ψₓ = SFFM.PsiFunX(model = approxModel)
-ξₓ = SFFM.MakeXiX(model = approxModel, Ψ = Ψₓ)
-pₓ, πₓ, Πₓ, Kₓ = SFFM.StationaryDistributionX(model = approxModel, Ψ = Ψₓ, ξ = ξₓ)
+Ψₓ = SFFM.PsiFunX( approxModel)
+ξₓ = SFFM.MakeXiX( approxModel, Ψₓ)
+pₓ, πₓ, Πₓ, Kₓ = SFFM.StationaryDistributionX( approxModel, Ψₓ, ξₓ)
 
 ## section 4.5: error for approximation of stationary distribution of X
 Basis = "lagrange"
@@ -45,26 +45,27 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
             approxSpec[d, n] = (Δ, NBases, mesh.TotalNBases * approxModel.NPhases)
 
             # compute the marginal via DG
-            All = SFFM.MakeAll(model = approxModel, mesh = mesh, approxType = "projection")
-            Ψ = SFFM.PsiFun(D = All.D)
+            All = SFFM.MakeAll( approxModel, mesh, approxType = "projection")
+            Ψ = SFFM.PsiFun( All.D)
 
             # the distribution of X when Y first returns to 0
-            ξ = SFFM.MakeXi(B = All.B.BDict, Ψ = Ψ)
+            ξ = SFFM.MakeXi(All.B.BDict, Ψ)
 
-            marginalX, p, K = SFFM.MakeLimitDistMatrices(;
-                B = All.B.BDict,
-                D = All.D,
-                R = All.R.RDict,
-                Ψ = Ψ,
-                ξ = ξ,
-                mesh = mesh,
+            marginalX, p, K = SFFM.MakeLimitDistMatrices(
+                All.B.BDict,
+                All.D,
+                All.R.RDict,
+                Ψ,
+                ξ,
+                mesh,
+                model,
             )
         end
         # convert marginalX to a distribution for analysis
         DGStationaryDist = SFFM.Coeffs2Dist(
-            model = approxModel,
-            mesh = mesh,
-            Coeffs = marginalX,
+            approxModel,
+            mesh,
+            marginalX,
             type = "probability",
         )
 
@@ -79,12 +80,12 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         )
 
         # save them
-        πnorms[d, n] = SFFM.starSeminorm(d1 = DGStationaryDist, d2 = analyticX)
+        πnorms[d, n] = SFFM.starSeminorm( DGStationaryDist, analyticX)
 
 ##      ## now do Ψ
         ## turn sims into a cdf
         simprobs =
-            SFFM.Sims2Dist(model = simModel, mesh = mesh, sims = sims, type = "probability")
+            SFFM.Sims2Dist( simModel, mesh, sims, type = "probability")
 
         # do DG for Ψ
         theNodes = mesh.CellNodes[:, convert(Int, ceil(5 / Δ))]
@@ -104,7 +105,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         initdist =
             (pm = initpm, distribution = initprobs, x = mesh.CellNodes, type = "density") # convert to a distribution object so we can apply Dist2Coeffs
         # convert to Coeffs α in the DG context
-        x0 = SFFM.Dist2Coeffs(model = approxModel, mesh = mesh, Distn = initdist)
+        x0 = SFFM.Dist2Coeffs( approxModel, mesh, initdist)
         # the initial condition on Ψ is restricted to + states so find the + states
         plusIdx = [
             mesh.Fil["p+"]
@@ -133,13 +134,13 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
 
         # convert to a distribution object
         DGΨProbs = SFFM.Coeffs2Dist(
-            model = approxModel,
-            mesh = mesh,
-            Coeffs = z,
+            approxModel,
+            mesh,
+            z,
             type = "probability",
         )
 
-        Ψnorms[d, n] = SFFM.starSeminorm(d1 = DGΨProbs, d2 = simprobs)
+        Ψnorms[d, n] = SFFM.starSeminorm( DGΨProbs, simprobs)
     else
         πnorms[d, n] = NaN
         Ψnorms[d, n] = NaN

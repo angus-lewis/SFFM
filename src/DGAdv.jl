@@ -1,7 +1,7 @@
 """
 Constructs a block diagonal matrix from blocks
 
-    MakeBlockDiagonalMatrixR(;
+    MakeBlockDiagonalMatrixR(
         model::SFFM.Model,
         mesh::DGMesh,
         Blocks,
@@ -21,7 +21,7 @@ Constructs a block diagonal matrix from blocks
 - `BlockMatrix::Array{Float64,2}`: `mesh.TotalNBases×mesh.TotalNBases` the
         block matrix
 """
-function MakeBlockDiagonalMatrixR(;
+function MakeBlockDiagonalMatrixR(
     model::SFFM.Model,
     mesh::DGMesh,
     Blocks,
@@ -41,7 +41,7 @@ end
 """
 Constructs the flux matrices for DG
 
-    MakeFluxMatrixR(;
+    MakeFluxMatrixR(
         mesh::DGMesh,
         model::SFFM.Model,
         Phi,
@@ -59,7 +59,7 @@ Constructs the flux matrices for DG
     an array with index `i ∈ 1:model.NPhases`, of sparse arrays which are
     `TotalNBases×TotalNBases` flux matrices for phase `i`.
 """
-function MakeFluxMatrixR(;
+function MakeFluxMatrixR(
     mesh::DGMesh,
     model::SFFM.Model,
     Phi,
@@ -109,7 +109,7 @@ end
 Creates the Local and global mass, stiffness and flux matrices to compute `D(s)`
 directly.
 
-    MakeMatricesR(;
+    MakeMatricesR(
         model::SFFM.Model,
         mesh::DGMesh,
     )
@@ -142,7 +142,7 @@ directly.
       - `:MInv::Array{Float64,2}`: the inverse of `Local.M`
       - `:V::NamedTuple`: as output from SFFM.vandermonde
  """
-function MakeMatricesR(;
+function MakeMatricesR(
     model::SFFM.Model,
     mesh::DGMesh,
 )
@@ -195,25 +195,25 @@ function MakeMatricesR(;
 
     ## Assemble into block diagonal matrices
     G = SFFM.MakeBlockDiagonalMatrixR(
-        model = model,
-        mesh = mesh,
-        Blocks = GLocal,
-        Factors = ones(mesh.NIntervals),
+        model,
+        mesh,
+        GLocal,
+        ones(mesh.NIntervals),
     )
     M = SFFM.MakeBlockDiagonalMatrixR(
-        model = model,
-        mesh = mesh,
-        Blocks = MLocal,
-        Factors = mesh.Δ * 0.5,
+        model,
+        mesh,
+        MLocal,
+        mesh.Δ * 0.5,
     )
     MInv = SFFM.MakeBlockDiagonalMatrixR(
-        model = model,
-        mesh = mesh,
-        Blocks = MInvLocal,
-        Factors = 2.0 ./ mesh.Δ,
+        model,
+        mesh,
+        MInvLocal,
+        2.0 ./ mesh.Δ,
     )
 
-    F = SFFM.MakeFluxMatrixR(mesh = mesh, model = model, Phi = Phi)
+    F = SFFM.MakeFluxMatrixR(mesh, model, Phi)
 
     ## Assemble the DG drift operator
     Q = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,model.NPhases)
@@ -233,7 +233,7 @@ end
 """
 Construct the operator `D(s)` directly.
 
-    MakeDR(;
+    MakeDR(
         Matrices,
         MatricesR,
         model::SFFM.Model,
@@ -259,7 +259,7 @@ Construct the operator `D(s)` directly.
       Usage is along the lines of `DR(s=1)`. Returns an array structured as
       `D = [D["++"](s=1) D["+-"](s=1); D["-+"](s=1) D["--"](s=1)]`.
 """
-function MakeDR(;
+function MakeDR(
     Matrices,
     MatricesR,
     model::SFFM.Model,

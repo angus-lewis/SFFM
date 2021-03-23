@@ -23,7 +23,7 @@ r = (
 
 ## make models
 simBounds = [0 Inf; -Inf Inf] # bounds for simulation only
-simModel = SFFM.Model(T = T, C = C, r = r, Bounds = simBounds)
+simModel = SFFM.Model( T, C, r, Bounds = simBounds)
 
 approxBounds = [0 48; -Inf Inf] # bounds for approximation only
-model = SFFM.Model(T = T, C = C, r = r, Bounds = approxBounds)
+model = SFFM.Model( T, C, r, Bounds = approxBounds)

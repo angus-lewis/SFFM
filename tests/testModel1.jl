@@ -43,12 +43,12 @@ r = (
 ## make models
 simBounds = [0 Inf; -Inf Inf] # bounds for simulation only
 @testset begin 
-    simModel1 = SFFM.Model(T = T, C = C, r = r, Bounds = simBounds)
+    simModel1 = SFFM.Model(T, C, r, Bounds = simBounds)
     @test sum(simModel1.T,dims=2) ≈ zeros(4)
     @test simModel1.r.r([0;1]) ≈ [13.65  -2.6  13.65  -2.6; 15.25  -1.0  15.25  -1.0]
     @test simModel1.r.R(0) ≈ [0 0 0 0]
 end
-simModel = SFFM.Model(T = T, C = C, r = r, Bounds = simBounds)
+simModel = SFFM.Model( T, C, r, Bounds = simBounds)
 
 approxBounds = [0 48; -Inf Inf] # bounds for approximation only
-model = SFFM.Model(T = T, C = C, r = r, Bounds = approxBounds)
+model = SFFM.Model(T, C, r, Bounds = approxBounds)

@@ -1,11 +1,17 @@
 """
 Add to a figure a plot of a SFM distribution.
 
-    PlotSFM!(p;
+    PlotSFM!(p,
         model::SFFM.Model,
         mesh::SFFM.Mesh,
-        Dist::NamedTuple{(:pm, :distribution, :x, :type)},
+        Dist::NamedTuple{(:pm, :distribution, :x, :type)};
         color = 1,
+        label = false,
+        marker = :none,
+        seriestype = :line,
+        markersize = 4,
+        titles = false,
+        jitter = 0,
     )
 
 # Arguments
@@ -15,10 +21,11 @@ Add to a figure a plot of a SFM distribution.
 - `Dist`: A distribution object as output from `Coeff2Dist` or `Sims2Dist`
 - `color`: (optional) a colour specifier for the plot
 """
-function PlotSFM!(p;
-    model::SFFM.Model,
-    mesh::SFFM.Mesh,
-    Dist::NamedTuple{(:pm, :distribution, :x, :type)},
+function PlotSFM!(
+    p,
+    model::Model,
+    mesh::Mesh,
+    Dist::NamedTuple{(:pm, :distribution, :x, :type)};
     color = 1,
     label = false,
     marker = :none,
@@ -92,12 +99,8 @@ function PlotSFM!(p;
                 grid = false,
             )
         end
-        # yLimValues = (
-        #     -0,
-        #     max(maximum(Dist.distribution[:, :, i][:]), maximum(y))*1.025,
-        # )
+
         p = Plots.plot!(
-            # ylims = yLimValues,
             subplot = i,
             tickfontsize = 10,
             guidefontsize = 12,
@@ -124,8 +127,14 @@ Initialise and plot a SFM distribution.
     PlotSFM(
         model::SFFM.Model,
         mesh::SFFM.Mesh,
-        Dist::NamedTuple{(:pm, :distribution, :x, :type)},
+        Dist::NamedTuple{(:pm, :distribution, :x, :type)};
         color = 1,
+        label = false,
+        marker = :none,
+        seriestype = :line,
+        markersize = 4,
+        titles = false,
+        jitter = 0,
     )
 
 # Arguments
@@ -138,10 +147,10 @@ Initialise and plot a SFM distribution.
 - a plot object of type `Plots.Plot{Plots.GRBackend}` with `NPhases` subplots
     containing a plot of the distribution for each phase.
 """
-function PlotSFM(;
-    model::SFFM.Model,
+function PlotSFM(
+    model::SFFM.Model;
     mesh::SFFM.Mesh = SFFM.DGMesh(),
-    Dist::NamedTuple{(:pm, :distribution, :x, :type)} =
+    dist::NamedTuple{(:pm, :distribution, :x, :type)} =
         (pm=Float64[],distribution=Float64[],x=Float64[],type=""),
     color = 1,
     label = false,
@@ -152,11 +161,12 @@ function PlotSFM(;
     jitter = 0,
 )
     p = Plots.plot(layout = Plots.@layout(Plots.grid((model.NPhases+1)÷2, 2)))
-    if length(Dist.distribution) != 0
-        p = SFFM.PlotSFM!(p;
-            model = model,
-            mesh = mesh,
-            Dist = Dist,
+    if length(dist.distribution) != 0
+        p = SFFM.PlotSFM!(
+            p,
+            model,
+            mesh,
+            dist,
             color = color,
             label = label,
             marker = marker,

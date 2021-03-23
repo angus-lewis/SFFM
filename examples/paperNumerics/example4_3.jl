@@ -16,12 +16,12 @@ mesh = SFFM.DGMesh(
     NBases,
     Basis = Basis,
 )
-let q = SFFM.PlotSFM(model = approxModel)
+let q = SFFM.PlotSFM(approxModel)
     ## analytic version for comparison
     # construction
-    Ψₓ = SFFM.PsiFunX(model=approxModel)
-    ξₓ = SFFM.MakeXiX(model=approxModel, Ψ=Ψₓ)
-    pₓ, πₓ, Πₓ, Kₓ = SFFM.StationaryDistributionX(model=approxModel, Ψ=Ψₓ, ξ=ξₓ)
+    Ψₓ = SFFM.PsiFunX(approxModel)
+    ξₓ = SFFM.MakeXiX(approxModel, Ψₓ)
+    pₓ, πₓ, Πₓ, Kₓ = SFFM.StationaryDistributionX( approxModel, Ψₓ, ξₓ)
 
     # evaluate the distribution
     analyticX = (
@@ -32,10 +32,10 @@ let q = SFFM.PlotSFM(model = approxModel)
     )
 
     # plot it
-    q = SFFM.PlotSFM!(q;
-        model=approxModel,
-        mesh=mesh,
-        Dist = analyticX,
+    q = SFFM.PlotSFM!(q,
+        approxModel,
+        mesh,
+        analyticX,
         color = :red,
         label = "Analytic",
         marker = :x,
@@ -56,29 +56,33 @@ let q = SFFM.PlotSFM(model = approxModel)
         )
 
         # compute the marginal via DG
-        All = SFFM.MakeAll(model = approxModel, mesh = mesh, approxType = "projection")
-        Ψ = SFFM.PsiFun(D=All.D)
+        All = SFFM.MakeAll( approxModel, mesh, approxType = "projection")
+        Ψ = SFFM.PsiFun(All.D)
 
         # the distribution of X when Y first returns to 0
-        ξ = SFFM.MakeXi(B=All.B.BDict, Ψ = Ψ)
+        ξ = SFFM.MakeXi(All.B.BDict, Ψ)
 
-        marginalX, p, K = SFFM.MakeLimitDistMatrices(;
-            B = All.B.BDict,
-            D = All.D,
-            R = All.R.RDict,
-            Ψ = Ψ,
-            ξ = ξ,
-            mesh = mesh,
+        marginalX, p, K = SFFM.MakeLimitDistMatrices(
+            All.B.BDict,
+            All.D,
+            All.R.RDict,
+            Ψ,
+            ξ,
+            mesh,
+            approxModel,
         )
         # convert marginalX to a distribution for plotting
         Dist = SFFM.Coeffs2Dist(
-            model = approxModel,
-            mesh = mesh,
-            Coeffs = marginalX,
+            approxModel,
+            mesh,
+            marginalX,
             type="density",
         )
         # plot it
-        q = SFFM.PlotSFM!(q;model=approxModel,mesh=mesh,
+        q = SFFM.PlotSFM!(
+            q,
+            approxModel,
+            mesh,
             Dist = Dist,
             color = colours[c],
             label = "DG: N_k = "*string(NBases),
@@ -86,32 +90,6 @@ let q = SFFM.PlotSFM(model = approxModel)
             jitter = 0.5,
         )
 
-        # ## DG eigenvalue problem for πₓ
-        # Q = copy(All.B.B)
-        # Q[:,1] .= 1
-        #
-        # b = zeros(1,size(Q,1))
-        # b[1] = 1
-        # # w solves wQ = 0 s.t. sum(w) = 1
-        # w = b/Q
-        #
-        # # convert w to a distribution
-        # eigDist = SFFM.Coeffs2Dist(
-        #     model = approxModel,
-        #     mesh = mesh,
-        #     Coeffs = w,
-        #     type="density",
-        # )
-        #
-        # # plot it
-        # q = SFFM.PlotSFM!(q;
-        #     model = approxModel,
-        #     mesh = mesh,
-        #     Dist = eigDist,
-        #     color = NBases+10,
-        #     label = "DG eigen: "*string(NBases),
-        #     marker = :none,
-        # )
     end
     q = plot!(windowsize=(600,600))
     titles = ["Phase 11" "Phase 10" "Phase 01" "Phase 00"]

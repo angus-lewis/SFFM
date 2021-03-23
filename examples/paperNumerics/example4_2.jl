@@ -35,7 +35,7 @@ function bootFun(sims; nBoot = 10_000)
             φ = sims.φ[sampleIdx],
             X = sims.X[sampleIdx],
         )
-        tempDist = SFFM.Sims2Dist(model=simModel,mesh=mesh,sims=tempData,type="cumulative").distribution[1,1:6,[2;4]]
+        tempDist = SFFM.Sims2Dist( simModel, mesh, tempData,type="cumulative").distribution[1,1:6,[2;4]]
         samplesBoot[n,:,:] = tempDist
     end
     ql = zeros(6,2)
@@ -71,8 +71,8 @@ let
             Basis = Basis,
         )
         # construct matrices
-        All = SFFM.MakeAll(model = approxModel, mesh = mesh, approxType = "projection")
-        Ψ = SFFM.PsiFun(D=All.D)
+        All = SFFM.MakeAll( approxModel, mesh, approxType = "projection")
+        Ψ = SFFM.PsiFun(All.D)
 
         # construct initial condition
         theNodes = mesh.CellNodes[:,convert(Int,ceil(5/Δ))]
@@ -93,7 +93,7 @@ let
             type = "density"
         ) # convert to a distribution object so we can apply Dist2Coeffs
         # convert to Coeffs α in the DG context
-        x0 = SFFM.Dist2Coeffs(model = approxModel, mesh = mesh, Distn = initdist)
+        x0 = SFFM.Dist2Coeffs( approxModel, mesh, initdist)
         # the initial condition on Ψ is restricted to + states so find the + states
         plusIdx = [
             mesh.Fil["p+"];
@@ -125,9 +125,9 @@ let
 
         # convert to a distribution object for plotting
         DGProbs = SFFM.Coeffs2Dist(
-            model = approxModel,
-            mesh = mesh,
-            Coeffs = z,
+            approxModel,
+            mesh,
+            z,
             type="cumulative",
         )
 

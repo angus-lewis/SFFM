@@ -1,3 +1,92 @@
+struct SimMesh <: Mesh 
+    NBases::Int
+    CellNodes::Array{<:Real,2}
+    Fil::Dict{String,BitArray{1}}
+    Δ::Array{Float64,1}
+    NIntervals::Int
+    Nodes::Array{Float64,1}
+    TotalNBases::Int
+    Basis::String
+    function SimMesh(
+        model::Model,
+        Nodes::Array{Float64,1},
+        NBases::Int;
+        Fil::Dict{String,BitArray{1}}=Dict{String,BitArray{1}}(),
+    )
+        NIntervals = length(Nodes) - 1 # the number of intervals
+        Δ = (Nodes[2:end] - Nodes[1:end-1]) # interval width
+        CellNodes = zeros(Float64, NBases, NIntervals)
+        for i = 1:NIntervals
+            CellNodes[:, i] .= (Nodes[i+1] + Nodes[i]) / 2 
+        end
+        TotalNBases = NBases * NIntervals
+
+        ## Construct the sets Fᵐ = ⋃ᵢ Fᵢᵐ, global index for sets of type m
+        if isempty(Fil)
+            idxPlus = model.r.r(Nodes[1:end-1].+Δ[:]/2).>0
+            idxZero = model.r.r(Nodes[1:end-1].+Δ[:]/2).==0
+            idxMinus = model.r.r(Nodes[1:end-1].+Δ[:]/2).<0
+            for i in 1:model.NPhases
+                Fil[string(i)*"+"] = idxPlus[:,i]
+                Fil[string(i)*"0"] = idxZero[:,i]
+                Fil[string(i)*"-"] = idxMinus[:,i]
+                if model.C[i] .<= 0
+                    Fil["p"*string(i)*"+"] = [model.r.r(model.Bounds[1,1])[i]].>0
+                    Fil["p"*string(i)*"0"] = [model.r.r(model.Bounds[1,1])[i]].==0
+                    Fil["p"*string(i)*"-"] = [model.r.r(model.Bounds[1,1])[i]].<0
+                end
+                if model.C[i] .>= 0
+                    Fil["q"*string(i)*"+"] = [model.r.r(model.Bounds[1,end])[i]].>0
+                    Fil["q"*string(i)*"0"] = [model.r.r(model.Bounds[1,end])[i]].==0
+                    Fil["q"*string(i)*"-"] = [model.r.r(model.Bounds[1,end])[i]].<0
+                end
+            end
+        end
+        CurrKeys = keys(Fil)
+        for ℓ in ["+", "-", "0"], i = 1:model.NPhases
+            if !in(string(i) * ℓ, CurrKeys)
+                Fil[string(i)*ℓ] = falses(NIntervals)
+            end
+            if !in("p" * string(i) * ℓ, CurrKeys) && model.C[i] <= 0
+                Fil["p"*string(i)*ℓ] = falses(1)
+            end
+            if !in("p" * string(i) * ℓ, CurrKeys) && model.C[i] > 0
+                Fil["p"*string(i)*ℓ] = falses(0)
+            end
+            if !in("q" * string(i) * ℓ, CurrKeys) && model.C[i] >= 0
+                Fil["q"*string(i)*ℓ] = falses(1)
+            end
+            if !in("q" * string(i) * ℓ, CurrKeys) && model.C[i] < 0
+                Fil["q"*string(i)*ℓ] = falses(0)
+            end
+        end
+        for ℓ in ["+", "-", "0"]
+            Fil[ℓ] = falses(NIntervals * model.NPhases)
+            Fil["p"*ℓ] = trues(0)
+            Fil["q"*ℓ] = trues(0)
+            for i = 1:model.NPhases
+                idx = findall(Fil[string(i)*ℓ]) .+ (i - 1) * NIntervals
+                Fil[string(ℓ)][idx] .= true
+                Fil["p"*ℓ] = [Fil["p"*ℓ]; Fil["p"*string(i)*ℓ]]
+                Fil["q"*ℓ] = [Fil["q"*ℓ]; Fil["q"*string(i)*ℓ]]
+            end
+        end
+        new(NBases, CellNodes, Fil, Δ, NIntervals, Nodes, TotalNBases, "lagrange")
+    end
+    function SimMesh()
+        new(
+            0,
+            Array{Real,2}(undef,0,0),
+            Dict{String,BitArray{1}}(),
+            Array{Float64,1}(undef,0),
+            0,
+            Array{Float64,1}(undef,0),
+            0,
+            "lagrange",
+        )
+    end
+end 
+
 """
 Simulates a SFM defined by `Model` until the `StoppingTime` has occured,
 given the `InitialCondition` on (φ(0),X(0)).
@@ -59,7 +148,7 @@ function SimSFM(
         while 1 == 1
             S = log(rand()) / Λ[SFM0.φ] # generate exp random variable
             t = SFM0.t + S
-            X = UpdateXt(model = model, SFM0 = SFM0, S = S)
+            X = UpdateXt(model, SFM0, S)
             φ = findfirst(rand() .< CumP[SFM0.φ, :])
             n = SFM0.n + 1
             SFM = (t = t, φ = φ, X = X, n = n)
@@ -150,8 +239,8 @@ function SimSFFM(
             while 1 == 1
                 S = log(rand()) / Λ[SFFM0.φ]
                 t = SFFM0.t + S
-                X = UpdateXt(model = model, SFM0 = SFFM0, S = S)
-                Y = UpdateYt(model = model, SFFM0 = SFFM0, S = S)
+                X = UpdateXt(model, SFFM0, S)
+                Y = UpdateYt(model, SFFM0, S)
                 φ = findfirst(rand() .< CumP[SFFM0.φ, :])
                 n = SFFM0.n + 1.0
                 SFFM = (t = t, φ = φ, X = X, Y = Y, n = n)
@@ -171,7 +260,7 @@ end
 Returns ``X(t+S) = min(max(X(t) + cᵢS,0),U)`` where ``U`` is some upper bound
 on the process.
 
-    UpdateXt(;
+    UpdateXt(
         model::SFFM.Model,
         SFM0::NamedTuple,
         S::Real,
@@ -224,7 +313,7 @@ function UpdateYt(
     if model.C[SFFM0.φ] == 0
         Y = SFFM0.Y + S * model.r.r(SFFM0.X)[SFFM0.φ]
     else
-        X = UpdateXt(model = model, SFM0 = SFFM0, S = S)
+        X = UpdateXt(model, SFFM0, S)
         ind = (X.==model.Bounds[1, :])[:]
         if any(ind)
             # time at which Xt hits u or v
@@ -276,7 +365,7 @@ function FixedTime( T::Real)
         Ind = SFM.t > T
         if Ind
             s = T - SFM0.t
-            X = UpdateXt(model = model, SFM0 = SFM0, S = s)
+            X = UpdateXt(model, SFM0, s)
             SFM = (t = T, φ = SFM0.φ, X = X, n = SFM0.n)
         end
         return (Ind = Ind, SFM = SFM)
@@ -290,8 +379,8 @@ function FixedTime( T::Real)
         Ind = SFFM.t > T
         if Ind
             s = T - SFFM0.t
-            X = UpdateXt(model = model, SFM0 = SFFM0, S = s)
-            Y = UpdateYt(model = model, SFFM0 = SFFM0, S = s)
+            X = UpdateXt(model, SFFM0, s)
+            Y = UpdateYt(model, SFFM0, s)
             SFFM = (T, SFFM0.φ, X, Y, SFFM0.n)
         end
         return (Ind = Ind, SFFM = SFFM)
@@ -402,7 +491,7 @@ function FirstExitX( u::Real, v::Real)
             end
             s = (X - SFFM0.X) / model.C[SFFM0.φ] # can't exit with c = 0.
             t = SFFM0.t + s
-            Y = UpdateYt(model = model, SFFM0 = SFFM0, S = s)
+            Y = UpdateYt(model, SFFM0, s)
             SFFM = (t, SFFM0.φ, X, Y, SFFM0.n)
         end
         return (Ind = Ind, SFFM = SFFM)
@@ -414,7 +503,7 @@ end
 Constructs the `StoppingTime` which is the first exit of the process ``Y(t)``
 from the interval ``[u,v]``. ASSUMES ``Y(t)`` is monotonic between jumps.
 
-    FirstExitY(; u::Real, v::Real)
+    FirstExitY( u::Real, v::Real)
 
 # Arguments
 - `u`: a lower boundary
@@ -439,10 +528,10 @@ function FirstExitY( u::Real, v::Real)
         if Ind
             idx = [SFFM.Y < u; SFFM.Y > v]
             boundaryHit = [u;v][idx][1]
-            YFun(t) = UpdateYt(model = model, SFFM0 = SFFM0, S = t) - boundaryHit
+            YFun(t) = UpdateYt(model, SFFM0, t) - boundaryHit
             S = SFFM.t - SFFM0.t
-            tstar = fzero(f = YFun, a = 0, b = S)
-            X = UpdateXt(model = model, SFM0 = SFFM0, S = tstar)
+            tstar = fzero(YFun, 0, S)
+            X = UpdateXt(model, SFFM0, tstar)
             t = SFFM0.t + tstar
             Y = boundaryHit
             SFFM = (t, SFFM0.φ, X, Y, SFFM0.n)
@@ -617,7 +706,7 @@ function Sims2Dist(
     end
     if type == "density" && mesh.NBases == 1
         distribution = [1; 1] .* distribution
-        xvals = [mesh.CellNodes-mesh.Δ'/2;mesh.CellNodes+mesh.Δ'/2]
+        xvals = [mesh.Nodes[1:end-1]';mesh.Nodes[2:end]']
     end
     return (pm = pm, distribution = distribution, x = xvals, type = type)
 end

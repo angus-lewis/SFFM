@@ -15,7 +15,7 @@ r = (
 )
 
 Bounds = [0 1.8; -Inf Inf]
-model = SFFM.Model(T = T, C = C, r = r, Bounds = Bounds)
+model = SFFM.Model(T, C, r, Bounds = Bounds)
 
 ## Define mesh
 Nodes = [0;1;1.8]
@@ -24,10 +24,10 @@ Basis = "lagrange"
 mesh = SFFM.DGMesh(model, Nodes, NBases, Basis=Basis)
 
 ## Make matrices
-All = SFFM.MakeAll(model=model,mesh=mesh)
-M = SFFM.MakeMatrices(model = model, mesh = mesh, probTransform=false)
-B = SFFM.MakeB(model=model,mesh=mesh,Matrices=M, probTransform=false)
-R = SFFM.MakeR(model=model,mesh=mesh)
+All = SFFM.MakeAll( model, mesh)
+M = SFFM.MakeMatrices( model, mesh, probTransform=false)
+B = SFFM.MakeB( model, mesh, M, probTransform=false)
+R = SFFM.MakeR( model, mesh)
 
 println("")
 println("The operator B looks like: ")

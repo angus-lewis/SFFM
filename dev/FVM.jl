@@ -8,10 +8,11 @@ struct FVMesh <: Mesh
     Δ::Array{Float64,1}
     NIntervals::Int
     Nodes::Array{Float64,1}
+    TotalNBases::Int
     Basis::String
     function FVMesh(
-        model::SFFM.Model;
-        Nodes::Array{Float64,1},
+        model::SFFM.Model,
+        Nodes::Array{Float64,1};
         Fil::Dict{String,BitArray{1}}=Dict{String,BitArray{1}}(),
     )
         NBases = 1
@@ -21,8 +22,8 @@ struct FVMesh <: Mesh
         for i = 1:NIntervals
             CellNodes[:, i] .= (Nodes[i+1] + Nodes[i]) / 2 
         end
-        TotalNBases = NBases * NIntervals 
-
+        TotalNBases = NBases * NIntervals
+        
         ## Construct the sets Fᵐ = ⋃ᵢ Fᵢᵐ, global index for sets of type m
         if isempty(Fil)
             idxPlus = model.r.r(Nodes[1:end-1].+Δ[:]/2).>0
@@ -73,18 +74,9 @@ struct FVMesh <: Mesh
                 Fil["q"*ℓ] = [Fil["q"*ℓ]; Fil["q"*string(i)*ℓ]]
             end
         end
-        new(NBases, CellNodes, Fil, Δ, NIntervals, Nodes, "Constant")
+        new(NBases, CellNodes, Fil, Δ, NIntervals, Nodes, TotalNBases, "lagrange")
     end
 end 
-
-Δ = 1 
-nodes = collect(0:Δ:bounds[1,2])
-mesh = SFFM.MakeMesh(
-    model = model, 
-    Nodes = nodes, 
-    NBases = 1,
-    Basis = "lagrange",
-)
 
 function interp(nodes, evalPt)
     order = length(nodes)

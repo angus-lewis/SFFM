@@ -23,7 +23,7 @@ let
     for γ₂ in [11;16;22]
         c = c+1
         Ttemp = Tfun(γ₂)
-        tempModel = SFFM.Model(T = Ttemp, C = C, r = r, Bounds = approxModel.Bounds)
+        tempModel = SFFM.Model( Ttemp, C, r, Bounds = approxModel.Bounds)
         println("created tempModel with upper bound x=", tempModel.Bounds[1,end])
         ## mesh
         Δ = 0.4
@@ -39,19 +39,20 @@ let
         )
 
         # compute the marginal via DG
-        All = SFFM.MakeAll(model = tempModel, mesh = mesh, approxType = "projection")
-        Ψ = SFFM.PsiFun(D=All.D)
+        All = SFFM.MakeAll( tempModel, mesh, approxType = "projection")
+        Ψ = SFFM.PsiFun( All.D)
 
         # the distribution of X when Y first returns to 0
-        ξ = SFFM.MakeXi(B=All.B.BDict, Ψ = Ψ)
+        ξ = SFFM.MakeXi( All.B.BDict, Ψ)
 
-        marginalX, p, K = SFFM.MakeLimitDistMatrices(;
-            B = All.B.BDict,
-            D = All.D,
-            R = All.R.RDict,
-            Ψ = Ψ,
-            ξ = ξ,
-            mesh = mesh,
+        marginalX, p, K = SFFM.MakeLimitDistMatrices(
+            All.B.BDict,
+            All.D,
+            All.R.RDict,
+            Ψ,
+            ξ,
+            mesh,
+            model,
         )
         println("For γ₂ = ",
             γ₂, ", χ⁰ = ",
@@ -63,9 +64,9 @@ let
             ".",
         )
         tempDist = SFFM.Coeffs2Dist(
-            model = tempModel,
-            mesh = mesh,
-            Coeffs = marginalX,
+            tempModel,
+            mesh,
+            marginalX,
             type="density",
         )
         temp = zeros(mesh.NBases,mesh.NIntervals,2)
@@ -109,21 +110,6 @@ let
             xlabel = "x",
         )
 
-        # Dist = (
-        #     pm = tempDist.pm,
-        #     distribution = temp,
-        #     x = tempDist.x,
-        #     type="density",
-        # )
-        #
-        # # plot it
-        # q = SFFM.PlotSFM!(q;model=tempModel,mesh=mesh,
-        #     Dist = Dist,
-        #     color = colours[c],
-        #     label = "α₂: "*string(γ₂),
-        #     seriestype = :line,
-        #     jitter = 0.5,
-        # )
         println("")
     end
     titles = ["Phases 11 + 10" "Phases 01 + 00"]

@@ -1,4 +1,221 @@
 """
+# Construct the DG approximation to the operator `R`.
+
+    MakeR(
+        model::SFFM.Model,
+        mesh::DGMesh;
+        approxType::String = "projection",
+        probTransform::Bool = true,
+    )
+
+# Arguments
+- `model`: a Model object
+- `Mmesh`: a Mesh object
+- `approxType::String`: (optional) either "interpolation" or
+    "projection" (default).
+- `probTransform::Bool=true`: an (optional) specification for the lagrange basis
+    to specify whether transform to probability coefficients.
+
+# Output
+- a tuple with keys
+    - `:R::SparseArrays.SparseMatrixCSC{Float64,Int64}`: an approximation to R
+        for the whole space. If ``rᵢ(x)=0`` on any cell, the corresponding
+        elements of R are zero.
+    - `:RDict::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}}`: a
+        disctionary containing sub-blocks of R. Keys are of the form
+        `"PhaseSign"` or just `"Sign"`. i.e. `"1-"` cells in ``Fᵢ⁻``, and
+        `"-"` for cells in ``∪ᵢFᵢ⁻``.
+"""
+function MakeR(
+    model::SFFM.Model,
+    mesh::DGMesh;
+    approxType::String = "projection",
+    probTransform::Bool = true,
+)
+    V = SFFM.vandermonde(mesh.NBases)
+
+    EvalR = 1.0 ./ model.r.a(mesh.CellNodes[:])
+
+    N₋ = sum(model.C .<= 0)
+    N₊ = sum(model.C .>= 0)
+
+    R = SparseArrays.spzeros(
+        Float64,
+        N₋ + N₊ + mesh.TotalNBases * model.NPhases,
+        N₋ + N₊ + mesh.TotalNBases * model.NPhases,
+    )
+    # at the boundaries
+    R[1:N₋, 1:N₋] = (1.0 ./ model.r.a(model.Bounds[1,1])[model.C .<= 0]).*LinearAlgebra.I(N₋)
+    R[(end-N₊+1):end, (end-N₊+1):end] =  (1.0 ./ model.r.a(model.Bounds[1,end])[model.C .>= 0]).* LinearAlgebra.I(N₊)
+
+    # on the interior
+    for n = 1:(mesh.NIntervals*model.NPhases)
+        if mesh.Basis == "legendre"
+            if approxType == "interpolation"
+                leftM = V.V'
+                rightM = V.inv'
+            elseif approxType == "projection"
+                leftM = V.V' * LinearAlgebra.diagm(V.w)
+                rightM = V.V
+            end
+            temp = leftM*LinearAlgebra.diagm(EvalR[mesh.NBases*(n-1).+(1:mesh.NBases)])*rightM
+        elseif mesh.Basis == "lagrange"
+            if approxType == "interpolation"
+                temp = LinearAlgebra.diagm(EvalR[mesh.NBases*(n-1).+(1:mesh.NBases)])
+            elseif approxType == "projection"
+                # the first term, LinearAlgebra.diagm(EvalR[mesh.NBases*(n-1).+(1:mesh.NBases)])
+                # is the quadrature approximation of M^r. The quadrature weights to not
+                # appear since they cancel when we transform to integral/probability
+                # representation. The second term V.V*V.V' is Minv. The last term
+                # LinearAlgebra.diagm(V.w)is a result of the conversion to probability
+                # / integral representation.
+                if probTransform
+                    temp = LinearAlgebra.diagm(EvalR[mesh.NBases*(n-1).+(1:mesh.NBases)])*V.V*V.V'*LinearAlgebra.diagm(V.w)
+                elseif !probTransform
+                    temp = LinearAlgebra.diagm(V.w)*LinearAlgebra.diagm(EvalR[mesh.NBases*(n-1).+(1:mesh.NBases)])*V.V*V.V'
+                end
+            end
+        end
+        R[mesh.NBases*(n-1).+(1:mesh.NBases).+N₋, mesh.NBases*(n-1).+(1:mesh.NBases).+N₋] = temp
+    end
+
+    # construc the dictionary
+    RDict = MakeDict(R,model,mesh,zero=false)
+
+    out = (R=R, RDict=RDict)
+    println("UPDATE: R object created with keys ", keys(out))
+    return out
+end
+
+"""
+Construct the operator `D(s)` from `B, R`.
+
+    MakeD(
+        R,
+        B,
+        model::SFFM.Model,
+        mesh::SFFM.Mesh,
+    )
+
+# Arguments
+- `R`: a tuple as constructed by MakeR
+- `B`: a tuple as constructed by MakeB
+- `model`: a Model object
+- `mesh`: a Mesh object
+
+# Output
+- `DDict::Dict{String,Function(s::Real)}`: a dictionary of functions. Keys are
+  of the for `"ℓm"` where `ℓ,m∈{+,-}`. Values are functions with one argument.
+  Usage is along the lines of `D["+-"](s=1)`.
+"""
+function MakeD(
+    mesh::SFFM.Mesh,
+    B::NamedTuple{(:BDict, :B, :QBDidx)},
+    R::NamedTuple{(:R, :RDict)},
+)
+    DDict = Dict{String,Any}()
+    for ℓ in ["+", "-"], m in ["+", "-"]
+        nℓ = sum(mesh.Fil["p"*ℓ]) + sum(mesh.Fil[ℓ]) * mesh.NBases + sum(mesh.Fil["q"*ℓ])
+        Idℓ = SparseArrays.sparse(LinearAlgebra.I,nℓ,nℓ)
+        if any(mesh.Fil["p0"]) || any(mesh.Fil["0"]) || any(mesh.Fil["q0"]) # in("0", model.Signs)
+            n0 = sum(mesh.Fil["p0"]) +
+                sum(mesh.Fil["0"]) * mesh.NBases +
+                sum(mesh.Fil["q0"])
+            Id0 = SparseArrays.sparse(LinearAlgebra.I,n0,n0)
+            DDict[ℓ*m] = function (; s::Real = 0)
+                return if (ℓ == m)
+                    R.RDict[ℓ] * (
+                        B.BDict[ℓ*m] - s * Idℓ +
+                        B.BDict[ℓ*"0"] * inv(Matrix(s * Id0 - B.BDict["00"])) * B.BDict["0"*m]
+                    )
+                else
+                    R.RDict[ℓ] * (
+                        B.BDict[ℓ*m] +
+                        B.BDict[ℓ*"0"] * inv(Matrix(s * Id0 - B.BDict["00"])) * B.BDict["0"*m]
+                    )
+                end
+            end # end function
+        else
+            DDict[ℓ*m] = function (; s::Real = 0)
+                return if (ℓ == m)
+                    R.RDict[ℓ] * (B.BDict[ℓ*m] - s * Idℓ)
+                else
+                    R.RDict[ℓ] * B.BDict[ℓ*m]
+                end
+            end # end function
+        end # end if ...
+    end # end for ℓ ...
+    println("UPDATE: D(s) operator created with keys ", keys(DDict))
+    return (DDict = DDict)
+end
+
+"""
+Construct and evaluate ``Ψ(s)``.
+
+Uses newtons method to solve the Ricatti equation
+``D⁺⁻(s) + Ψ(s)D⁻⁺(s)Ψ(s) + Ψ(s)D⁻⁻(s) + D⁺⁺(s)Ψ(s) = 0.``
+
+    PsiFun(; s = 0, D, MaxIters = 1000, err = 1e-8)
+
+# Arguments
+- `s::Real`: a value to evaluate the LST at
+- `D`: a `Dict{String,Function(s::Real)}` as output from MakeD
+- `MaxIters::Int`: the maximum number of iterations of newtons method
+- `err::Float64`: an error tolerance for terminating newtons method. Terminates
+    when `max(Ψ_{n} - Ψ{n-1}) .< eps`.
+
+# Output
+- `Ψ(s)::Array{Float64,2}`: a matrix approxiamtion to ``Ψ(s)``.
+"""
+function PsiFun(D::Dict{String,Any}; s::Real = 0, MaxIters::Int = 1000, err::Float64 = 1e-8)
+    exitflag = ""
+
+    EvalD = Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}}("+-" => D["+-"](s = s))
+    Dimensions = size(EvalD["+-"])
+    for ℓ in ["++", "--", "-+"]
+        EvalD[ℓ] = D[ℓ](s = s)
+    end
+    Psi = zeros(Float64, Dimensions)
+    A = EvalD["++"]
+    B = EvalD["--"]
+    C = EvalD["+-"]
+    OldPsi = Psi
+    flag = 1
+    for n = 1:MaxIters
+        Psi = LinearAlgebra.sylvester(Matrix(A), Matrix(B), Matrix(C))
+        if maximum(abs.(OldPsi - Psi)) < err
+            flag = 0
+            exitflag = string(
+                "Reached err tolerance in ",
+                n,
+                " iterations with error ",
+                string(maximum(abs.(OldPsi - Psi))),
+            )
+            break
+        elseif any(isnan.(Psi))
+            flag = 0
+            exitflag = string("Produced NaNs at iteration ", n)
+            break
+        end
+        OldPsi = Psi
+        A = EvalD["++"] + Psi * EvalD["-+"]
+        B = EvalD["--"] + EvalD["-+"] * Psi
+        C = EvalD["+-"] - Psi * EvalD["-+"] * Psi
+    end
+    if flag == 1
+        exitflag = string(
+            "Reached Max Iters ",
+            MaxIters,
+            " with error ",
+            string(maximum(abs.(OldPsi - Psi))),
+        )
+    end
+    println("UPDATE: Iterations for Ψ(s=", s,") exited with flag: ", exitflag)
+    return Psi
+end
+
+
+"""
 Returns the DG approximation to the return probabilities ``ξ`` for the process
 ``Y(t)``.
 NOTE: IMPLEMENTED FOR LAGRANGE BASIS ONLY
@@ -21,9 +238,9 @@ NOTE: IMPLEMENTED FOR LAGRANGE BASIS ONLY
 function MakeXi(
     B::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
     Ψ::Array{Float64,2};
+    mesh::Mesh = DGMesh(),
+    model::Model = Model(),
     probTransform::Bool = true,
-    mesh=1,
-    model=1,
 )
     # BBullet = [B["--"] B["-0"]; B["0-"] B["00"]]
     # invB = inv(Matrix(Bbullet))
@@ -105,9 +322,9 @@ function MakeLimitDistMatrices(
     R::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
     Ψ::Array{<:Real},
     ξ::Array{<:Real},
-    mesh::SFFM.Mesh;
+    mesh::Mesh,
+    model::Model;
     probTransform::Bool = true,
-    model=1,
 )
     B00inv = inv(Matrix(B["00"]))
     invBmm = inv(B["--"] - B["-0"]*B00inv*B["0-"])
@@ -143,12 +360,7 @@ function MakeLimitDistMatrices(
         a₋ = [ones(sum(mesh.Fil["p-"])); repeat(w, sum(mesh.Fil["-"])).*(repeat(repeat(mesh.Δ./2,model.NPhases,1)[idx₋]', mesh.NBases, 1)[:]); ones(sum(mesh.Fil["q-"]))]
         a₊ = [ones(sum(mesh.Fil["p+"])); repeat(w, sum(mesh.Fil["+"])).*(repeat(repeat(mesh.Δ./2,model.NPhases,1)[idx₊]', mesh.NBases, 1)[:]); ones(sum(mesh.Fil["q+"]))]
         a₀ = [ones(sum(mesh.Fil["p0"])); repeat(w, sum(mesh.Fil["0"])).*(repeat(repeat(mesh.Δ./2,model.NPhases,1)[idx₀]', mesh.NBases, 1)[:]); ones(sum(mesh.Fil["q0"]))]
-        # display(a₋)
-        # display(a₊)
-        # display(a₀)
-        # display(αintegralPibullet)
-        # display(αintegralPi0)
-        # display(αp)
+
         α = (αintegralPibullet*[a₊; a₋]) + (αintegralPi0*a₀) + (αp*[a₋;a₀])
     end
 

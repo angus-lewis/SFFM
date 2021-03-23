@@ -9,9 +9,9 @@ using LinearAlgebra, Plots, JLD2, GLM
 
 ## analytic X distribution for comparison
 # construction
-Ψₓ = SFFM.PsiFunX(model = approxModel)
-ξₓ = SFFM.MakeXiX(model = approxModel, Ψ = Ψₓ)
-pₓ, πₓ, Πₓ, Kₓ = SFFM.StationaryDistributionX(model = approxModel, Ψ = Ψₓ, ξ = ξₓ)
+Ψₓ = SFFM.PsiFunX(approxModel)
+ξₓ = SFFM.MakeXiX(approxModel, Ψₓ)
+pₓ, πₓ, Πₓ, Kₓ = SFFM.StationaryDistributionX(approxModel, Ψₓ, ξₓ)
 
 ## section 4.5: error for approximation of stationary distribution of X
 Basis = "lagrange"
@@ -49,40 +49,38 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
             approxSpec[d, n] = (Δ, NBases, mesh.TotalNBases * approxModel.NPhases)
 
             # compute the marginal via DG
-            Matrices = SFFM.MakeMatrices(model=approxModel,mesh=mesh,probTransform=false)
-            MatricesR = SFFM.MakeMatricesR(model=approxModel,mesh=mesh)
-            B = SFFM.MakeB(model=approxModel,mesh=mesh,Matrices=Matrices,probTransform=false)
+            Matrices = SFFM.MakeMatrices(approxModel, mesh,probTransform=false)
+            MatricesR = SFFM.MakeMatricesR( approxModel, mesh)
+            B = SFFM.MakeB( approxModel, mesh, Matrices,probTransform=false)
             Dr = SFFM.MakeDR(
-                Matrices=Matrices,
-                MatricesR=MatricesR,
-                model=approxModel,
-                mesh=mesh,
-                B=B,
+                Matrices,
+                MatricesR,
+                approxModel,
+                mesh,
+                B,
             )
-            Ψ = SFFM.PsiFun(D=Dr.DDict)
-            R = SFFM.MakeR(model=approxModel,mesh=mesh,approxType="projection",probTransform=false)
-            # All = SFFM.MakeAll(model = approxModel, mesh = mesh, approxType = "projection")
-            # Ψ = SFFM.PsiFun(D = All.D)
+            Ψ = SFFM.PsiFun(Dr.DDict)
+            R = SFFM.MakeR( approxModel, mesh, approxType="projection", probTransform=false)
 
             # the distribution of X when Y first returns to 0
-            ξ = SFFM.MakeXi(B = B.BDict, Ψ = Ψ, probTransform = false, mesh=mesh, model=approxModel)
+            ξ = SFFM.MakeXi( B.BDict, Ψ, mesh, approxModel, probTransform = false)
 
             marginalX, p, K = SFFM.MakeLimitDistMatrices(;
-                B = B.BDict,
-                D = Dr.DDict,
-                R = R.RDict,
-                Ψ = Ψ,
-                ξ = ξ,
-                mesh = mesh,
+                B.BDict,
+                Dr.DDict,
+                R.RDict,
+                Ψ,
+                ξ,
+                mesh,
+                approxModel,
                 probTransform = false,
-                model=approxModel
             )
         end
         # convert marginalX to a distribution for analysis
         DGStationaryDist = SFFM.Coeffs2Dist(
-            model = approxModel,
-            mesh = mesh,
-            Coeffs = marginalX,
+            approxModel,
+            mesh,
+            marginalX,
             type = "probability",
             probTransform = false,
         )
@@ -98,7 +96,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         )
 
         # save them
-        πnorms[d, n] = SFFM.starSeminorm(d1 = DGStationaryDist, d2 = analyticX)
+        πnorms[d, n] = SFFM.starSeminorm(DGStationaryDist, analyticX)
     else
         πnorms[d, n] = NaN
         times[d, n], mems[d, n], gctimes[d, n], alloc[d, n] = NaN, NaN, NaN, NaN

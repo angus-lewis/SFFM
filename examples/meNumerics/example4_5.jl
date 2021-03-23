@@ -9,9 +9,9 @@ include("exampleModelDef.jl")
 
 ## analytic X distribution for comparison
 # construction
-Ψₓ = SFFM.PsiFunX(model = approxModel)
-ξₓ = SFFM.MakeXiX(model = approxModel, Ψ = Ψₓ)
-pₓ, πₓ, Πₓ, Kₓ = SFFM.StationaryDistributionX(model = approxModel, Ψ = Ψₓ, ξ = ξₓ)
+Ψₓ = SFFM.PsiFunX( approxModel)
+ξₓ = SFFM.MakeXiX( approxModel, Ψₓ)
+pₓ, πₓ, Πₓ, Kₓ = SFFM.StationaryDistributionX( approxModel, Ψₓ, ξₓ)
 
 ## section 4.5: error for approximation of stationary distribution of X
 Basis = "lagrange"
@@ -44,27 +44,28 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
     ~, times[d, n], mems[d, n], gctimes[d, n], alloc[d, n] = @timed begin
         Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
         mesh = SFFM.MakeMesh(
-            model = approxModel,
-            Nodes = Nodes,
-            NBases = NBases,
-            Basis = Basis,
+            approxModel,
+            Nodes,
+            NBases,
+            Basis,
         )
         approxSpec[d, n] = (Δ, NBases, mesh.TotalNBases * approxModel.NPhases)
 
         # compute the marginal via DG
-        All = SFFM.MakeAll(model = approxModel, mesh = mesh, approxType = "interpolation")
-        Ψ = SFFM.PsiFun(D = All.D)
+        All = SFFM.MakeAll( approxModel, mesh, approxType = "interpolation")
+        Ψ = SFFM.PsiFun( All.D)
 
         # the distribution of X when Y first returns to 0
-        ξ = SFFM.MakeXi(B = All.B.BDict, Ψ = Ψ)
+        ξ = SFFM.MakeXi( All.B.BDict, Ψ)
 
         marginalX, p, K = SFFM.MakeLimitDistMatrices(;
-            B = All.B.BDict,
-            D = All.D,
-            R = All.R.RDict,
-            Ψ = Ψ,
-            ξ = ξ,
-            mesh = mesh,
+            All.B.BDict,
+            All.D,
+            All.R.RDict,
+            Ψ,
+            ξ,
+            mesh,
+            model,
         )
     end
 
@@ -72,43 +73,44 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
     ~, timesme[d, n], memsme[d, n], gctimesme[d, n], allocme[d, n] = @timed begin
         Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
         mesh = SFFM.MakeMesh(
-            model = approxModel,
-            Nodes = Nodes,
-            NBases = NBases,
+            approxModel,
+            Nodes,
+            NBases,
             Basis = Basis,
         )
         approxSpecme[d, n] = (Δ, NBases, mesh.TotalNBases * approxModel.NPhases)
 
         # compute the marginal via FRAP approx
         me = SFFM.MakeME(SFFM.CMEParams[NBases], mean = mesh.Δ[1])
-        B = SFFM.MakeBFRAP(model=approxModel,mesh=mesh,me=me)
-        R = SFFM.MakeR(model = approxModel, mesh = mesh, approxType = "interpolation")
-        D = SFFM.MakeD(R=R,B=B,model=approxModel,mesh=mesh)
-        Ψme = SFFM.PsiFun(D=D)
+        B = SFFM.MakeBFRAP( approxModel, mesh, me)
+        R = SFFM.MakeR( approxModel, mesh, approxType = "interpolation")
+        D = SFFM.MakeD( R, B, approxModel, mesh)
+        Ψme = SFFM.PsiFun(D)
 
         # the distribution of X when Y first returns to 0
-        ξme = SFFM.MakeXi(B=B.BDict, Ψ = Ψme)
+        ξme = SFFM.MakeXi( B.BDict, Ψme)
 
         marginalXme, pme, Kme = SFFM.MakeLimitDistMatrices(;
-            B = B.BDict,
-            D = D,
-            R = R.RDict,
-            Ψ = Ψme,
-            ξ = ξme,
-            mesh = mesh,
+            B.BDict,
+            D,
+            R.RDict,
+            Ψme,
+            ξme,
+            mesh,
+            model,
         )
     end
     # convert marginalX to a distribution for analysis
     DGStationaryDist = SFFM.Coeffs2Dist(
-        model = approxModel,
-        mesh = mesh,
-        Coeffs = marginalX,
+        approxModel,
+        mesh,
+        marginalX,
         type = "probability",
     )
     meStationaryDist = SFFM.Coeffs2Dist(
-        model = approxModel,
-        mesh = mesh,
-        Coeffs = marginalXme,
+        approxModel,
+        mesh,
+        marginalXme,
         type = "probability",
     )
 
@@ -123,8 +125,8 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
     )
 
     # save them
-    πnorms[d, n] = SFFM.starSeminorm(d1 = DGStationaryDist, d2 = analyticX)
-    πnormsme[d, n] = SFFM.starSeminorm(d1 = meStationaryDist, d2 = analyticX)
+    πnorms[d, n] = SFFM.starSeminorm( DGStationaryDist, analyticX)
+    πnormsme[d, n] = SFFM.starSeminorm( meStationaryDist, analyticX)
 end
 
 let p = plot()

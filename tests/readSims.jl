@@ -23,5 +23,5 @@ mesh = SFFM.DGMesh(
 )
 
 ## turn sims into a cdf
-simprobs = SFFM.Sims2Dist(model=model,mesh=mesh,sims=sims,type="cumulative")
+simprobs = SFFM.Sims2Dist(model, mesh, sims, type="cumulative")
 

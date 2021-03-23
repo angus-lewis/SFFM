@@ -4,7 +4,7 @@ Construct and evaluate ``Ψ(s)`` for a triditional SFM.
 Uses newtons method to solve the Ricatti equation
 ``D⁺⁻(s) + Ψ(s)D⁻⁺(s)Ψ(s) + Ψ(s)D⁻⁻(s) + D⁺⁺(s)Ψ(s) = 0.``
 
-    PsiFun(; model::SFFM.Model, s = 0, MaxIters = 1000, err = 1e-8)
+    PsiFun( model::SFFM.Model; s = 0, MaxIters = 1000, err = 1e-8)
 
 # Arguments
 - `model`: a Model object
@@ -16,7 +16,7 @@ Uses newtons method to solve the Ricatti equation
 # Output
 - `Ψ(s)::Array{Float64,2}` the matrix ``Ψ``
 """
-function PsiFunX(; model::SFFM.Model, s = 0, MaxIters = 1000, err = 1e-8)
+function PsiFunX( model::SFFM.Model; s = 0, MaxIters = 1000, err = 1e-8)
     T00inv = inv(model.TDict["00"] - s * LinearAlgebra.I)
     # construct the generator Q(s)
     Q =
@@ -52,7 +52,7 @@ end
 Construct the vector ``ξ`` containing the distribution of the phase at the time
 when ``X(t)`` first hits `0`.
 
-    MakeXiX(; model::SFFM.Model, Ψ::Array)
+    MakeXiX( model::SFFM.Model, Ψ::Array)
 
 # Arguments
 - `model`: a Model object
@@ -61,7 +61,7 @@ when ``X(t)`` first hits `0`.
 # Output
 - the vector `ξ`
 """
-function MakeXiX(; model::SFFM.Model, Ψ::Array)
+function MakeXiX( model::SFFM.Model, Ψ::Array)
     # the system to solve is [ξ 0](-[B₋₋ B₋₀; B₀₋ B₀₀])⁻¹[B₋₊; B₀₊]Ψ = ξ
     # writing this out and using block inversion (as described on wikipedia)
     # we can solve this in the following way
@@ -87,7 +87,7 @@ end
 """
 Construct the stationary distribution of the SFM
 
-    StationaryDistributionX(; model::SFFM.Model, Ψ::Array, ξ::Array)
+    StationaryDistributionX( model::SFFM.Model, Ψ::Array, ξ::Array)
 
 # Arguments
 - `model`: a Model object
@@ -103,7 +103,7 @@ Construct the stationary distribution of the SFM
         as is output by Coeff2Dist.
 - `K::Array{Float64,2}`: the matrix in the exponential of the density.
 """
-function StationaryDistributionX(; model::SFFM.Model, Ψ::Array, ξ::Array)
+function StationaryDistributionX( model::SFFM.Model, Ψ::Array, ξ::Array)
     # using the same block inversion trick as in MakeXiX
     T00inv = inv(model.TDict["00"])
     invT₋₋ =
