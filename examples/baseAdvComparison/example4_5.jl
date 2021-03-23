@@ -63,9 +63,9 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
             R = SFFM.MakeR( approxModel, mesh, approxType="projection", probTransform=false)
 
             # the distribution of X when Y first returns to 0
-            ξ = SFFM.MakeXi( B.BDict, Ψ, mesh, approxModel, probTransform = false)
+            ξ = SFFM.MakeXi( B.BDict, Ψ, mesh = mesh, model = approxModel, probTransform = false)
 
-            marginalX, p, K = SFFM.MakeLimitDistMatrices(;
+            marginalX, p, K = SFFM.MakeLimitDistMatrices(
                 B.BDict,
                 Dr.DDict,
                 R.RDict,

@@ -296,7 +296,9 @@ NOTE: IMPLEMENTED FOR LAGRANGE BASIS ONLY
         R::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
         Ψ::Array{<:Real},
         ξ::Array{<:Real},
-        mesh::SFFM.Mesh,
+        mesh::Mesh,
+        model::Model;
+        probTransform::Bool = true,
     )
 
 # Arguments
