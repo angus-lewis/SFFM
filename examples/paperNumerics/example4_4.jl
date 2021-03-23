@@ -33,8 +33,8 @@ let
         NBases = 2
         mesh = SFFM.DGMesh(
             tempModel,
-            Nodes = Nodes,
-            NBases = NBases,
+            Nodes,
+            NBases,
             Basis=Basis,
         )
 

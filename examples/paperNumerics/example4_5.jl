@@ -38,8 +38,8 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
             Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
             mesh = SFFM.DGMesh(
                 approxModel,
-                Nodes = Nodes,
-                NBases = NBases,
+                Nodes,
+                NBases,
                 Basis = Basis,
             )
             approxSpec[d, n] = (Δ, NBases, mesh.TotalNBases * approxModel.NPhases)

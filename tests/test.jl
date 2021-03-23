@@ -1,2 +1,3 @@
+using Test
 include("readSims.jl")
-include("runExamples.jl")
+include("runTestExamples.jl")

@@ -2,7 +2,7 @@ include("../src/SFFM.jl")
 using LinearAlgebra, Plots
 
 ## define the model(s)
-@testset "$modelfile" for modelfile in ["testModel1.jl"; "testModel2.jl"]
+@testset "$modelfile" for modelfile in ["testModel1.jl"; "testModel2.jl"; "testModel3.jl"]
     include(modelfile)
 
     ## section 4.3: the marginal stationary distribution of X
@@ -13,47 +13,30 @@ using LinearAlgebra, Plots
     Basis = "lagrange"
     mesh = SFFM.DGMesh(
         model,
-        Nodes = Nodes,
-        NBases = NBases,
+        Nodes,
+        NBases,
         Basis = Basis,
     )
-    Ψₓ = try
-        SFFM.PsiFunX(model=model)
-    catch ME 
-        showerror(stdout, ME)
-    end
+    Ψₓ = SFFM.PsiFunX(model=model)
+    ξₓ = SFFM.MakeXiX(model=model, Ψ=Ψₓ)
 
-    ξₓ = try
-        SFFM.MakeXiX(model=model, Ψ=Ψₓ)
-    catch ME 
-        showerror(stdout, ME)
-    end    
+    pₓ, πₓ, Πₓ, Kₓ = SFFM.StationaryDistributionX(model=model, Ψ=Ψₓ, ξ=ξₓ)
 
-    pₓ, πₓ, Πₓ, Kₓ = try
-        SFFM.StationaryDistributionX(model=model, Ψ=Ψₓ, ξ=ξₓ)
-    catch ME 
-        showerror(stdout, ME)
-    end
-
-    analyticX = try
-        (
+    analyticX = (
             pm = [pₓ[:];0;0],
             distribution = πₓ(mesh.CellNodes),
             x = mesh.CellNodes,
             type = "density"
         )
-    catch ME
-        showerror(stdout, ME)
-    end
 
     @test sum(Πₓ(40))-1 < 1e-6
 
     @testset "DG witn NBases $NBases" for NBases in 1:2
             mesh = SFFM.DGMesh(
                 model,
-                Nodes = Nodes,
-                NBases = NBases,
-                Basis=Basis,
+                Nodes,
+                NBases,
+                Basis = Basis,
             )
 
             # compute the marginal via DG
@@ -82,16 +65,12 @@ using LinearAlgebra, Plots
             )
             
             # convert marginalX to a distribution for plotting
-            Dist = try 
-                SFFM.Coeffs2Dist(
+            Dist = SFFM.Coeffs2Dist(
                     model = model,
                     mesh = mesh,
                     Coeffs = marginalX,
                     type="probability",
                 )
-            catch ME 
-                showerror(stdout,ME)
-            end
             @test sum(Dist.pm) + sum(Dist.distribution) ≈ 1
     end
 end

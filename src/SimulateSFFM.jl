@@ -2,7 +2,7 @@
 Simulates a SFM defined by `Model` until the `StoppingTime` has occured,
 given the `InitialCondition` on (φ(0),X(0)).
 
-    SimSFM(;
+    SimSFM(
         model::SFFM.Model,
         StoppingTime::Function,
         InitCondition::NamedTuple{(:φ, :X)},
@@ -37,7 +37,7 @@ given the `InitialCondition` on (φ(0),X(0)).
     - `n::Array{Float64,1}` a vector of length `M` containing the number of
         transitions of `φ` at the `StoppingTime`
 """
-function SimSFM(;
+function SimSFM(
     model::SFFM.Model,
     StoppingTime::Function,
     InitCondition::NamedTuple{(:φ, :X)},
@@ -78,7 +78,7 @@ end
 Simulates a SFFM defined by `model` until the `StoppingTime` has occured,
 given the `InitialCondition` on (φ(0),X(0),Y(0)).
 
-    SimSFFM(;
+    SimSFFM(
         model::SFFM.Model,
         StoppingTime::Function,
         InitCondition::NamedTuple{(:φ, :X, :Y)},
@@ -116,7 +116,7 @@ given the `InitialCondition` on (φ(0),X(0),Y(0)).
     - `n::Array{Float64,1}` a vector of length `M` containing the number of
         transitions of `φ` at the `StoppingTime`
 """
-function SimSFFM(;
+function SimSFFM(
     model::SFFM.Model,
     StoppingTime::Function,
     InitCondition::NamedTuple{(:φ, :X, :Y)},
@@ -184,7 +184,7 @@ on the process.
     ``φ(t)`` at the current time.
 - `S::Real`: an elapsed amount of time to evaluate ``X`` at, i.e. ``X(t+S)``.
 """
-function UpdateXt(;
+function UpdateXt(
     model::SFFM.Model,
     SFM0::NamedTuple,
     S::Real,
@@ -201,7 +201,7 @@ end
 """
 Returns ``Y(t+S)`` given ``Y(t)``.
 
-    UpdateYt(;
+    UpdateYt(
         model::SFFM.Model,
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
         S::Real,
@@ -214,7 +214,7 @@ Returns ``Y(t+S)`` given ``Y(t)``.
     current time, and `:φ` giving the value of `φ(t)`` at the current time.
 - `S::Real`: an elapsed amount of time to evaluate ``X`` at, i.e. ``X(t+S)``.
 """
-function UpdateYt(;
+function UpdateYt(
     model::SFFM.Model,
     SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     S::Real,
@@ -247,7 +247,7 @@ end
 """
 Constructs the `StoppingTime` ``1(t>T)``
 
-    FixedTime(; T::Real)
+    FixedTime( T::Real)
 
 # Arguments
 - `T`: a time at which to stop the process
@@ -265,7 +265,7 @@ Constructs the `StoppingTime` ``1(t>T)``
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )`: a stopping time for a SFFM
 """
-function FixedTime(; T::Real)
+function FixedTime( T::Real)
     # Defines a simple stopping time, 1(t>T).
     # SFM method
     function FixedTimeFun(
@@ -303,7 +303,7 @@ end
 Constructs the `StoppingTime` ``1(N(t)>n)`` where ``N(t)`` is the number of
 jumps of ``φ`` by time ``t``.
 
-    NJumps(; N::Int)
+    NJumps( N::Int)
 
 # Arguments
 - `N`: a desired number of jumps
@@ -321,7 +321,7 @@ jumps of ``φ`` by time ``t``.
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )`: a stopping time for a SFFM
 """
-function NJumps(; N::Int)
+function NJumps( N::Int)
     # Defines a simple stopping time, 1(n>N), where n is the number of jumps of φ.
     # SFM method
     function NJumpsFun(
@@ -348,7 +348,7 @@ end
 Constructs the `StoppingTime` which is the first exit of the process ``X(t)``
 from the interval ``[u,v]``.
 
-    FirstExitX(; u::Real, v::Real)
+    FirstExitX( u::Real, v::Real)
 
 # Arguments
 - `u`: a lower boundary
@@ -367,7 +367,7 @@ from the interval ``[u,v]``.
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )`: a stopping time for a SFFM
 """
-function FirstExitX(; u::Real, v::Real)
+function FirstExitX( u::Real, v::Real)
     # SFM Method
     function FirstExitXFun(
         model::SFFM.Model,
@@ -428,7 +428,7 @@ from the interval ``[u,v]``. ASSUMES ``Y(t)`` is monotonic between jumps.
         SFFM0::NamedTuple{(:t, :φ, :X, :Y, :n)},
     )`: a stopping time for a SFFM
 """
-function FirstExitY(; u::Real, v::Real)
+function FirstExitY( u::Real, v::Real)
     # SFFM Method
     function FirstExitYFun(
         model::SFFM.Model,
@@ -456,10 +456,10 @@ end
 Finds zero of `f` using the bisection method on the interval `[a,b]` with
 error `err`.
 
-    fzero(; f::Function, a::Real, b::Real, err::Float64 = 1e-8)
+    fzero( f::Function, a::Real, b::Real; err::Float64 = 1e-8)
 
 """
-function fzero(; f::Function, a::Real, b::Real, err::Float64 = 1e-6)
+function fzero( f::Function, a::Real, b::Real; err::Float64 = 1e-6)
     # finds zeros of f using the bisection method
     c = a + (b - a) / 2
     while a < c < b
@@ -480,10 +480,10 @@ end
 """
 Convert from simulations of a SFM or SFFM to a distribution.
 
-    Sims2Dist(;
+    Sims2Dist(
         model::SFFM.Model,
         mesh::SFFM.Mesh,
-        sims::NamedTuple,
+        sims::NamedTuple;
         type::String = "density",
     )
 
@@ -526,10 +526,10 @@ Convert from simulations of a SFM or SFFM to a distribution.
             containing the cell nodes.
     - `type`: as input in arguments.
 """
-function Sims2Dist(;
+function Sims2Dist(
     model::SFFM.Model,
     mesh::SFFM.Mesh,
-    sims::NamedTuple,
+    sims::NamedTuple;
     type::String = "density",
 )
 

@@ -12,8 +12,8 @@ NBases = 2
 Basis = "lagrange"
 mesh = SFFM.DGMesh(
     approxModel,
-    Nodes = Nodes,
-    NBases = NBases,
+    Nodes,
+    NBases,
     Basis = Basis,
 )
 let q = SFFM.PlotSFM(model = approxModel)
@@ -50,8 +50,8 @@ let q = SFFM.PlotSFM(model = approxModel)
         c = c+1
         mesh = SFFM.DGMesh(
             approxModel,
-            Nodes = Nodes,
-            NBases = NBases,
+            Nodes,
+            NBases,
             Basis=Basis,
         )
 

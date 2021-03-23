@@ -22,7 +22,7 @@ model = SFFM.Model(T = T, C = C, r = r, Bounds = Bounds)
 Nodes = collect(Bounds[1,1]:Δ:Bounds[1,2])
 NBases = 3
 Basis = "lagrange"
-mesh = SFFM.DGMesh(model, Nodes = Nodes, NBases = NBases, Basis=Basis)
+mesh = SFFM.DGMesh(model, Nodes, NBases, Basis=Basis)
 
 ## Make matrices
 All = SFFM.MakeAll(model = model, mesh = mesh, approxType = "projection")
@@ -128,7 +128,7 @@ model = SFFM.Model(T = T, C = C, r = r, Bounds = Bounds)
 Nodes = collect(Bounds[1,1]:Δ:Bounds[1,2])
 # NBases = 3
 Basis = "lagrange"
-mesh = SFFM.DGMesh(model, Nodes = Nodes, NBases = NBases, Basis=Basis)
+mesh = SFFM.DGMesh(model, Nodes, NBases, Basis=Basis)
 
 ## Make matrices
 All = SFFM.MakeAll(model = model, mesh = mesh, approxType = "projection")
@@ -231,7 +231,7 @@ model = SFFM.Model(T = T, C = C, r = r, Bounds = Bounds)
 Nodes = collect(Bounds[1,1]:Δ:Bounds[1,2])
 # NBases = 3
 Basis = "lagrange"
-mesh = SFFM.DGMesh(model, Nodes = Nodes, NBases = NBases, Basis=Basis)
+mesh = SFFM.DGMesh(model, Nodes, NBases, Basis=Basis)
 
 ## Make matrices
 All = SFFM.MakeAll(model = model, mesh = mesh, approxType = "projection")

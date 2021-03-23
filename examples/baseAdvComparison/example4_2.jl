@@ -17,8 +17,8 @@ NBases = 1
 Basis = "lagrange"
 mesh = SFFM.DGMesh(
     approxModel,
-    Nodes = Nodes,
-    NBases = NBases,
+    Nodes,
+    NBases,
     Basis = Basis,
 )
 
@@ -66,8 +66,8 @@ let
         c = c+1
         mesh = SFFM.DGMesh(
             approxModel,
-            Nodes = Nodes,
-            NBases = NBases,
+            Nodes,
+            NBases,
             Basis = Basis,
         )
         # construct matrices
@@ -165,8 +165,8 @@ let
         c = c+1
         mesh = SFFM.DGMesh(
             approxModel,
-            Nodes = Nodes,
-            NBases = NBases,
+            Nodes,
+            NBases,
             Basis = Basis,
         )
         # construct matrices

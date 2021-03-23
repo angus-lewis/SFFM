@@ -3,9 +3,12 @@ Returns the DG approximation to the return probabilities ``ξ`` for the process
 ``Y(t)``.
 NOTE: IMPLEMENTED FOR LAGRANGE BASIS ONLY
 
-    MakeXi(;
+    MakeXi(
         B::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
-        Ψ::Array,
+        Ψ::Array;
+        probTransform::Bool = true,
+        mesh=1,
+        model=1,
     )
 
 # Arguments
@@ -15,9 +18,9 @@ NOTE: IMPLEMENTED FOR LAGRANGE BASIS ONLY
 # Output
 - `ξ::Array{Float64,2}`: a row-vector of first return probabilities
 """
-function MakeXi(;
+function MakeXi(
     B::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
-    Ψ::Array{Float64,2},
+    Ψ::Array{Float64,2};
     probTransform::Bool = true,
     mesh=1,
     model=1,
@@ -70,7 +73,7 @@ Returns the DG approximation to some quantities regarding the limiting
 distribution of a SFFM. See Ouput below
 NOTE: IMPLEMENTED FOR LAGRANGE BASIS ONLY
 
-    MakeLimitDistMatrices(;
+    MakeLimitDistMatrices(
         B::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
         D::Dict{String,Any},
         R::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
@@ -96,13 +99,13 @@ marginalX, p, K
     distribution
 
 """
-function MakeLimitDistMatrices(;
+function MakeLimitDistMatrices(
     B::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
     D::Dict{String,Any},
     R::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
     Ψ::Array{<:Real},
     ξ::Array{<:Real},
-    mesh::SFFM.Mesh,
+    mesh::SFFM.Mesh;
     probTransform::Bool = true,
     model=1,
 )

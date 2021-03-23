@@ -17,13 +17,13 @@ NBases = 1
 Basis = "lagrange"
 mesh = SFFM.DGMesh(
     approxModel,
-    Nodes = Nodes,
-    NBases = NBases,
+    Nodes,
+    NBases,
     Basis = Basis,
 )
 
 ## turn sims into a cdf
-simprobs = SFFM.Sims2Dist(model=simModel,mesh=mesh,sims=sims,type="cumulative")
+simprobs = SFFM.Sims2Dist(simModel,mesh,sims,type="cumulative")
 
 ## bootstrap to get CI
 function bootFun(sims; nBoot = 10_000)
@@ -66,8 +66,8 @@ let
         c = c+1
         mesh = SFFM.DGMesh(
             approxModel,
-            Nodes = Nodes,
-            NBases = NBases,
+            Nodes,
+            NBases,
             Basis = Basis,
         )
         # construct matrices

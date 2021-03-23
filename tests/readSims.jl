@@ -17,8 +17,8 @@ NBases = 1
 Basis = "lagrange"
 mesh = SFFM.DGMesh(
     model,
-    Nodes = Nodes,
-    NBases = NBases,
+    Nodes,
+    NBases,
     Basis = Basis,
 )
 

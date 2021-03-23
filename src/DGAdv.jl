@@ -1,74 +1,3 @@
-# function MakeMatrices2(;
-#     model::SFFM.Model,
-#     mesh::NamedTuple{
-#         (
-#             :NBases,
-#             :CellNodes,
-#             :Fil,
-#             :Δ,
-#             :NIntervals,
-#             :Nodes,
-#             :TotalNBases,
-#             :Basis,
-#         ),
-#     },
-# )
-#     ## Construct local blocks
-#     V = vandermonde(NBases = Mesh.NBases)
-#     if Mesh.Basis == "legendre"
-#         MLocal = Matrix{Float64}(LinearAlgebra.I(Mesh.NBases))
-#         GLocal = V.inv * V.D
-#         MInvLocal = Matrix{Float64}(LinearAlgebra.I(Mesh.NBases))
-#         Phi = V.V[[1; end], :]
-#     elseif Mesh.Basis == "lagrange"
-#         MLocal = V.inv' * V.inv
-#         GLocal = V.inv' * V.inv * (V.D * V.inv)
-#         MInvLocal = V.V * V.V'
-#         Phi = (V.inv*V.V)[[1; end], :]
-#     end
-#     Dw = (
-#         DwInv = LinearAlgebra.I,
-#         Dw = LinearAlgebra.I,
-#     )
-#
-#     ## Assemble into global block diagonal matrices
-#     G = SFFM.MakeBlockDiagonalMatrix(
-#         Mesh = Mesh,
-#         Blocks = GLocal,
-#         Factors = ones(Mesh.NIntervals),
-#     )
-#     M = SFFM.MakeBlockDiagonalMatrix(Mesh = Mesh, Blocks = MLocal, Factors = Mesh.Δ * 0.5)
-#     MInv = SFFM.MakeBlockDiagonalMatrix(
-#         Mesh = Mesh,
-#         Blocks = MInvLocal,
-#         Factors = 2 ./ Mesh.Δ,
-#     )
-#     F = SFFM.MakeFluxMatrix(
-#         Mesh = Mesh,
-#         Phi = Phi,
-#         Dw = (Dw=LinearAlgebra.I,DwInv=LinearAlgebra.I),
-#         probTransform = false,
-#     )
-#
-#     ## Assemble the DG drift operator
-#     Q = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,model.NPhases)
-#     for i = 1:model.NPhases
-#         if model.C[i] > 0
-#             Q[i] = model.C[i] * (G + F["+"]) * MInv
-#         elseif model.C[i] < 0
-#             Q[i] = model.C[i] * (G + F["-"]) * MInv
-#         end
-#     end
-#
-#     Local = (G = GLocal, M = MLocal, MInv = MInvLocal, V = V, Phi = Phi, Dw = Dw)
-#     Global = (G = G, M = M, MInv = MInv, F = F, Q = Q)
-#     out = (Local = Local, Global = Global)
-#     # println("UPDATE: Matrices object created with keys ", keys(out))
-#     # println("UPDATE:    Matrices[:",keys(out)[1],"] object created with keys ", keys(out[1]))
-#     # println("UPDATE:    Matrices[:",keys(out)[2],"] object created with keys ", keys(out[2]))
-#     return out
-# end
-#
 """
 Constructs a block diagonal matrix from blocks
 
@@ -218,7 +147,7 @@ function MakeMatricesR(;
     mesh::DGMesh,
 )
     ## Construct blocks
-    V = vandermonde(NBases = mesh.NBases)
+    V = vandermonde(mesh.NBases)
     if mesh.Basis == "legendre"
         MLocal = function (x::Array{Float64}, i::Int)
             # Numerical integration of ϕᵢ(x)|r(x)|ϕⱼ(x) over Dk with Gauss-Lobatto

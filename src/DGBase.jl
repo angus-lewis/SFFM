@@ -1,10 +1,10 @@
 """
 Constructs a DGMesh composite type, a subtype of the abstract type Mesh.
 
-    DGMesh(;
+    DGMesh(
         model::SFFM.Model,
         Nodes::Array{Float64,1},
-        NBases::Int,
+        NBases::Int;
         Fil::Dict{String,BitArray{1}}=Dict{String,BitArray{1}}(),
         Basis::String = "legendre",
     )
@@ -35,6 +35,13 @@ Constructs a DGMesh composite type, a subtype of the abstract type Mesh.
 
 # Examples
 TBC
+
+#
+A blank initialiser for a DGMesh.
+
+    DGMesh()
+
+Used for initialising a blank plot only. There is no reason to call this, ever. 
 """
 struct DGMesh <: Mesh 
     NBases::Int
@@ -46,9 +53,9 @@ struct DGMesh <: Mesh
     TotalNBases::Int
     Basis::String
     function DGMesh(
-        model::SFFM.Model;
+        model::SFFM.Model,
         Nodes::Array{<:Real,1},
-        NBases::Int,
+        NBases::Int;
         Fil::Dict{String,BitArray{1}}=Dict{String,BitArray{1}}(),
         Basis::String = "legendre",
     )
@@ -149,101 +156,10 @@ struct DGMesh <: Mesh
     end
 end 
 
-# function DGMesh(;
-#     model::SFFM.Model,
-#     Nodes::Array{<:Real,1},
-#     NBases::Int,
-#     Fil::Dict{String,BitArray{1}}=Dict{String,BitArray{1}}(),
-#     Basis::String = "legendre",
-# )
-#     ## Stencil specification
-#     NIntervals = length(Nodes) - 1 # the number of intervals
-#     Δ = (Nodes[2:end] - Nodes[1:end-1]) # interval width
-#     CellNodes = zeros(Float64, NBases, NIntervals)
-#     if NBases > 1
-#         z = Jacobi.zglj(NBases, 0, 0) # the LGL nodes
-#     elseif NBases == 1
-#         z = 0.0
-#     end
-#     for i = 1:NIntervals
-#         # Map the LGL nodes on [-1,1] to each cell
-#         CellNodes[:, i] .= (Nodes[i+1] + Nodes[i]) / 2 .+ (Nodes[i+1] - Nodes[i]) / 2 * z
-#     end
-#     CellNodes[1,:] .+= sqrt(eps())
-#     if NBases>1
-#         CellNodes[end,:] .-= sqrt(eps())
-#     end
-#     TotalNBases = NBases * NIntervals # the total number of bases in the stencil
-
-#     ## Construct the sets Fᵐ = ⋃ᵢ Fᵢᵐ, global index for sets of type m
-#     if isempty(Fil)
-#         idxPlus = model.r.r(Nodes[1:end-1].+Δ[:]/2).>0
-#         idxZero = model.r.r(Nodes[1:end-1].+Δ[:]/2).==0
-#         idxMinus = model.r.r(Nodes[1:end-1].+Δ[:]/2).<0
-#         for i in 1:model.NPhases
-#             Fil[string(i)*"+"] = idxPlus[:,i]
-#             Fil[string(i)*"0"] = idxZero[:,i]
-#             Fil[string(i)*"-"] = idxMinus[:,i]
-#             if model.C[i] .<= 0
-#                 Fil["p"*string(i)*"+"] = [model.r.r(model.Bounds[1,1])[i]].>0
-#                 Fil["p"*string(i)*"0"] = [model.r.r(model.Bounds[1,1])[i]].==0
-#                 Fil["p"*string(i)*"-"] = [model.r.r(model.Bounds[1,1])[i]].<0
-#             end
-#             if model.C[i] .>= 0
-#                 Fil["q"*string(i)*"+"] = [model.r.r(model.Bounds[1,end])[i]].>0
-#                 Fil["q"*string(i)*"0"] = [model.r.r(model.Bounds[1,end])[i]].==0
-#                 Fil["q"*string(i)*"-"] = [model.r.r(model.Bounds[1,end])[i]].<0
-#             end
-#         end
-#     end
-#     CurrKeys = keys(Fil)
-#     for ℓ in ["+", "-", "0"], i = 1:model.NPhases
-#         if !in(string(i) * ℓ, CurrKeys)
-#             Fil[string(i)*ℓ] = falses(NIntervals)
-#         end
-#         if !in("p" * string(i) * ℓ, CurrKeys) && model.C[i] <= 0
-#             Fil["p"*string(i)*ℓ] = falses(1)
-#         end
-#         if !in("p" * string(i) * ℓ, CurrKeys) && model.C[i] > 0
-#             Fil["p"*string(i)*ℓ] = falses(0)
-#         end
-#         if !in("q" * string(i) * ℓ, CurrKeys) && model.C[i] >= 0
-#             Fil["q"*string(i)*ℓ] = falses(1)
-#         end
-#         if !in("q" * string(i) * ℓ, CurrKeys) && model.C[i] < 0
-#             Fil["q"*string(i)*ℓ] = falses(0)
-#         end
-#     end
-#     for ℓ in ["+", "-", "0"]
-#         Fil[ℓ] = falses(NIntervals * model.NPhases)
-#         Fil["p"*ℓ] = trues(0)
-#         Fil["q"*ℓ] = trues(0)
-#         for i = 1:model.NPhases
-#             idx = findall(Fil[string(i)*ℓ]) .+ (i - 1) * NIntervals
-#             Fil[string(ℓ)][idx] .= true
-#             Fil["p"*ℓ] = [Fil["p"*ℓ]; Fil["p"*string(i)*ℓ]]
-#             Fil["q"*ℓ] = [Fil["q"*ℓ]; Fil["q"*string(i)*ℓ]]
-#         end
-#     end
-
-#     mesh = SFFM.Mesh(
-#         NBases,
-#         CellNodes,
-#         Fil,
-#         Δ,
-#         NIntervals,
-#         Nodes,
-#         TotalNBases,
-#         Basis,
-#     )
-#     println("UPDATE: Mesh object created with fields ", fieldnames(SFFM.Mesh))
-#     return mesh
-# end
-
 """
 Construct a generalised vandermonde matrix.
 
-    `vandermonde(; NBases::Int)`
+    vandermonde( NBases::Int)
 
 Note: requires Jacobi package Pkg.add("Jacobi")
 
@@ -258,7 +174,7 @@ Note: requires Jacobi package Pkg.add("Jacobi")
     - `:D::Array{Float64,2}`: where `V.D[:,i]` contains the values of the derivative
         of the `i`th legendre polynomial evaluate at the GLL nodes.
 """
-function vandermonde(; NBases::Int)
+function vandermonde(NBases::Int)
     if NBases > 1
         z = Jacobi.zglj(NBases, 0, 0) # the LGL nodes
     elseif NBases == 1
@@ -290,7 +206,7 @@ end
 """
 Constructs a block diagonal matrix from blocks
 
-    MakeBlockDiagonalMatrix(;
+    MakeBlockDiagonalMatrix(
         mesh::DGMesh,
         Blocks::Array{Float64,2},
         Factors::Array,
@@ -306,7 +222,7 @@ Constructs a block diagonal matrix from blocks
 - `BlockMatrix::Array{Float64,2}`: `mesh.TotalNBases×mesh.TotalNBases` the
         block matrix
 """
-function MakeBlockDiagonalMatrix(;
+function MakeBlockDiagonalMatrix(
     mesh::DGMesh,
     Blocks::Array{Float64,2},
     Factors::Array,
@@ -322,11 +238,11 @@ end
 """
 Constructs the flux matrices for DG
 
-    MakeFluxMatrix(;
+    MakeFluxMatrix(
         mesh::DGMesh,
         model::SFFM.Model,
         Phi,
-        Dw,
+        Dw;
         probTransform::Bool=true,
     )
 
@@ -344,10 +260,10 @@ Constructs the flux matrices for DG
     with keys `"+"` and `"-"` and values which are `TotalNBases×TotalNBases`
     flux matrices for `model.C[i]>0` and `model.C[i]<0`, respectively.
 """
-function MakeFluxMatrix(;
+function MakeFluxMatrix(
     mesh::DGMesh,
     Phi,
-    Dw,
+    Dw;
     probTransform::Bool=true,
 )
     ## Create the blocks
@@ -403,9 +319,9 @@ end
 """
 Creates the Local and global mass, stiffness and flux matrices to compute `B`.
 
-    MakeMatrices(;
+    MakeMatrices(
         model::SFFM.Model,
-        mesh::DGMesh,
+        mesh::DGMesh;
         probTransform::Bool=true,
     )
 
@@ -435,13 +351,13 @@ Creates the Local and global mass, stiffness and flux matrices to compute `B`.
       - `:MInv::Array{Float64,2}`: the inverse of `Local.M`
       - `:V::NamedTuple`: as output from SFFM.vandermonde
 """
-function MakeMatrices(;
+function MakeMatrices(
     model::SFFM.Model,
-    mesh::DGMesh,
+    mesh::DGMesh;
     probTransform::Bool=true,
 )
     ## Construct local blocks
-    V = vandermonde(NBases = mesh.NBases)
+    V = vandermonde(mesh.NBases)
     if mesh.Basis == "legendre"
         Dw = (
             DwInv = LinearAlgebra.diagm(0 => ones(Float64, mesh.NBases)),
@@ -474,17 +390,17 @@ function MakeMatrices(;
 
     ## Assemble into global block diagonal matrices
     G = SFFM.MakeBlockDiagonalMatrix(
-        mesh = mesh,
-        Blocks = GLocal,
-        Factors = ones(mesh.NIntervals),
+        mesh,
+        GLocal,
+        ones(mesh.NIntervals),
     )
-    M = SFFM.MakeBlockDiagonalMatrix(mesh = mesh, Blocks = MLocal, Factors = mesh.Δ * 0.5)
+    M = SFFM.MakeBlockDiagonalMatrix(mesh, MLocal, mesh.Δ * 0.5)
     MInv = SFFM.MakeBlockDiagonalMatrix(
-        mesh = mesh,
-        Blocks = MInvLocal,
-        Factors = 2.0 ./ mesh.Δ,
+        mesh,
+        MInvLocal,
+        2.0 ./ mesh.Δ,
     )
-    F = SFFM.MakeFluxMatrix(mesh = mesh, Phi = Phi, Dw = Dw, probTransform = probTransform)
+    F = SFFM.MakeFluxMatrix(mesh, Phi, Dw, probTransform = probTransform)
 
     ## Assemble the DG drift operator
     Q = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,model.NPhases)
@@ -510,10 +426,10 @@ end
 """
 Creates the DG approximation to the generator `B`.
 
-    MakeB(;
+    MakeB(
         model::SFFM.Model,
         mesh::DGMesh,
-        Matrices::NamedTuple,
+        Matrices::NamedTuple;
         probTransform::Bool=true,
     )
 
@@ -535,10 +451,10 @@ Creates the DG approximation to the generator `B`.
         integers such such that `:B[QBDidx,QBDidx]` puts all the blocks relating
         to cell `k` next to each other
 """
-function MakeB(;
+function MakeB(
     model::SFFM.Model,
     mesh::DGMesh,
-    Matrices::NamedTuple,
+    Matrices::NamedTuple;
     probTransform::Bool=true,
 )
     ## Make B on the interior of the space
@@ -622,9 +538,9 @@ function MakeB(;
 end
 
 function MakeDict(
-    B::Union{Array{<:Real,2},SparseArrays.SparseMatrixCSC{<:Real,Int64}}; 
+    B::Union{Array{<:Real,2},SparseArrays.SparseMatrixCSC{<:Real,Int64}},
     model::SFFM.Model, 
-    mesh::SFFM.Mesh,
+    mesh::SFFM.Mesh;
     zero::Bool=true,
     )
 
@@ -714,9 +630,9 @@ end
 """
 # Construct the DG approximation to the operator `R`.
 
-    MakeR(;
+    MakeR(
         model::SFFM.Model,
-        mesh::DGMesh,
+        mesh::DGMesh;
         approxType::String = "projection",
         probTransform::Bool = true,
     )
@@ -739,13 +655,13 @@ end
         `"PhaseSign"` or just `"Sign"`. i.e. `"1-"` cells in ``Fᵢ⁻``, and
         `"-"` for cells in ``∪ᵢFᵢ⁻``.
 """
-function MakeR(;
+function MakeR(
     model::SFFM.Model,
-    mesh::DGMesh,
+    mesh::DGMesh;
     approxType::String = "projection",
     probTransform::Bool = true,
 )
-    V = SFFM.vandermonde(NBases=mesh.NBases)
+    V = SFFM.vandermonde(mesh.NBases)
 
     EvalR = 1.0 ./ model.r.a(mesh.CellNodes[:])
 
@@ -793,7 +709,7 @@ function MakeR(;
     end
 
     # construc the dictionary
-    RDict = MakeDict(R;model=model,mesh=mesh,zero=false)
+    RDict = MakeDict(R,model,mesh,zero=false)
 
     out = (R=R, RDict=RDict)
     println("UPDATE: R object created with keys ", keys(out))
@@ -803,7 +719,7 @@ end
 """
 Construct the operator `D(s)` from `B, R`.
 
-    MakeD(;
+    MakeD(
         R,
         B,
         model::SFFM.Model,
@@ -821,7 +737,7 @@ Construct the operator `D(s)` from `B, R`.
   of the for `"ℓm"` where `ℓ,m∈{+,-}`. Values are functions with one argument.
   Usage is along the lines of `D["+-"](s=1)`.
 """
-function MakeD(;
+function MakeD(
     R::NamedTuple{(:R, :RDict)},
     B::NamedTuple{(:BDict, :B, :QBDidx)},
     model::SFFM.Model,
@@ -881,7 +797,7 @@ Uses newtons method to solve the Ricatti equation
 # Output
 - `Ψ(s)::Array{Float64,2}`: a matrix approxiamtion to ``Ψ(s)``.
 """
-function PsiFun(; s::Real = 0, D, MaxIters::Int = 1000, err::Float64 = 1e-8)
+function PsiFun(D::Dict{String,Any}; s::Real = 0, MaxIters::Int = 1000, err::Float64 = 1e-8)
     exitflag = ""
 
     EvalD = Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}}("+-" => D["+-"](s = s))
@@ -932,10 +848,10 @@ end
 Uses Eulers method to integrate the matrix DE ``f'(x) = f(x)D`` to
 approxiamte ``f(y)``.
 
-    EulerDG(;
+    EulerDG(
         D::Union{Array{<:Real,2},SparseArrays.SparseMatrixCSC{Float64,Int64}},
         y::Real,
-        x0::Array{<:Real},
+        x0::Array{<:Real};
         h::Float64 = 0.0001,
     )
 
@@ -949,10 +865,10 @@ approxiamte ``f(y)``.
 # Output
 - `f(y)::Array`: a row-vector approximation to ``f(y)``
 """
-function EulerDG(;
+function EulerDG(
     D::Union{Array{<:Real,2},SparseArrays.SparseMatrixCSC{Float64,Int64}},
     y::Real,
-    x0::Array{<:Real},
+    x0::Array{<:Real};
     h::Float64 = 0.0001,
 )
     x = x0
@@ -966,10 +882,10 @@ end
 """
 Convert from a vector of coefficients for the DG system to a distribution.
 
-    Coeffs2Dist(;
+    Coeffs2Dist(
         model::SFFM.Model,
         mesh::SFFM.Mesh,
-        Coeffs,
+        Coeffs;
         type::String = "probability",
         probTransform::Bool = true,
     )
@@ -1015,14 +931,14 @@ Convert from a vector of coefficients for the DG system to a distribution.
             containing the cell nodes.
     - `type`: as input in arguments.
 """
-function Coeffs2Dist(;
+function Coeffs2Dist(
     model::SFFM.Model,
     mesh::SFFM.Mesh,
-    Coeffs::Array,
+    Coeffs::Array;
     type::String = "probability",
     probTransform::Bool = true,
 )
-    V = SFFM.vandermonde(NBases = mesh.NBases)
+    V = SFFM.vandermonde(mesh.NBases)
     N₋ = sum(model.C .<= 0)
     N₊ = sum(model.C .>= 0)
     if !probTransform
@@ -1101,10 +1017,10 @@ end
 Converts a distribution as output from `Coeffs2Dist()` to a vector of DG
 coefficients.
 
-    Dist2Coeffs(;
+    Dist2Coeffs(
         model::SFFM.Model,
         mesh::SFFM.Mesh,
-        Distn::NamedTuple{(:pm, :distribution, :x, :type)},
+        Distn::NamedTuple{(:pm, :distribution, :x, :type)};
         probTransform::Bool = true,
     )
 
@@ -1140,13 +1056,13 @@ coefficients.
     point masses, interior basis functions according to basis function, cell,
     phase. Used to premultiply operators such as B from `MakeB()`
 """
-function Dist2Coeffs(;
+function Dist2Coeffs(
     model::SFFM.Model,
     mesh::SFFM.Mesh,
-    Distn::NamedTuple{(:pm, :distribution, :x, :type)},
+    Distn::NamedTuple{(:pm, :distribution, :x, :type)};
     probTransform::Bool = true,
 )
-    V = SFFM.vandermonde(NBases = mesh.NBases)
+    V = SFFM.vandermonde(mesh.NBases)
     theDistribution =
         zeros(Float64, mesh.NBases, mesh.NIntervals, model.NPhases)
     if mesh.Basis == "legendre"
@@ -1196,7 +1112,7 @@ end
 """
 Computes the error between distributions.
 
-    starSeminorm(;
+    starSeminorm(
         d1::NamedTuple{(:pm, :distribution, :x, :type)},
         d2::NamedTuple{(:pm, :distribution, :x, :type)},
         )
@@ -1207,7 +1123,7 @@ Computes the error between distributions.
 - `d2`: a distribution object as output from `Coeffs2Dist` with
     `type="probability"``
 """
-function starSeminorm(;
+function starSeminorm(
     d1::NamedTuple{(:pm, :distribution, :x, :type)},
     d2::NamedTuple{(:pm, :distribution, :x, :type)},
     )
