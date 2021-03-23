@@ -15,7 +15,7 @@ r = (
 )
 
 Bounds = [0 30; -Inf Inf]
-model = SFFM.Model(T = T, C = C, r = r, Bounds = Bounds)
+model = SFFM.Model( T, C, r, Bounds = Bounds)
 
 ## Define mesh
 Δ = 5
@@ -25,9 +25,9 @@ Basis = "lagrange"
 mesh = SFFM.DGMesh(model, Nodes, NBases, Basis=Basis)
 
 ## Make matrices
-All = SFFM.MakeAll(model = model, mesh = mesh, approxType = "projection")
+All = SFFM.MakeAll( model, mesh, approxType = "projection")
 proj = All
-interp = SFFM.MakeAll(model=model,mesh=mesh,approxType="interpolation")
+interp = SFFM.MakeAll(model,mesh,approxType="interpolation")
 
 vikramD = copy(interp.D["++"]())
 vikramD[sum(model.C.<=0)+1:end-sum(model.C.>=0),:] =
@@ -39,7 +39,7 @@ NSim = 50000
 IC = (φ = ones(Int, NSim), X = x₀ .* ones(NSim), Y = zeros(NSim))
 y = 10
 @time sims =
-    SFFM.SimSFFM(model = model, StoppingTime = SFFM.FirstExitY(u = -Inf, v = y), InitCondition = IC)
+    SFFM.SimSFFM( model, SFFM.FirstExitY(-Inf, y), IC)
 
 ## DG stationary dist
 # construct initial condition
@@ -60,44 +60,40 @@ initdist = (
     x = mesh.CellNodes,
     type = "density"
 )
-x0 = SFFM.Dist2Coeffs(model = model, mesh = mesh, Distn = initdist)
+x0 = SFFM.Dist2Coeffs( model, mesh, initdist)
 h = 0.0001
-@time projyvals = SFFM.EulerDG(D = proj.D["++"](s = 0), y = y, x0 = x0, h = h)
-@time interpyvals = SFFM.EulerDG(D = interp.D["++"](s = 0), y = y, x0 = x0, h = h)
-# @time vikramyvals = SFFM.EulerDG(D = vikramD, y = y, x0 = x0, h = h)
+@time projyvals = SFFM.EulerDG( proj.D["++"](s = 0), y, x0, h = h)
+@time interpyvals = SFFM.EulerDG( interp.D["++"](s = 0), y, x0, h = h)
 
 ## plotting
-simdensity = SFFM.Sims2Dist(model=model,mesh=mesh,sims=sims,type="probability")
-projdensity = SFFM.Coeffs2Dist(model=model,mesh=mesh,Coeffs=projyvals,type="probability")
-interpdensity = SFFM.Coeffs2Dist(model=model,mesh=mesh,Coeffs=interpyvals,type="probability")
-# vikramdensity = SFFM.Coeffs2Dist(model=model,mesh=mesh,Coeffs=vikramyvals,type="density")
-println("proj error: ",SFFM.starSeminorm(d1 = projdensity, d2 = simdensity))
-println("interp error: ",SFFM.starSeminorm(d1 = interpdensity, d2 = simdensity))
+simdensity = SFFM.Sims2Dist(model,mesh,sims,type="probability")
+projdensity = SFFM.Coeffs2Dist(model,mesh,projyvals,type="probability")
+interpdensity = SFFM.Coeffs2Dist(model,mesh,interpyvals,type="probability")
+println("proj error: ",SFFM.starSeminorm( projdensity, simdensity))
+println("interp error: ",SFFM.starSeminorm( interpdensity, simdensity))
 
 ## plots
 # plot solutions
 # densities
-p = SFFM.PlotSFM(model=model,mesh=mesh,Dist=projdensity,color=:blue,label="proj")#,marker=:rtriangle)
-p = SFFM.PlotSFM!(p;model=model,mesh=mesh,Dist=interpdensity,color=:red,label="interp")#,marker=:x)
-# p = SFFM.PlotSFM!(p;model=model,mesh=mesh,Dist=vikramdensity,color=3,label="vikram")
+p = SFFM.PlotSFM(model; mesh = mesh,dist = projdensity,color=:blue,label="proj")#,marker=:rtriangle)
+p = SFFM.PlotSFM!(p,model,mesh,interpdensity,color=:red,label="interp")#,marker=:x)
 # plot sims
-p = SFFM.PlotSFM!(p;model=model,mesh=mesh,Dist=simdensity,color=:black,label="sim")#,marker=:ltriangle)
+p = SFFM.PlotSFM!(p,model,mesh,simdensity,color=:black,label="sim")#,marker=:ltriangle)
 
 display(p)
 ## probabilities
-simdensity = SFFM.Sims2Dist(model=model,mesh=mesh,sims=sims,type="density")
-projdensity = SFFM.Coeffs2Dist(model=model,mesh=mesh,Coeffs=projyvals,type="density")
-interpdensity = SFFM.Coeffs2Dist(model=model,mesh=mesh,Coeffs=interpyvals,type="density")
-# vikramdensity = SFFM.Coeffs2Dist(model=model,mesh=mesh,Coeffs=vikramyvals,type="density")
+simdensity = SFFM.Sims2Dist(model,mesh,sims,type="density")
+projdensity = SFFM.Coeffs2Dist(model,mesh,projyvals,type="density")
+interpdensity = SFFM.Coeffs2Dist(model,mesh,interpyvals,type="density")
+# vikramdensity = SFFM.Coeffs2Dist(model=model,mesh=mesh,Coeffs=vikramyvals,type="ensity")
 
 ## plots
 # plot solutions
 # densities
-p = SFFM.PlotSFM(model=model,mesh=mesh,Dist=projdensity,color=:blue,label="proj")#,marker=:rtriangle)
-p = SFFM.PlotSFM!(p;model=model,mesh=mesh,Dist=interpdensity,color=:red,label="interp")#,marker=:x)
-# p = SFFM.PlotSFM!(p;model=model,mesh=mesh,Dist=vikramdensity,color=3,label="vikram")
+p = SFFM.PlotSFM(model,mesh=mesh,dist=projdensity,color=:blue,label="proj")#,marker=:rtriangle)
+p = SFFM.PlotSFM!(p,model,mesh,interpdensity,color=:red,label="interp")#,marker=:x)
 # plot sims
-p = SFFM.PlotSFM!(p;model=model,mesh=mesh,Dist=simdensity,color=:black,label="sim")#,marker=:ltriangle)
+p = SFFM.PlotSFM!(p,model,mesh,simdensity,color=:black,label="sim")#,marker=:ltriangle)
 # savefig(p,"/Users/a1627293/Dropbox/PhD/NotesMaster/whichR/m1.png")
 display(p)
 ## end 1st model
@@ -145,7 +141,7 @@ NSim = 50000
 IC = (φ = ones(Int, NSim), X = x₀ .* ones(NSim), Y = zeros(NSim))
 y = 10
 @time sims =
-    SFFM.SimSFFM( model, SFFM.FirstExitY(u = -Inf, v = y), IC)
+    SFFM.SimSFFM( model, SFFM.FirstExitY(-Inf, y), IC)
 
 ## DG stationary dist
 # construct initial condition
@@ -183,7 +179,7 @@ println("interp error: ",SFFM.starSeminorm(interpdensity, simdensity))
 # plot solutions
 # densities
 # plot sims
-p = SFFM.PlotSFM( model, mesh, simdensity, color=:black,label="sim")#,marker=:ltriangle)
+p = SFFM.PlotSFM( model, mesh = mesh, dist = simdensity, color=:black,label="sim")#,marker=:ltriangle)
 p = SFFM.PlotSFM!(p, model, mesh, projdensity, color=:blue,label="proj")#,marker=:rtriangle)
 p = SFFM.PlotSFM!(p, model, mesh, interpdensity, color=:red,label="interp")#,marker=:x)
 
@@ -196,7 +192,7 @@ interpdensity = SFFM.Coeffs2Dist( model, mesh, interpyvals,type="density")
 ## plots
 # plot solutions
 # densities
-p = SFFM.PlotSFM( model, mesh, projdensity, color=:blue,label="proj")#,marker=:rtriangle)
+p = SFFM.PlotSFM( model, mesh = mesh, dist = projdensity, color=:blue,label="proj")#,marker=:rtriangle)
 p = SFFM.PlotSFM!(p, model, mesh, interpdensity, color=:red,label="interp")#,marker=:x)
 
 # plot sims
@@ -283,7 +279,7 @@ println("interp error: ",SFFM.starSeminorm( interpdensity, simdensity))
 ## plots
 # plot solutions
 # densities
-p = SFFM.PlotSFM( model, mesh, projdensity, color=:blue,label="proj")#,marker=:rtriangle)
+p = SFFM.PlotSFM( model, mesh = mesh, dist = projdensity, color=:blue,label="proj")#,marker=:rtriangle)
 p = SFFM.PlotSFM!(p, model, mesh, interpdensity, color=:red,label="interp")#,marker=:x)
 # plot sims
 p = SFFM.PlotSFM!(p, model, mesh, simdensity, color=:black,label="sim")#,marker=:ltriangle)
@@ -297,7 +293,7 @@ interpdensity = SFFM.Coeffs2Dist( model, mesh, interpyvals, type="density")
 ## plots
 # plot solutions
 # densities
-p = SFFM.PlotSFM( model, mesh, projdensity, color=:blue,label="proj")#,marker=:rtriangle)
+p = SFFM.PlotSFM( model, mesh = mesh, dist = projdensity, color=:blue,label="proj")#,marker=:rtriangle)
 p = SFFM.PlotSFM!(p, model, mesh, interpdensity, color=:red,label="interp")#,marker=:x)
 # plot sims
 p = SFFM.PlotSFM!(p, model, mesh, simdensity, color=:black,label="sim")#,marker=:ltriangle)

@@ -83,7 +83,7 @@ let q = SFFM.PlotSFM(approxModel)
             q,
             approxModel,
             mesh,
-            Dist = Dist,
+            Dist,
             color = colours[c],
             label = "DG: N_k = "*string(NBases),
             seriestype = :line,

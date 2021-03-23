@@ -52,7 +52,7 @@ let
             Ψ,
             ξ,
             mesh,
-            model,
+            tempModel,
         )
         println("For γ₂ = ",
             γ₂, ", χ⁰ = ",

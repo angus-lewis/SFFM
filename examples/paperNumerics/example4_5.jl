@@ -58,7 +58,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
                 Ψ,
                 ξ,
                 mesh,
-                model,
+                approxModel,
             )
         end
         # convert marginalX to a distribution for analysis
