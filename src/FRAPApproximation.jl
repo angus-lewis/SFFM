@@ -17,11 +17,7 @@ struct FRAPMesh <: Mesh
         ## Stencil specification
         NIntervals = length(Nodes) - 1 # the number of intervals
         Δ = (Nodes[2:end] - Nodes[1:end-1]) # interval width
-        CellNodes = zeros(Float64, NBases, NIntervals)
-        for i = 1:NIntervals
-            # Map the LGL nodes on [-1,1] to each cell
-            CellNodes[:, i] .= (Nodes[i+1] + Nodes[i]) / 2 
-        end
+        CellNodes = Array(((Nodes[1:end-1] + Nodes[2:end]) / 2 )')
 
         TotalNBases = NBases * NIntervals # the total number of bases in the stencil
 

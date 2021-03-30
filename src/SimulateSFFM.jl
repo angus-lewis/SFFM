@@ -556,10 +556,15 @@ function fzero( f::Function, a::Real, b::Real; err::Float64 = 1e-6)
         if abs(fc) < err
             break
         end
-        if f(a) * fc < 0
+        p = f(a) * fc 
+        if p < 0
             a, b = a, c
-        else
+        elseif p > 0
             a, b = c, b
+        elseif fc == 0
+            break
+        else 
+            a = a+sqrt(eps())
         end
         c = a + (b - a) / 2
     end

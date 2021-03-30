@@ -60,7 +60,7 @@ Convert from a vector of coefficients for the DG system to a distribution.
 function Coeffs2Dist(
     model::SFFM.Model,
     mesh::SFFM.Mesh,
-    Coeffs::Array;
+    Coeffs::AbstractArray;
     type::String = "probability",
     probTransform::Bool = true,
 )
@@ -92,7 +92,7 @@ function Coeffs2Dist(
             xvals = [mesh.CellNodes-mesh.Δ'/2;mesh.CellNodes+mesh.Δ'/2]
         end
     elseif type == "probability"
-        if mesh.NBases > 1
+        if mesh.NBases > 1 && typeof(mesh)==SFFM.DGMesh
             xvals = mesh.CellNodes[1, :] + (mesh.Δ ./ 2)
         else
             xvals = mesh.CellNodes
@@ -108,7 +108,7 @@ function Coeffs2Dist(
             pm = [Coeffs[1:N₋]; Coeffs[end-N₊+1:end]]
         end
     elseif type == "cumulative"
-        if mesh.NBases > 1
+        if mesh.NBases > 1 
             xvals = mesh.CellNodes[[1;end], :]
         else
             xvals = [mesh.CellNodes-mesh.Δ'/2;mesh.CellNodes+mesh.Δ'/2]

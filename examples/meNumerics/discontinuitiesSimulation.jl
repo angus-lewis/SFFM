@@ -20,14 +20,14 @@ simsOuter_1 = SharedArray(zeros(NSim, 5))
     IC = (φ = 1 .* ones(Int, innerNSim), X = zeros(innerNSim), Y = zeros(innerNSim))
     simsInner_Psi = SFFM.SimSFFM(
         model,
-        SFFM.FirstExitY(u = 0, v = Inf),
+        SFFM.FirstExitY(0, Inf),
         IC,
     )
     simsOuter_Psi[1+(n-1)*innerNSim:n*innerNSim, :] =
         [simsInner_Psi.t simsInner_Psi.φ simsInner_Psi.X simsInner_Psi.Y simsInner_Psi.n]
     simsInner_1 = SFFM.SimSFFM(
         model,
-        SFFM.FixedTime(T = 1.2),
+        SFFM.FixedTime(1.2),
         IC,
     )
     simsOuter_1[1+(n-1)*innerNSim:n*innerNSim, :] =
@@ -50,5 +50,5 @@ sims_1 = (
     n = simsOuter_1[:, 5],
 )
 
-@save pwd()*"/examples/meNumerics/discontinuitiesModelSims.jld2" sims_Psi sims_1
+@save pwd()*"/examples/meNumerics/discontinuitiesModelSims.jld2" sims_Psi sims_1 model
 interrupt()

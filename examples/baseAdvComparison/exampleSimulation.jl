@@ -32,7 +32,7 @@ simsOuter = SharedArray(zeros(NSim, 5))
     IC = (φ = 3 .* ones(Int, innerNSim), X = 5 .* ones(innerNSim), Y = zeros(innerNSim))
     simsInner = SFFM.SimSFFM(
         simModel,
-        SFFM.FirstExitY(u = 0, v = Inf),
+        SFFM.FirstExitY(0, Inf),
         IC,
     )
     simsOuter[1+(n-1)*innerNSim:n*innerNSim, :] =

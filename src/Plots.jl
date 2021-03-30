@@ -125,9 +125,9 @@ end # end PlotSFM!
 Initialise and plot a SFM distribution.
 
     PlotSFM(
-        model::SFFM.Model,
+        model::SFFM.Model;
         mesh::SFFM.Mesh,
-        Dist::NamedTuple{(:pm, :distribution, :x, :type)};
+        Dist::NamedTuple{(:pm, :distribution, :x, :type)}
         color = 1,
         label = false,
         marker = :none,

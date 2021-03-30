@@ -95,7 +95,7 @@ function MakeErlang(order; mean = 1)
     Q = zeros(order,order)
     Q = Q + LinearAlgebra.diagm(0=>repeat(-[λ],order), 1=>repeat([λ],order-1))
     q = -sum(Q,dims=2)
-    D = Matrix(LinearAlgebra.I(order))[end:-1:1,:]
+    D = Array{Float64}(LinearAlgebra.I(order))[end:-1:1,:]
     return SFFM.ME(α,Q,q;D=D)
 end
 

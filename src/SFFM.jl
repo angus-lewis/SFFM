@@ -203,6 +203,7 @@ include("Distributions.jl")
 include("SFM.jl")
 include("METools.jl")
 include("FRAPApproximation.jl")
+include("../dev/FVM.jl")
 
 function MyPrint(Obj)
     show(stdout, "text/plain", Obj)

@@ -16,5 +16,5 @@ r = (
     end
 )
 
-bounds = [0 6; -Inf Inf]
+bounds = [0 12; -Inf Inf]
 model = SFFM.Model( T, C, r, Bounds = bounds)

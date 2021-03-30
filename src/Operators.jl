@@ -28,7 +28,7 @@
 """
 function MakeR(
     model::SFFM.Model,
-    mesh::DGMesh;
+    mesh::Mesh;
     approxType::String = "projection",
     probTransform::Bool = true,
 )
@@ -91,10 +91,9 @@ end
 Construct the operator `D(s)` from `B, R`.
 
     MakeD(
-        R,
-        B,
-        model::SFFM.Model,
         mesh::SFFM.Mesh,
+        B::NamedTuple{(:BDict, :B, :QBDidx)},
+        R::NamedTuple{(:R, :RDict)},
     )
 
 # Arguments

@@ -1,7 +1,7 @@
-include(pwd()*"/src/SFFM.jl")
-include(pwd()*"/examples/meNumerics/discontinuitiesModelDef.jl")
+# include(pwd()*"/src/SFFM.jl")
+# include(pwd()*"/examples/meNumerics/discontinuitiesModelDef.jl")
 
-struct FVMesh <: Mesh 
+struct FVMesh <: SFFM.Mesh 
     NBases::Int
     CellNodes::Array{<:Real,2}
     Fil::Dict{String,BitArray{1}}
@@ -18,10 +18,8 @@ struct FVMesh <: Mesh
         NBases = 1
         NIntervals = length(Nodes) - 1 # the number of intervals
         Δ = (Nodes[2:end] - Nodes[1:end-1]) # interval width
-        CellNodes = zeros(Float64, NBases, NIntervals)
-        for i = 1:NIntervals
-            CellNodes[:, i] .= (Nodes[i+1] + Nodes[i]) / 2 
-        end
+        CellNodes = Array(((Nodes[1:end-1] + Nodes[2:end]) / 2 )')
+
         TotalNBases = NBases * NIntervals
         
         ## Construct the sets Fᵐ = ⋃ᵢ Fᵢᵐ, global index for sets of type m
@@ -108,9 +106,9 @@ function MakeFVFlux(mesh::SFFM.Mesh, order::Int)
             nodesIdx =  (n-ptsLHS-1) .+ (1:order)
             coeffs = interiorCoeffs
         end
-        F[nodesIdx,n-1:n] += [-coeffs coeffs]
+        F[nodesIdx,n-1:n] += [-coeffs coeffs]./mesh.Δ[1]
     end
-    F[end-order+1:end,end] += -interp(mesh.CellNodes[end-order+1:end],mesh.Nodes[end])
+    F[end-order+1:end,end] += -interp(mesh.CellNodes[end-order+1:end],mesh.Nodes[end])./mesh.Δ[1]
     return F
 end
 
@@ -118,7 +116,7 @@ function MakeBFV(model::SFFM.Model, mesh::SFFM.Mesh, order::Int)
     N₊ = sum(model.C .>= 0)
     N₋ = sum(model.C .<= 0)
 
-    F = MakeFVMFlux(mesh,order)
+    F = SFFM.MakeFVFlux(mesh, order)
 
     B = SparseArrays.spzeros(
         Float64,
@@ -146,25 +144,45 @@ function MakeBFV(model::SFFM.Model, mesh::SFFM.Mesh, order::Int)
     T₋₊ = model.T[model.C.<=0,:].*((model.C.>0)')
     T₊₊ = model.T[model.C.>=0,model.C.>=0]
     # yuck
-    inLower = [
-        SparseArrays.diagm(abs.(model.C).*(model.C.<=0))[:,model.C.<=0]; 
-        SparseArrays.zeros((mesh.NIntervals-1)*model.NPhases,N₋)
-    ]
+    begin 
+        nodes = mesh.CellNodes[1:order]
+        coeffs = interp(nodes,mesh.Nodes[1])
+        idxdown = ((1:order).+mesh.TotalNBases*(findall(model.C .<= 0) .- 1)')[:] .+ N₋
+        B[idxdown, 1:N₋] = LinearAlgebra.kron(
+            LinearAlgebra.diagm(0 => model.C[model.C.<=0]),
+            -coeffs./mesh.Δ[1],
+        )
+    end
+    # inLower = [
+    #     SparseArrays.diagm(abs.(model.C).*(model.C.<=0))[:,model.C.<=0]; 
+    #     SparseArrays.zeros((mesh.NIntervals-1)*model.NPhases,N₋)
+    # ]
     outLower = [
         T₋₊ SparseArrays.zeros(N₋,N₊+(mesh.NIntervals-1)*model.NPhases)
     ]
-    inUpper = [
-        SparseArrays.zeros((mesh.NIntervals-1)*model.NPhases,N₊);
-        (SparseArrays.diagm(abs.(model.C).*(model.C.>=0)))[:,model.C.>=0]
-    ]
+    begin
+        nodes = mesh.CellNodes[end-order+1:end]
+        coeffs = interp(nodes,mesh.Nodes[end])
+        idxup =
+            ((1:order).+mesh.TotalNBases*(findall(model.C .>= 0) .- 1)')[:] .+
+            (N₋ + mesh.TotalNBases - order)
+        B[idxup, (end-N₊+1):end] = LinearAlgebra.kron(
+            LinearAlgebra.diagm(0 => model.C[model.C.>=0]),
+            coeffs./mesh.Δ[1],
+        )
+    end
+    # inUpper = [
+    #     SparseArrays.zeros((mesh.NIntervals-1)*model.NPhases,N₊);
+    #     (SparseArrays.diagm(abs.(model.C).*(model.C.>=0)))[:,model.C.>=0]
+    # ]
     outUpper = [
         SparseArrays.zeros(N₊,N₋+(mesh.NIntervals-1)*model.NPhases) T₊₋
     ]
     
     B[1:N₋,QBDidx] = [T₋₋ outLower]
     B[end-N₊+1:end,QBDidx] = [outUpper T₊₊]
-    B[QBDidx[N₋+1:end-N₊],1:N₋] = inLower
-    B[QBDidx[N₋+1:end-N₊],(end-N₊+1):end] = inUpper
+    # B[QBDidx[N₋+1:end-N₊],1:N₋] = inLower
+    # B[QBDidx[N₋+1:end-N₊],(end-N₊+1):end] = inUpper
     for i = 1:model.NPhases
         idx = ((i-1)*mesh.NIntervals+1:i*mesh.NIntervals) .+ N₋
         if model.C[i] > 0
@@ -174,7 +192,7 @@ function MakeBFV(model::SFFM.Model, mesh::SFFM.Mesh, order::Int)
         end
     end
 
-    BDict = SFFM.MakeDict(B;model=model,mesh=mesh)
+    BDict = SFFM.MakeDict(B,model,mesh)
 
-    return (B = B, BDict = BDict, QBDidx = QBDidx)
+    return (BDict = BDict, B = B, QBDidx = QBDidx)
 end
