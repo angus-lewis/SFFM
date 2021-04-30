@@ -26,7 +26,7 @@ struct SimMesh <: Mesh
             idxPlus = model.r.r(Nodes[1:end-1].+Δ[:]/2).>0
             idxZero = model.r.r(Nodes[1:end-1].+Δ[:]/2).==0
             idxMinus = model.r.r(Nodes[1:end-1].+Δ[:]/2).<0
-            for i in 1:model.NPhases
+            for i in 1:NPhases(model)
                 Fil[string(i)*"+"] = idxPlus[:,i]
                 Fil[string(i)*"0"] = idxZero[:,i]
                 Fil[string(i)*"-"] = idxMinus[:,i]
@@ -43,7 +43,7 @@ struct SimMesh <: Mesh
             end
         end
         CurrKeys = keys(Fil)
-        for ℓ in ["+", "-", "0"], i = 1:model.NPhases
+        for ℓ in ["+", "-", "0"], i = 1:NPhases(model)
             if !in(string(i) * ℓ, CurrKeys)
                 Fil[string(i)*ℓ] = falses(NIntervals)
             end
@@ -61,10 +61,10 @@ struct SimMesh <: Mesh
             end
         end
         for ℓ in ["+", "-", "0"]
-            Fil[ℓ] = falses(NIntervals * model.NPhases)
+            Fil[ℓ] = falses(NIntervals * NPhases(model))
             Fil["p"*ℓ] = trues(0)
             Fil["q"*ℓ] = trues(0)
-            for i = 1:model.NPhases
+            for i = 1:NPhases(model)
                 idx = findall(Fil[string(i)*ℓ]) .+ (i - 1) * NIntervals
                 Fil[string(ℓ)][idx] .= true
                 Fil["p"*ℓ] = [Fil["p"*ℓ]; Fil["p"*string(i)*ℓ]]
@@ -232,7 +232,7 @@ function SimSFFM(
         )
         if !(model.Bounds[1, 1] <= SFFM0.X <= model.Bounds[1, 2]) ||
            !(model.Bounds[2, 1] <= SFFM0.Y <= model.Bounds[2, 2]) ||
-           !in(SFFM0.φ, 1:model.NPhases)
+           !in(SFFM0.φ, 1:NPhases(model))
             (tSims[m], φSims[m], XSims[m], YSims[m], nSims[m]) =
                 (t = NaN, φ = NaN, X = NaN, Y = NaN, n = NaN)
         else
@@ -628,17 +628,17 @@ function Sims2Dist(
 )
 
     if type == "density"
-        distribution = zeros(Float64, mesh.NBases, mesh.NIntervals, model.NPhases)
+        distribution = zeros(Float64, NBases(mesh), NIntervals(mesh), NPhases(model))
     elseif type == "probability"
-        distribution = zeros(Float64, 1, mesh.NIntervals, model.NPhases)
+        distribution = zeros(Float64, 1, NIntervals(mesh), NPhases(model))
     elseif type == "cumulative"
-        distribution = zeros(Float64, 2, mesh.NIntervals, model.NPhases)
+        distribution = zeros(Float64, 2, NIntervals(mesh), NPhases(model))
     end
     pm = zeros(Float64, sum(model.C .<= 0) + sum(model.C .>= 0))
     pc = 0
     qc = 0
     xvals = mesh.CellNodes
-    for i = 1:model.NPhases
+    for i = 1:NPhases(model)
         # find the simluated value of imterest for this iteration
         whichsims =
             (sims.φ .== i) .&
@@ -652,10 +652,10 @@ function Sims2Dist(
                 h = h.weights ./ sum(h.weights) * totalprob
                 distribution[:, :, i] = h
             end
-            if mesh.NBases == 1
+            if NBases(mesh) == 1
                 xvals = mesh.CellNodes
             else
-                xvals = mesh.CellNodes[1, :] + mesh.Δ / 2
+                xvals = mesh.CellNodes[1, :] + Δ(mesh) / 2
             end
         elseif type == "density"
             if length(data)!=0
@@ -670,8 +670,8 @@ function Sims2Dist(
                 distribution[:, :, i] =
                     reshape(
                         KernelDensity.pdf(U, mesh.CellNodes[:])',
-                        mesh.NBases,
-                        mesh.NIntervals,
+                        NBases(mesh),
+                        NIntervals(mesh),
                     ) * totalprob
             end
         elseif type == "cumulative"
@@ -681,7 +681,7 @@ function Sims2Dist(
                 tempDist = cumsum(tempDist)
                 distribution[1, 2:end, i] = tempDist[1:end-1]
                 distribution[2, :, i] = tempDist
-                if mesh.NBases == 1
+                if NBases(mesh) == 1
                     xvals = [mesh.Nodes[1:end-1]';mesh.Nodes[2:end]']
                 else
                     xvals = mesh.CellNodes[[1;end], :]
@@ -709,7 +709,7 @@ function Sims2Dist(
             end
         end
     end
-    if type == "density" && mesh.NBases == 1
+    if type == "density" && NBases(mesh) == 1
         distribution = [1; 1] .* distribution
         xvals = [mesh.Nodes[1:end-1]';mesh.Nodes[2:end]']
     end

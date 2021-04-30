@@ -33,13 +33,6 @@ Construct a SFFM model object.
     - `:r`: a named tuple with fields `(:r, :R, :a)`, `:r` and `:R` are as input
         and `:a = abs.(:r)` returns the absolute values of the rates.
     - `Bounds`: as input
-    - `NPhases::Int`: the number of states in the state space
-    - `SDict::Dict{String,Array}`: a dictionary with keys `"+","-","0","bullet"`
-        and corresponding values `findall(C .> 0)`, `findall(C .< 0)`,
-        `findall(C .== 0)`, `findall(C .!= 0)`, respectively.
-    - `TDict::Dict{String,Array}`: a dictionary of submatrices of `T` with keys
-        `"ℓm"` with ``ℓ,m∈{+,-,0,bullet}`` and corresponding values
-        `T[S[ℓ],S[m]]`.
 )
 """
 struct Model 
@@ -47,9 +40,6 @@ struct Model
     C::Array{<:Real,1}
     r::NamedTuple{(:r, :R, :a)}
     Bounds::Array{<:Real}
-    NPhases::Int
-    SDict::Dict{String,Array}
-    TDict::Dict{String,Array}
 
     function Model(
         T::Array{<:Real},
@@ -59,18 +49,6 @@ struct Model
     )
         a(x) = abs.(r.r(x))
         r = (r = r.r, R = r.R, a = a)
-        NPhases = length(C)
-    
-        SDict = Dict{String,Array}("S" => 1:NPhases)
-        SDict["+"] = findall(C .> 0)
-        SDict["-"] = findall(C .< 0)
-        SDict["0"] = findall(C .== 0)
-        SDict["bullet"] = findall(C .!= 0)
-    
-        TDict = Dict{String,Array}("T" => T)
-        for ℓ in ["+" "-" "0" "bullet"], m in ["+" "-" "0" "bullet"]
-            TDict[ℓ*m] = T[SDict[ℓ], SDict[m]]
-        end
     
         println("UPDATE: Model object created with fields ", fieldnames(SFFM.Model))
         return new(
@@ -78,9 +56,6 @@ struct Model
             C,
             r,
             Bounds,
-            NPhases,
-            SDict,
-            TDict,
         )
     end
     function Model()
@@ -89,12 +64,52 @@ struct Model
             [0],
             (r=0, R=0, a=0),
             [0],
-            0,
-            Dict{String,Array}(),
-            Dict{String,Array}(),
         )
     end
 end 
+
+"""
+
+    NPhases(model::Model)
+
+the number of states in the state space
+"""
+NPhases(model::Model) = length(model.C)
+
+"""
+
+    SDict(model::Model) 
+
+a dictionary with keys `"+","-","0","bullet"`
+and corresponding values `findall(model.C .> 0)`, `findall(model.C .< 0)`,
+`findall(model.C .== 0)`, `findall(model.C .!= 0)`, respectively.
+"""
+function SDict(model::Model) 
+    nPhases = NPhases(model)
+    SDict = Dict{String,Array}("S" => 1:nPhases)
+    SDict["+"] = findall(model.C .> 0)
+    SDict["-"] = findall(model.C .< 0)
+    SDict["0"] = findall(model.C .== 0)
+    SDict["bullet"] = findall(model.C .!= 0)
+    return SDict
+end
+
+"""
+
+    TDict(model::Model) 
+
+a dictionary of submatrices of `T` with keys
+`"ℓm"` with ``ℓ,m∈{+,-,0,bullet}`` and corresponding values
+`model.T[S[ℓ],S[m]]`.
+"""
+function TDict(model::Model) 
+    TDict = Dict{String,Array}("T" => model.T)
+    for ℓ in ["+" "-" "0" "bullet"], m in ["+" "-" "0" "bullet"]
+        TDict[ℓ*m] = model.T[SDict[ℓ], SDict[m]]
+    end
+    return TDict
+end
+
 
 """
 
@@ -120,8 +135,8 @@ function MakeDict(
         ppositions = cumsum(model.C .<= 0)
         qpositions = cumsum(model.C .>= 0)
         for ℓ in ["+", "-", "0"], m in ["+", "-", "0"]
-            for i = 1:model.NPhases, j = 1:model.NPhases
-                FilBases = repeat(mesh.Fil[string(i, ℓ)]', mesh.NBases, 1)[:]
+            for i = 1:NPhases(model), j = 1:NPhases(model)
+                FilBases = repeat(mesh.Fil[string(i, ℓ)]', NBases(mesh), 1)[:]
                 pitemp = falses(N₋)
                 qitemp = falses(N₊)
                 pjtemp = falses(N₋)
@@ -140,35 +155,35 @@ function MakeDict(
                 end
                 i_idx = [
                     pitemp
-                    falses((i - 1) * mesh.TotalNBases)
+                    falses((i - 1) * TotalNBases(mesh))
                     FilBases
-                    falses(model.NPhases * mesh.TotalNBases - i * mesh.TotalNBases)
+                    falses(NPhases(model) * TotalNBases(mesh) - i * TotalNBases(mesh))
                     qitemp
                 ]
-                FjmBases = repeat(mesh.Fil[string(j, m)]', mesh.NBases, 1)[:]
+                FjmBases = repeat(mesh.Fil[string(j, m)]', NBases(mesh), 1)[:]
                 j_idx = [
                     pjtemp
-                    falses((j - 1) * mesh.TotalNBases)
+                    falses((j - 1) * TotalNBases(mesh))
                     FjmBases
-                    falses(model.NPhases * mesh.TotalNBases - j * mesh.TotalNBases)
+                    falses(NPhases(model) * TotalNBases(mesh) - j * TotalNBases(mesh))
                     qjtemp
                 ]
                 BDict[string(i, j, ℓ, m)] = B[i_idx, j_idx]
             end
-            # below we need to use repeat(mesh.Fil[ℓ]', mesh.NBases, 1)[:] to
+            # below we need to use repeat(mesh.Fil[ℓ]', NBases(mesh), 1)[:] to
             # expand the index mesh.Fil[ℓ] from cells to all basis function
             FlBases =
-                [mesh.Fil["p"*ℓ]; repeat(mesh.Fil[ℓ]', mesh.NBases, 1)[:]; mesh.Fil["q"*ℓ]]
+                [mesh.Fil["p"*ℓ]; repeat(mesh.Fil[ℓ]', NBases(mesh), 1)[:]; mesh.Fil["q"*ℓ]]
             FmBases =
-                [mesh.Fil["p"*m]; repeat(mesh.Fil[m]', mesh.NBases, 1)[:]; mesh.Fil["q"*m]]
+                [mesh.Fil["p"*m]; repeat(mesh.Fil[m]', NBases(mesh), 1)[:]; mesh.Fil["q"*m]]
             BDict[ℓ*m] = B[FlBases, FmBases]
         end
     else
         ppositions = cumsum(model.C .<= 0)
         qpositions = cumsum(model.C .>= 0)
         for ℓ in ["+", "-"]
-            for i = 1:model.NPhases
-                FilBases = repeat(mesh.Fil[string(i, ℓ)]', mesh.NBases, 1)[:]
+            for i = 1:NPhases(model)
+                FilBases = repeat(mesh.Fil[string(i, ℓ)]', NBases(mesh), 1)[:]
                 pitemp = falses(N₋)
                 qitemp = falses(N₊)
                 if model.C[i] <= 0
@@ -179,15 +194,15 @@ function MakeDict(
                 end
                 i_idx = [
                     pitemp
-                    falses((i - 1) * mesh.TotalNBases)
+                    falses((i - 1) * TotalNBases(mesh))
                     FilBases
-                    falses(model.NPhases * mesh.TotalNBases - i * mesh.TotalNBases)
+                    falses(NPhases(model) * TotalNBases(mesh) - i * TotalNBases(mesh))
                     qitemp
                 ]
                 BDict[string(i, ℓ)] = B[i_idx, i_idx]
             end
             FlBases =
-                [mesh.Fil["p"*ℓ]; repeat(mesh.Fil[ℓ]', mesh.NBases, 1)[:]; mesh.Fil["q"*ℓ]]
+                [mesh.Fil["p"*ℓ]; repeat(mesh.Fil[ℓ]', NBases(mesh), 1)[:]; mesh.Fil["q"*ℓ]]
             BDict[ℓ] = B[FlBases, FlBases]
         end
     end

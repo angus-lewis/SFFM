@@ -42,7 +42,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
                 NBases,
                 Basis = Basis,
             )
-            approxSpec[d, n] = (Δ, NBases, mesh.TotalNBases * approxModel.NPhases)
+            approxSpec[d, n] = (Δ, NBases, TotalNBases(mesh) * approxNPhases(model))
 
             # compute the marginal via DG
             All = SFFM.MakeAll( approxModel, mesh, approxType = "projection")
@@ -75,7 +75,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
             pm = [pₓ[:]; 0; 0],
             distribution =
                 Πₓ(Matrix(mesh.Nodes[2:end]')) - Πₓ(Matrix(mesh.Nodes[1:end-1]')),
-            x = mesh.Nodes[1:end-1] + mesh.Δ / 2,
+            x = mesh.Nodes[1:end-1] + Δ(mesh) / 2,
             type = "probability",
         )
 
@@ -99,7 +99,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
             zeros(sum(approxModel.C .<= 0)) # LHS point mass
             zeros(sum(approxModel.C .>= 0)) # RHS point mass
         ]
-        initprobs = zeros(Float64, mesh.NBases, mesh.NIntervals, approxModel.NPhases)
+        initprobs = zeros(Float64, NBases(mesh), NIntervals(mesh), approxNPhases(model))
         initprobs[:, convert(Int, ceil(5 / Δ)), 3] =
             basisValues' * All.Matrices.Local.V.V * All.Matrices.Local.V.V' .* 2 / Δ
         initdist =
@@ -109,7 +109,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         # the initial condition on Ψ is restricted to + states so find the + states
         plusIdx = [
             mesh.Fil["p+"]
-            repeat(mesh.Fil["+"]', mesh.NBases, 1)[:]
+            repeat(mesh.Fil["+"]', NBases(mesh), 1)[:]
             mesh.Fil["q+"]
         ]
         # get the elements of x0 in + states only
@@ -120,13 +120,13 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         # this can occur in - states only, so find the - states
         minusIdx = [
             mesh.Fil["p-"]
-            repeat(mesh.Fil["-"]', mesh.NBases, 1)[:]
+            repeat(mesh.Fil["-"]', NBases(mesh), 1)[:]
             mesh.Fil["q-"]
         ]
         # then map to the whole state space for analysis
         z = zeros(
             Float64,
-            mesh.NBases * mesh.NIntervals * approxModel.NPhases +
+            NBases(mesh) * NIntervals(mesh) * approxNPhases(model) +
             sum(approxModel.C .<= 0) +
             sum(approxModel.C .>= 0),
         )

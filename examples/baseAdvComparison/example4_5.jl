@@ -46,7 +46,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
                 NBases,
                 Basis = Basis,
             )
-            approxSpec[d, n] = (Δ, NBases, mesh.TotalNBases * approxModel.NPhases)
+            approxSpec[d, n] = (Δ, NBases, TotalNBases(mesh) * approxNPhases(model))
 
             # compute the marginal via DG
             Matrices = SFFM.MakeMatrices(approxModel, mesh,probTransform=false)
@@ -91,7 +91,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
             pm = [pₓ[:]; 0; 0],
             distribution =
                 Πₓ(Matrix(mesh.Nodes[2:end]')) - Πₓ(Matrix(mesh.Nodes[1:end-1]')),
-            x = mesh.Nodes[1:end-1] + mesh.Δ / 2,
+            x = mesh.Nodes[1:end-1] + Δ(mesh) / 2,
             type = "probability",
         )
 

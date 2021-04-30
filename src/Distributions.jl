@@ -64,73 +64,73 @@ function Coeffs2Dist(
     type::String = "probability",
     probTransform::Bool = true,
 )
-    V = SFFM.vandermonde(mesh.NBases)
+    V = SFFM.vandermonde(NBases(mesh))
     N₋ = sum(model.C .<= 0)
     N₊ = sum(model.C .>= 0)
     if !probTransform
-        temp = reshape(Coeffs[N₋+1:end-N₊], mesh.NBases, mesh.NIntervals, model.NPhases)
-        temp = V.w.*temp.*(mesh.Δ./2.0)'
+        temp = reshape(Coeffs[N₋+1:end-N₊], NBases(mesh), NIntervals(mesh), NPhases(model))
+        temp = V.w.*temp.*(Δ(mesh)./2.0)'
         Coeffs = [Coeffs[1:N₋]; temp[:]; Coeffs[end-N₊+1:end]]
     end
     if type == "density"
         xvals = mesh.CellNodes
-        if mesh.Basis == "legendre"
-            yvals = reshape(Coeffs[N₋+1:end-N₊], mesh.NBases, mesh.NIntervals, model.NPhases)
-            for i in 1:model.NPhases
+        if Basis(mesh) == "legendre"
+            yvals = reshape(Coeffs[N₋+1:end-N₊], NBases(mesh), NIntervals(mesh), NPhases(model))
+            for i in 1:NPhases(model)
                 yvals[:,:,i] = V.V * yvals[:,:,i]
             end
             pm = [Coeffs[1:N₋]; Coeffs[end-N₊+1:end]]
-        elseif mesh.Basis == "lagrange"
+        elseif Basis(mesh) == "lagrange"
             yvals =
-                Coeffs[N₋+1:end-N₊] .* repeat(1.0 ./ V.w, mesh.NIntervals * model.NPhases) .*
-                (repeat(2.0 ./ mesh.Δ, 1, mesh.NBases * model.NPhases)'[:])
-            yvals = reshape(yvals, mesh.NBases, mesh.NIntervals, model.NPhases)
+                Coeffs[N₋+1:end-N₊] .* repeat(1.0 ./ V.w, NIntervals(mesh) * NPhases(model)) .*
+                (repeat(2.0 ./ Δ(mesh), 1, NBases(mesh) * NPhases(model))'[:])
+            yvals = reshape(yvals, NBases(mesh), NIntervals(mesh), NPhases(model))
             pm = [Coeffs[1:N₋]; Coeffs[end-N₊+1:end]]
         end
-        if mesh.NBases == 1
+        if NBases(mesh) == 1
             yvals = [1;1].*yvals
-            xvals = [mesh.CellNodes-mesh.Δ'/2;mesh.CellNodes+mesh.Δ'/2]
+            xvals = [mesh.CellNodes-Δ(mesh)'/2;mesh.CellNodes+Δ(mesh)'/2]
         end
     elseif type == "probability"
-        if mesh.NBases > 1 && typeof(mesh)==SFFM.DGMesh
-            xvals = mesh.CellNodes[1, :] + (mesh.Δ ./ 2)
+        if NBases(mesh) > 1 && typeof(mesh)==SFFM.DGMesh
+            xvals = mesh.CellNodes[1, :] + (Δ(mesh) ./ 2)
         else
             xvals = mesh.CellNodes
         end
-        if mesh.Basis == "legendre"
-            yvals = (reshape(Coeffs[N₋+1:mesh.NBases:end-N₊], 1, mesh.NIntervals, model.NPhases).*mesh.Δ')./sqrt(2)
+        if Basis(mesh) == "legendre"
+            yvals = (reshape(Coeffs[N₋+1:NBases(mesh):end-N₊], 1, NIntervals(mesh), NPhases(model)).*Δ(mesh)')./sqrt(2)
             pm = [Coeffs[1:N₋]; Coeffs[end-N₊+1:end]]
-        elseif mesh.Basis == "lagrange"
+        elseif Basis(mesh) == "lagrange"
             yvals = sum(
-                reshape(Coeffs[N₋+1:end-N₊], mesh.NBases, mesh.NIntervals, model.NPhases),
+                reshape(Coeffs[N₋+1:end-N₊], NBases(mesh), NIntervals(mesh), NPhases(model)),
                 dims = 1,
             )
             pm = [Coeffs[1:N₋]; Coeffs[end-N₊+1:end]]
         end
     elseif type == "cumulative"
-        if mesh.NBases > 1 
+        if NBases(mesh) > 1 
             xvals = mesh.CellNodes[[1;end], :]
         else
-            xvals = [mesh.CellNodes-mesh.Δ'/2;mesh.CellNodes+mesh.Δ'/2]
+            xvals = [mesh.CellNodes-Δ(mesh)'/2;mesh.CellNodes+Δ(mesh)'/2]
         end
-        if mesh.Basis == "legendre"
-            tempDist = (reshape(Coeffs[N₋+1:mesh.NBases:end-N₊], 1, mesh.NIntervals, model.NPhases).*mesh.Δ')./sqrt(2)
+        if Basis(mesh) == "legendre"
+            tempDist = (reshape(Coeffs[N₋+1:NBases(mesh):end-N₊], 1, NIntervals(mesh), NPhases(model)).*Δ(mesh)')./sqrt(2)
             pm = [Coeffs[1:N₋]; Coeffs[end-N₊+1:end]]
-        elseif mesh.Basis == "lagrange"
+        elseif Basis(mesh) == "lagrange"
             tempDist = sum(
-                reshape(Coeffs[N₋+1:end-N₊], mesh.NBases, mesh.NIntervals, model.NPhases),
+                reshape(Coeffs[N₋+1:end-N₊], NBases(mesh), NIntervals(mesh), NPhases(model)),
                 dims = 1,
             )
             pm = [Coeffs[1:N₋]; Coeffs[end-N₊+1:end]]
         end
         tempDist = cumsum(tempDist,dims=2)
-        temppm = zeros(Float64,1,2,model.NPhases)
+        temppm = zeros(Float64,1,2,NPhases(model))
         temppm[:,1,model.C.<=0] = pm[1:N₋]
         temppm[:,2,model.C.>=0] = pm[N₊+1:end]
-        yvals = zeros(Float64,2,mesh.NIntervals,model.NPhases)
+        yvals = zeros(Float64,2,NIntervals(mesh),NPhases(model))
         yvals[1,2:end,:] = tempDist[1,1:end-1,:]
         yvals[2,:,:] = tempDist
-        yvals = yvals .+ reshape(temppm[1,1,:],1,1,model.NPhases)
+        yvals = yvals .+ reshape(temppm[1,1,:],1,1,NPhases(model))
         pm[N₋+1:end] = pm[N₋+1:end] + yvals[end,end,model.C.>=0]
     end
 
@@ -188,19 +188,19 @@ function Dist2Coeffs(
     Distn::NamedTuple{(:pm, :distribution, :x, :type)};
     probTransform::Bool = true,
 )
-    V = SFFM.vandermonde(mesh.NBases)
+    V = SFFM.vandermonde(NBases(mesh))
     theDistribution =
-        zeros(Float64, mesh.NBases, mesh.NIntervals, model.NPhases)
-    if mesh.Basis == "legendre"
+        zeros(Float64, NBases(mesh), NIntervals(mesh), NPhases(model))
+    if Basis(mesh) == "legendre"
         if Distn.type == "probability"
             # for the legendre basis the first basis function is ϕ(x)=Δ√2 and
             # all other basis functions are orthogonal to this. Hence, we map
             # the cell probabilities to the first basis function only.
-            theDistribution[1, :, :] = Distn.distribution./mesh.Δ'.*sqrt(2)
+            theDistribution[1, :, :] = Distn.distribution./Δ(mesh)'.*sqrt(2)
         elseif Distn.type == "density"
             # if given density coefficients in lagrange form
             theDistribution = Distn.distribution
-            for i = 1:model.NPhases
+            for i = 1:NPhases(model)
                 theDistribution[:, :, i] = V.inv * theDistribution[:, :, i]
             end
         end
@@ -210,10 +210,10 @@ function Dist2Coeffs(
             theDistribution[:]
             Distn.pm[sum(model.C .<= 0)+1:end]
         ]
-    elseif mesh.Basis == "lagrange"
+    elseif Basis(mesh) == "lagrange"
         theDistribution .= Distn.distribution
         if !probTransform
-            theDistribution = (1.0./V.w) .* theDistribution .* (2.0./mesh.Δ')
+            theDistribution = (1.0./V.w) .* theDistribution .* (2.0./Δ(mesh)')
         end
         if Distn.type == "probability"
             # convert to probability coefficients by multiplying by the
@@ -222,7 +222,7 @@ function Dist2Coeffs(
         elseif Distn.type == "density"
             # convert to probability coefficients by multiplying by the
             # weights in V.w/2 and cell widths Δ
-            theDistribution = ((V.w .* theDistribution).*(mesh.Δ / 2)')[:]
+            theDistribution = ((V.w .* theDistribution).*(Δ(mesh) / 2)')[:]
         end
         # also put the point masses on the ends
         coeffs = [

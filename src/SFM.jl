@@ -155,7 +155,7 @@ function StationaryDistributionX( model::SFFM.Model, Ψ::Array, ξ::Array)
     # as is output by Coeff2Dist
     function πₓ(x::Array)
         temp = πₓ.(x)
-        Evalπₓ = zeros(Float64, size(x,1), size(x,2), model.NPhases)
+        Evalπₓ = zeros(Float64, size(x,1), size(x,2), NPhases(model))
         for cell in 1:size(x,2)
             for basis in 1:size(x,1)
                 Evalπₓ[basis,cell,:] = temp[basis,cell]
@@ -178,7 +178,7 @@ function StationaryDistributionX( model::SFFM.Model, Ψ::Array, ξ::Array)
     # as is output by Coeff2Dist
     function Πₓ(x::Array)
         temp = Πₓ.(x)
-        Evalπₓ = zeros(Float64, size(x,1), size(x,2), model.NPhases)
+        Evalπₓ = zeros(Float64, size(x,1), size(x,2), NPhases(model))
         for cell in 1:size(x,2)
             for basis in 1:size(x,1)
                 Evalπₓ[basis,cell,:] = temp[basis,cell]

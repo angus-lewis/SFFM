@@ -69,7 +69,7 @@ let
             marginalX,
             type="density",
         )
-        temp = zeros(mesh.NBases,mesh.NIntervals,2)
+        temp = zeros(NBases(mesh),NIntervals(mesh),2)
         temp[:,:,1] = tempDist.distribution[:,:,1]+tempDist.distribution[:,:,2]
         temp[:,:,2] = tempDist.distribution[:,:,3]+tempDist.distribution[:,:,4]
         q = plot!(

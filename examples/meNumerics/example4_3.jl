@@ -60,7 +60,7 @@ let
         Ψ = SFFM.PsiFun(All.D)
 
         # construct FRAP matrices
-        me = SFFM.MakeME(SFFM.CMEParams[NBases], mean = mesh.Δ[1])
+        me = SFFM.MakeME(SFFM.CMEParams[NBases], mean = Δ(mesh)[1])
         B = SFFM.MakeBFRAP( approxModel, mesh, me)
         D = SFFM.MakeD( All.R, B, approxModel, mesh)
         Ψme = SFFM.PsiFun( D)

@@ -12,13 +12,13 @@ Constructs a block diagonal matrix from blocks
 - `model`: A Model object
 - `mesh`: A DGMesh object from `DGMesh()`
 - `Blocks(x::Array{Float64}, i::Int)`: a function wich returns a
-    `mesh.NBases×mesh.NBases` array to put along the diagonal. The input
+    `NBases(mesh)×NBases(mesh)` array to put along the diagonal. The input
     argument `x` is a column vector of corresponding to the nodes in each cell,
     i.e. `mesh.CellNodes[:,n]`. `i` denotes the phase.
-- `Factors::Array{<:Real,1}`: a `mesh.NIntervals×1` vector of factors which multiply blocks
+- `Factors::Array{<:Real,1}`: a `NIntervals(mesh)×1` vector of factors which multiply blocks
 
 # Output
-- `BlockMatrix::Array{Float64,2}`: `mesh.TotalNBases×mesh.TotalNBases` the
+- `BlockMatrix::Array{Float64,2}`: `TotalNBases(mesh)×TotalNBases(mesh)` the
         block matrix
 """
 function MakeBlockDiagonalMatrixR(
@@ -27,12 +27,12 @@ function MakeBlockDiagonalMatrixR(
     Blocks,
     Factors::Array,
 )
-    BlockMatrix = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,model.NPhases)
-    for i in 1:model.NPhases
-        BlockMatrix[i] = SparseArrays.spzeros(Float64, mesh.TotalNBases, mesh.TotalNBases)
+    BlockMatrix = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,NPhases(model))
+    for i in 1:NPhases(model)
+        BlockMatrix[i] = SparseArrays.spzeros(Float64, TotalNBases(mesh), TotalNBases(mesh))
     end
-    for i = 1:mesh.NIntervals, j = 1:model.NPhases
-        idx = (1:mesh.NBases) .+ (i - 1) * mesh.NBases
+    for i = 1:NIntervals(mesh), j = 1:NPhases(model)
+        idx = (1:NBases(mesh)) .+ (i - 1) * NBases(mesh)
         BlockMatrix[j][idx, idx] = Blocks(mesh.CellNodes[:, i], j) * Factors[i]
     end
     return (BlockMatrix = BlockMatrix)
@@ -55,8 +55,8 @@ Constructs the flux matrices for DG
     respectively
 
 # Output
-- `F::Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,model.NPhases)`:
-    an array with index `i ∈ 1:model.NPhases`, of sparse arrays which are
+- `F::Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,NPhases(model))`:
+    an array with index `i ∈ 1:NPhases(model)`, of sparse arrays which are
     `TotalNBases×TotalNBases` flux matrices for phase `i`.
 """
 function MakeFluxMatrixR(
@@ -71,11 +71,11 @@ function MakeFluxMatrixR(
     LowDiagBlock = -Phi[1, :] * Phi[end, :]'
 
     ## Construct global block diagonal matrix
-    F = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,model.NPhases)
-    for i = 1:model.NPhases
-        F[i] = SparseArrays.spzeros(Float64, mesh.TotalNBases, mesh.TotalNBases)
-        for k = 1:mesh.NIntervals
-            idx = (1:mesh.NBases) .+ (k - 1) * mesh.NBases
+    F = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,NPhases(model))
+    for i = 1:NPhases(model)
+        F[i] = SparseArrays.spzeros(Float64, TotalNBases(mesh), TotalNBases(mesh))
+        for k = 1:NIntervals(mesh)
+            idx = (1:NBases(mesh)) .+ (k - 1) * NBases(mesh)
             if model.C[i] > 0
                 xright = mesh.CellNodes[end, k]
                 R = 1.0 ./ model.r.a(xright)[i]
@@ -86,16 +86,16 @@ function MakeFluxMatrixR(
                 F[i][idx, idx] = NegDiagBlock * R
             end # end if C[i]
             if k > 1
-                idxup = (1:mesh.NBases) .+ (k - 2) * mesh.NBases
+                idxup = (1:NBases(mesh)) .+ (k - 2) * NBases(mesh)
                 if model.C[i] > 0
                     xright = mesh.CellNodes[end, k-1]
                     R = 1.0 ./ model.r.a(xright)[i]
-                    η = (mesh.Δ[k] / mesh.NBases) / (mesh.Δ[k-1] / mesh.NBases)
+                    η = (Δ(mesh)[k] / NBases(mesh)) / (Δ(mesh)[k-1] / NBases(mesh))
                     F[i][idxup, idx] = UpDiagBlock * η * R
                 elseif model.C[i] < 0
                     xleft = mesh.CellNodes[1, k]
                     R = 1.0 ./ model.r.a(xleft)[i]
-                    η = (mesh.Δ[k-1] / mesh.NBases) / (mesh.Δ[k] / mesh.NBases)
+                    η = (Δ(mesh)[k-1] / NBases(mesh)) / (Δ(mesh)[k] / NBases(mesh))
                     F[i][idx, idxup] = LowDiagBlock * η * R
                 end # end if C[i]
             end # end if k>1
@@ -147,8 +147,8 @@ function MakeMatricesR(
     mesh::DGMesh,
 )
     ## Construct blocks
-    V = vandermonde(mesh.NBases)
-    if mesh.Basis == "legendre"
+    V = vandermonde(NBases(mesh))
+    if Basis(mesh) == "legendre"
         MLocal = function (x::Array{Float64}, i::Int)
             # Numerical integration of ϕᵢ(x)|r(x)|ϕⱼ(x) over Dk with Gauss-Lobatto
             # quadrature
@@ -170,7 +170,7 @@ function MakeMatricesR(
         end
         Phi = V.V[[1; end], :]
 
-    elseif mesh.Basis == "lagrange"
+    elseif Basis(mesh) == "lagrange"
         MLocal = function (x::Array{Float64}, i::Int)
             # Numerical integration of ϕᵢ(x)|r(x)|ϕⱼ(x) over Dk with Gauss-Lobatto
             # quadrature
@@ -198,26 +198,26 @@ function MakeMatricesR(
         model,
         mesh,
         GLocal,
-        ones(mesh.NIntervals),
+        ones(NIntervals(mesh)),
     )
     M = SFFM.MakeBlockDiagonalMatrixR(
         model,
         mesh,
         MLocal,
-        mesh.Δ * 0.5,
+        Δ(mesh) * 0.5,
     )
     MInv = SFFM.MakeBlockDiagonalMatrixR(
         model,
         mesh,
         MInvLocal,
-        2.0 ./ mesh.Δ,
+        2.0 ./ Δ(mesh),
     )
 
     F = SFFM.MakeFluxMatrixR(mesh, model, Phi)
 
     ## Assemble the DG drift operator
-    Q = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,model.NPhases)
-    for i = 1:model.NPhases
+    Q = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,NPhases(model))
+    for i = 1:NPhases(model)
         Q[i] = model.C[i] * (G[i] + F[i])
     end
 
@@ -269,20 +269,20 @@ function MakeDR(
     N₊ = sum(model.C .>= 0)
     N₋ = sum(model.C .<= 0)
 
-    BigN = model.NPhases * mesh.TotalNBases + N₊ + N₋
-    MR = SparseArrays.spzeros(Float64, model.NPhases * mesh.TotalNBases, model.NPhases * mesh.TotalNBases)
+    BigN = NPhases(model) * TotalNBases(mesh) + N₊ + N₋
+    MR = SparseArrays.spzeros(Float64, NPhases(model) * TotalNBases(mesh), NPhases(model) * TotalNBases(mesh))
     Minv =
-        SparseArrays.spzeros(Float64, model.NPhases * mesh.TotalNBases, model.NPhases * mesh.TotalNBases)
-    FGR = SparseArrays.spzeros(Float64, model.NPhases * mesh.TotalNBases, model.NPhases * mesh.TotalNBases)
-    for i = 1:model.NPhases
-        idx = ((i-1)*mesh.TotalNBases+1:i*mesh.TotalNBases)
+        SparseArrays.spzeros(Float64, NPhases(model) * TotalNBases(mesh), NPhases(model) * TotalNBases(mesh))
+    FGR = SparseArrays.spzeros(Float64, NPhases(model) * TotalNBases(mesh), NPhases(model) * TotalNBases(mesh))
+    for i = 1:NPhases(model)
+        idx = ((i-1)*TotalNBases(mesh)+1:i*TotalNBases(mesh))
         MR[idx, idx] = MatricesR.Global.M[i]
         Minv[idx, idx] = Matrices.Global.MInv
         FGR[idx, idx] = MatricesR.Global.Q[i] * Matrices.Global.MInv
     end
 
     # Interior behaviour
-    T = SparseArrays.kron(model.T, SparseArrays.sparse(LinearAlgebra.I,mesh.TotalNBases,mesh.TotalNBases))
+    T = SparseArrays.kron(model.T, SparseArrays.sparse(LinearAlgebra.I,TotalNBases(mesh),TotalNBases(mesh)))
     BR = SparseArrays.spzeros(Float64, BigN, BigN)
     BR[(N₋+1):(end-N₊), (N₋+1):(end-N₊)] = MR * T * Minv + FGR
 
@@ -291,13 +291,13 @@ function MakeDR(
     # At boundary
     BR[1:N₋, 1:N₋] = (1.0./ model.r.a(mesh.Nodes[1])'.*model.T)[model.C.<=0, model.C.<=0]
     # Out of boundary
-    idxup = ((1:mesh.NBases).+mesh.TotalNBases*(findall(model.C .> 0) .- 1)')[:] .+ N₋
+    idxup = ((1:NBases(mesh)).+TotalNBases(mesh)*(findall(model.C .> 0) .- 1)')[:] .+ N₋
     BR[1:N₋, idxup] = kron(
         (1.0./model.r.a(mesh.Nodes[1])'.*model.T)[model.C.<=0, model.C.>0],
-        Matrices.Local.Phi[1, :]' * Matrices.Local.MInv * 2 ./ mesh.Δ[1],
+        Matrices.Local.Phi[1, :]' * Matrices.Local.MInv * 2 ./ Δ(mesh)[1],
     )
     # Into boundary
-    idxdown = ((1:mesh.NBases).+mesh.TotalNBases*(findall(model.C .<= 0) .- 1)')[:] .+ N₋
+    idxdown = ((1:NBases(mesh)).+TotalNBases(mesh)*(findall(model.C .<= 0) .- 1)')[:] .+ N₋
     BR[idxdown, 1:N₋] = LinearAlgebra.kron(
         LinearAlgebra.diagm(
             model.C[model.C.<=0] ./ model.r.a(mesh.Nodes[1].+sqrt(eps()))[model.C.<=0],
@@ -311,16 +311,16 @@ function MakeDR(
         (1.0./model.r.a(mesh.Nodes[end])'.*model.T)[model.C.>=0, model.C.>=0]
     # Out of boundary
     idxdown =
-        ((1:mesh.NBases).+mesh.TotalNBases*(findall(model.C .< 0) .- 1)')[:] .+
-        (N₋ + mesh.TotalNBases - mesh.NBases)
+        ((1:NBases(mesh)).+TotalNBases(mesh)*(findall(model.C .< 0) .- 1)')[:] .+
+        (N₋ + TotalNBases(mesh) - NBases(mesh))
     BR[(end-N₊+1):end, idxdown] = kron(
         (1.0./model.r.a(mesh.Nodes[end])'.*model.T)[model.C.>=0, model.C.<0],
-        Matrices.Local.Phi[end, :]' * Matrices.Local.MInv * 2 ./ mesh.Δ[end],
+        Matrices.Local.Phi[end, :]' * Matrices.Local.MInv * 2 ./ Δ(mesh)[end],
     )
     # Into boundary
     idxup =
-        ((1:mesh.NBases).+mesh.TotalNBases*(findall(model.C .>= 0) .- 1)')[:] .+
-        (N₋ + mesh.TotalNBases - mesh.NBases)
+        ((1:NBases(mesh)).+TotalNBases(mesh)*(findall(model.C .>= 0) .- 1)')[:] .+
+        (N₋ + TotalNBases(mesh) - NBases(mesh))
     BR[idxup, (end-N₊+1):end] = LinearAlgebra.kron(
         LinearAlgebra.diagm(
             model.C[model.C.>=0] ./ model.r.a(mesh.Nodes[end].-sqrt(eps()))[model.C.>=0],
@@ -328,10 +328,10 @@ function MakeDR(
         Matrices.Local.Phi[end, :],
     )
 
-    idx0 = [mesh.Fil["p0"]; repeat(mesh.Fil["0"]', mesh.NBases, 1)[:]; mesh.Fil["q0"]]
+    idx0 = [mesh.Fil["p0"]; repeat(mesh.Fil["0"]', NBases(mesh), 1)[:]; mesh.Fil["q0"]]
     bullet = [
         (mesh.Fil["p+"] .| mesh.Fil["p-"])
-        repeat((mesh.Fil["+"] .| mesh.Fil["-"])', mesh.NBases, 1)[:]
+        repeat((mesh.Fil["+"] .| mesh.Fil["-"])', NBases(mesh), 1)[:]
         (mesh.Fil["q+"] .| mesh.Fil["q-"])
     ]
     MR = [
@@ -370,12 +370,12 @@ function MakeDR(
         FmBases = mesh.Fil[m][.!mesh.Fil["0"]]
         FlBases = [
             mesh.Fil["p"*ℓ][.!mesh.Fil["p0"]]
-            repeat(FlBases', mesh.NBases, 1)[:]
+            repeat(FlBases', NBases(mesh), 1)[:]
             mesh.Fil["q"*ℓ][.!mesh.Fil["q0"]]
         ]
         FmBases = [
             mesh.Fil["p"*m][.!mesh.Fil["p0"]]
-            repeat(FmBases', mesh.NBases, 1)[:]
+            repeat(FmBases', NBases(mesh), 1)[:]
             mesh.Fil["q"*m][.!mesh.Fil["q0"]]
         ]
         DDict[ℓ*m] = function (; s = 0)#::Array{Float64}

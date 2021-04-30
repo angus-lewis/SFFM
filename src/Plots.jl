@@ -37,7 +37,7 @@ function PlotSFM!(
     pc = 0
     qc = 0
     # yLimValues = (0.0, 0.0)
-    for i = 1:model.NPhases
+    for i = 1:NPhases(model)
         if Dist.type == "density"
             p = Plots.plot!(
                 Dist.x,
@@ -59,7 +59,7 @@ function PlotSFM!(
                 Dist.distribution[:, :, i][:],
                 alpha = 0.25,
                 fillcolor = color,
-                bar_width = mesh.Δ,
+                bar_width = Δ(mesh),
                 subplot = i,
                 title = "φ=" * string(i),
                 ylabel = Dist.type,
@@ -160,7 +160,7 @@ function PlotSFM(
     titles = false,
     jitter = 0,
 )
-    p = Plots.plot(layout = Plots.@layout(Plots.grid((model.NPhases+1)÷2, 2)))
+    p = Plots.plot(layout = Plots.@layout(Plots.grid((NPhases(model)+1)÷2, 2)))
     if length(dist.distribution) != 0
         p = SFFM.PlotSFM!(
             p,

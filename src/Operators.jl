@@ -32,7 +32,7 @@ function MakeR(
     approxType::String = "projection",
     probTransform::Bool = true,
 )
-    V = SFFM.vandermonde(mesh.NBases)
+    V = SFFM.vandermonde(NBases(mesh))
 
     EvalR = 1.0 ./ model.r.a(mesh.CellNodes[:])
 
@@ -41,16 +41,16 @@ function MakeR(
 
     R = SparseArrays.spzeros(
         Float64,
-        N₋ + N₊ + mesh.TotalNBases * model.NPhases,
-        N₋ + N₊ + mesh.TotalNBases * model.NPhases,
+        N₋ + N₊ + TotalNBases(mesh) * NPhases(model),
+        N₋ + N₊ + TotalNBases(mesh) * NPhases(model),
     )
     # at the boundaries
     R[1:N₋, 1:N₋] = (1.0 ./ model.r.a(model.Bounds[1,1])[model.C .<= 0]).*LinearAlgebra.I(N₋)
     R[(end-N₊+1):end, (end-N₊+1):end] =  (1.0 ./ model.r.a(model.Bounds[1,end])[model.C .>= 0]).* LinearAlgebra.I(N₊)
 
     # on the interior
-    for n = 1:(mesh.NIntervals*model.NPhases)
-        if mesh.Basis == "legendre"
+    for n = 1:(NIntervals(mesh)*NPhases(model))
+        if Basis(mesh) == "legendre"
             if approxType == "interpolation"
                 leftM = V.V'
                 rightM = V.inv'
@@ -58,25 +58,25 @@ function MakeR(
                 leftM = V.V' * LinearAlgebra.diagm(V.w)
                 rightM = V.V
             end
-            temp = leftM*LinearAlgebra.diagm(EvalR[mesh.NBases*(n-1).+(1:mesh.NBases)])*rightM
-        elseif mesh.Basis == "lagrange"
+            temp = leftM*LinearAlgebra.diagm(EvalR[NBases(mesh)*(n-1).+(1:NBases(mesh))])*rightM
+        elseif Basis(mesh) == "lagrange"
             if approxType == "interpolation"
-                temp = LinearAlgebra.diagm(EvalR[mesh.NBases*(n-1).+(1:mesh.NBases)])
+                temp = LinearAlgebra.diagm(EvalR[NBases(mesh)*(n-1).+(1:NBases(mesh))])
             elseif approxType == "projection"
-                # the first term, LinearAlgebra.diagm(EvalR[mesh.NBases*(n-1).+(1:mesh.NBases)])
+                # the first term, LinearAlgebra.diagm(EvalR[NBases(mesh)*(n-1).+(1:NBases(mesh))])
                 # is the quadrature approximation of M^r. The quadrature weights to not
                 # appear since they cancel when we transform to integral/probability
                 # representation. The second term V.V*V.V' is Minv. The last term
                 # LinearAlgebra.diagm(V.w)is a result of the conversion to probability
                 # / integral representation.
                 if probTransform
-                    temp = LinearAlgebra.diagm(EvalR[mesh.NBases*(n-1).+(1:mesh.NBases)])*V.V*V.V'*LinearAlgebra.diagm(V.w)
+                    temp = LinearAlgebra.diagm(EvalR[NBases(mesh)*(n-1).+(1:NBases(mesh))])*V.V*V.V'*LinearAlgebra.diagm(V.w)
                 elseif !probTransform
-                    temp = LinearAlgebra.diagm(V.w)*LinearAlgebra.diagm(EvalR[mesh.NBases*(n-1).+(1:mesh.NBases)])*V.V*V.V'
+                    temp = LinearAlgebra.diagm(V.w)*LinearAlgebra.diagm(EvalR[NBases(mesh)*(n-1).+(1:NBases(mesh))])*V.V*V.V'
                 end
             end
         end
-        R[mesh.NBases*(n-1).+(1:mesh.NBases).+N₋, mesh.NBases*(n-1).+(1:mesh.NBases).+N₋] = temp
+        R[NBases(mesh)*(n-1).+(1:NBases(mesh)).+N₋, NBases(mesh)*(n-1).+(1:NBases(mesh)).+N₋] = temp
     end
 
     # construc the dictionary
@@ -114,11 +114,11 @@ function MakeD(
 )
     DDict = Dict{String,Any}()
     for ℓ in ["+", "-"], m in ["+", "-"]
-        nℓ = sum(mesh.Fil["p"*ℓ]) + sum(mesh.Fil[ℓ]) * mesh.NBases + sum(mesh.Fil["q"*ℓ])
+        nℓ = sum(mesh.Fil["p"*ℓ]) + sum(mesh.Fil[ℓ]) * NBases(mesh) + sum(mesh.Fil["q"*ℓ])
         Idℓ = SparseArrays.sparse(LinearAlgebra.I,nℓ,nℓ)
         if any(mesh.Fil["p0"]) || any(mesh.Fil["0"]) || any(mesh.Fil["q0"]) # in("0", model.Signs)
             n0 = sum(mesh.Fil["p0"]) +
-                sum(mesh.Fil["0"]) * mesh.NBases +
+                sum(mesh.Fil["0"]) * NBases(mesh) +
                 sum(mesh.Fil["q0"])
             Id0 = SparseArrays.sparse(LinearAlgebra.I,n0,n0)
             DDict[ℓ*m] = function (; s::Real = 0)
@@ -263,18 +263,18 @@ function MakeXi(
         b[1] = 1.0 # normalisation conditions
     elseif !probTransform
         idx₋ = [mesh.Fil["p-"]; mesh.Fil["-"]; mesh.Fil["q-"]]
-        if mesh.NBases>1
+        if NBases(mesh)>1
             w =
                 2.0 ./ (
-                    mesh.NBases *
-                    (mesh.NBases - 1) *
-                    Jacobi.legendre.(Jacobi.zglj(mesh.NBases, 0, 0), mesh.NBases - 1) .^ 2
+                    NBases(mesh) *
+                    (NBases(mesh) - 1) *
+                    Jacobi.legendre.(Jacobi.zglj(NBases(mesh), 0, 0), NBases(mesh) - 1) .^ 2
                 )
         else
             w = [2]
         end
         A[:,1] = [ones(sum(mesh.Fil["p-"]));
-        repeat(w, sum(mesh.Fil["-"])).*repeat(repeat(mesh.Δ./2,model.NPhases,1)[mesh.Fil["-"]]', mesh.NBases, 1)[:];
+        repeat(w, sum(mesh.Fil["-"])).*repeat(repeat(Δ(mesh)./2,NPhases(model),1)[mesh.Fil["-"]]', NBases(mesh), 1)[:];
         ones(sum(mesh.Fil["q-"]))]# normalisation conditions
         b[1] = 1.0 # normalisation conditions
     end
@@ -346,11 +346,11 @@ function MakeLimitDistMatrices(
     if probTransform
         α = sum(αintegralPibullet) + sum(αintegralPi0) + sum(αp)
     elseif !probTransform
-        if mesh.NBases>1
+        if NBases(mesh)>1
             w = 2.0 ./ (
-                    mesh.NBases *
-                    (mesh.NBases - 1) *
-                    Jacobi.legendre.(Jacobi.zglj(mesh.NBases, 0, 0), mesh.NBases - 1) .^ 2
+                    NBases(mesh) *
+                    (NBases(mesh) - 1) *
+                    Jacobi.legendre.(Jacobi.zglj(NBases(mesh), 0, 0), NBases(mesh) - 1) .^ 2
                 )
         else
             w = [2]
@@ -358,9 +358,9 @@ function MakeLimitDistMatrices(
         idx₊ = mesh.Fil["+"]
         idx₋ = mesh.Fil["-"]
         idx₀ = mesh.Fil["0"]
-        a₋ = [ones(sum(mesh.Fil["p-"])); repeat(w, sum(mesh.Fil["-"])).*(repeat(repeat(mesh.Δ./2,model.NPhases,1)[idx₋]', mesh.NBases, 1)[:]); ones(sum(mesh.Fil["q-"]))]
-        a₊ = [ones(sum(mesh.Fil["p+"])); repeat(w, sum(mesh.Fil["+"])).*(repeat(repeat(mesh.Δ./2,model.NPhases,1)[idx₊]', mesh.NBases, 1)[:]); ones(sum(mesh.Fil["q+"]))]
-        a₀ = [ones(sum(mesh.Fil["p0"])); repeat(w, sum(mesh.Fil["0"])).*(repeat(repeat(mesh.Δ./2,model.NPhases,1)[idx₀]', mesh.NBases, 1)[:]); ones(sum(mesh.Fil["q0"]))]
+        a₋ = [ones(sum(mesh.Fil["p-"])); repeat(w, sum(mesh.Fil["-"])).*(repeat(repeat(Δ(mesh)./2,NPhases(model),1)[idx₋]', NBases(mesh), 1)[:]); ones(sum(mesh.Fil["q-"]))]
+        a₊ = [ones(sum(mesh.Fil["p+"])); repeat(w, sum(mesh.Fil["+"])).*(repeat(repeat(Δ(mesh)./2,NPhases(model),1)[idx₊]', NBases(mesh), 1)[:]); ones(sum(mesh.Fil["q+"]))]
+        a₀ = [ones(sum(mesh.Fil["p0"])); repeat(w, sum(mesh.Fil["0"])).*(repeat(repeat(Δ(mesh)./2,NPhases(model),1)[idx₀]', NBases(mesh), 1)[:]); ones(sum(mesh.Fil["q0"]))]
 
         α = (αintegralPibullet*[a₊; a₋]) + (αintegralPi0*a₀) + (αp*[a₋;a₀])
     end
@@ -370,11 +370,11 @@ function MakeLimitDistMatrices(
     integralPi0 = αintegralPi0 ./ α
 
     marginalX = zeros(Float64, n₊ + n₋ + n₀)
-    idx₊ = [mesh.Fil["p+"]; repeat(mesh.Fil["+"]', mesh.NBases, 1)[:]; mesh.Fil["q+"]]
+    idx₊ = [mesh.Fil["p+"]; repeat(mesh.Fil["+"]', NBases(mesh), 1)[:]; mesh.Fil["q+"]]
     marginalX[idx₊] = integralPibullet[1:n₊]
-    idx₋ = [mesh.Fil["p-"]; repeat(mesh.Fil["-"]', mesh.NBases, 1)[:]; mesh.Fil["q-"]]
+    idx₋ = [mesh.Fil["p-"]; repeat(mesh.Fil["-"]', NBases(mesh), 1)[:]; mesh.Fil["q-"]]
     marginalX[idx₋] = integralPibullet[(n₊+1):end] + p[1:n₋]
-    idx₀ = [mesh.Fil["p0"]; repeat(mesh.Fil["0"]', mesh.NBases, 1)[:]; mesh.Fil["q0"]]
+    idx₀ = [mesh.Fil["p0"]; repeat(mesh.Fil["0"]', NBases(mesh), 1)[:]; mesh.Fil["q0"]]
     marginalX[idx₀] = integralPi0[:] + p[(n₋+1):end]
 
     return marginalX, p, K

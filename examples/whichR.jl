@@ -31,7 +31,7 @@ interp = SFFM.MakeAll(model,mesh,approxType="interpolation")
 
 vikramD = copy(interp.D["++"]())
 vikramD[sum(model.C.<=0)+1:end-sum(model.C.>=0),:] =
-    repeat(All.Matrices.Local.V.w, mesh.NIntervals*model.NPhases, 1) .* vikramD[sum(model.C.<=0)+1:end-sum(model.C.>=0),:]
+    repeat(All.Matrices.Local.V.w, NIntervals(mesh)*NPhases(model), 1) .* vikramD[sum(model.C.<=0)+1:end-sum(model.C.>=0),:]
 
 ## sims fro gound truth
 x₀ = 15
@@ -52,7 +52,7 @@ initpm = [
     zeros(sum(model.C.<=0)) # LHS point mass
     zeros(sum(model.C.>=0)) # RHS point mass
 ]
-initprobs = zeros(Float64,mesh.NBases,mesh.NIntervals,model.NPhases)
+initprobs = zeros(Float64,NBases(mesh),NIntervals(mesh),NPhases(model))
 initprobs[:,convert(Int,ceil(x₀/Δ)),1] = basisValues'*All.Matrices.Local.V.V*All.Matrices.Local.V.V'.*2/Δ
 initdist = (
     pm = initpm,
@@ -133,7 +133,7 @@ interp = SFFM.MakeAll( model, mesh, approxType="interpolation")
 
 vikramD = copy(interp.D["++"]())
 vikramD[sum(model.C.<=0)+1:end-sum(model.C.>=0),:] =
-    repeat(All.Matrices.Local.V.w, mesh.NIntervals*model.NPhases, 1) .* vikramD[sum(model.C.<=0)+1:end-sum(model.C.>=0),:]
+    repeat(All.Matrices.Local.V.w, NIntervals(mesh)*NPhases(model), 1) .* vikramD[sum(model.C.<=0)+1:end-sum(model.C.>=0),:]
 
 ## sims fro gound truth
 x₀ = 15
@@ -154,7 +154,7 @@ initpm = [
     zeros(sum(model.C.<=0)) # LHS point mass
     zeros(sum(model.C.>=0)) # RHS point mass
 ]
-initprobs = zeros(Float64,mesh.NBases,mesh.NIntervals,model.NPhases)
+initprobs = zeros(Float64,NBases(mesh),NIntervals(mesh),NPhases(model))
 initprobs[:,convert(Int,ceil(x₀/Δ)),1] = basisValues'*All.Matrices.Local.V.V*All.Matrices.Local.V.V'.*2/Δ
 initdist = (
     pm = initpm,
@@ -235,7 +235,7 @@ interp = SFFM.MakeAll( model, mesh, approxType="interpolation")
 
 vikramD = copy(interp.D["++"]())
 vikramD[sum(model.C.<=0)+1:end-sum(model.C.>=0),:] =
-    repeat(All.Matrices.Local.V.w, mesh.NIntervals*model.NPhases, 1) .* vikramD[sum(model.C.<=0)+1:end-sum(model.C.>=0),:]
+    repeat(All.Matrices.Local.V.w, NIntervals(mesh)*NPhases(model), 1) .* vikramD[sum(model.C.<=0)+1:end-sum(model.C.>=0),:]
 
 ## sims fro gound truth
 x₀ = 15
@@ -256,7 +256,7 @@ initpm = [
     zeros(sum(model.C.<=0)) # LHS point mass
     zeros(sum(model.C.>=0)) # RHS point mass
 ]
-initprobs = zeros(Float64,mesh.NBases,mesh.NIntervals,model.NPhases)
+initprobs = zeros(Float64,NBases(mesh),NIntervals(mesh),NPhases(model))
 initprobs[:,convert(Int,ceil(x₀/Δ)),1] = basisValues'*All.Matrices.Local.V.V*All.Matrices.Local.V.V'.*2/Δ
 initdist = (
     pm = initpm,

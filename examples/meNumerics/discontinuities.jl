@@ -89,7 +89,7 @@ for order in orders
             zeros(sum(model.C.<=0)) # LHS point mass
             zeros(sum(model.C.>=0)) # RHS point mass
         ]
-        initprobs = zeros(Float64,dgmesh.NBases,dgmesh.NIntervals,model.NPhases)
+        initprobs = zeros(Float64,dgNBases(mesh),dgNIntervals(mesh),NPhases(model))
         initprobs[:,pointIdx,1] = basisValues'*V.V*V.V'.*2/Δ
         initdist = (
             pm = initpm,
@@ -105,7 +105,7 @@ for order in orders
             zeros(sum(model.C.<=0)) # LHS point mass
             zeros(sum(model.C.>=0)) # RHS point mass
         ]
-        initprobs = zeros(Float64,frapmesh.NBases,frapmesh.NIntervals,model.NPhases)
+        initprobs = zeros(Float64,frapNBases(mesh),frapNIntervals(mesh),NPhases(model))
         initprobs[:,pointIdx,1] = me.a
         initdist = (
             pm = initpm,
@@ -121,7 +121,7 @@ for order in orders
             zeros(sum(model.C.<=0)) # LHS point mass
             zeros(sum(model.C.>=0)) # RHS point mass
         ]
-        initprobs = zeros(Float64,frapmesh.NBases,frapmesh.NIntervals,model.NPhases)
+        initprobs = zeros(Float64,frapNBases(mesh),frapNIntervals(mesh),NPhases(model))
         initprobs[1,pointIdx,1] = 1
         initdist = (
             pm = initpm,
@@ -137,7 +137,7 @@ for order in orders
             zeros(sum(model.C.<=0)) # LHS point mass
             zeros(sum(model.C.>=0)) # RHS point mass
         ]
-        initprobs = zeros(Float64,fvmesh.NBases,fvmesh.NIntervals,model.NPhases)
+        initprobs = zeros(Float64,fvNBases(mesh),fvNIntervals(mesh),NPhases(model))
         initprobs[1,pointIdx,1] = 1
         initdist = (
             pm = initpm,
@@ -214,12 +214,12 @@ for order in orders
     # the initial condition on Ψ is restricted to + states so find the + states
     plusIdx = [
         dgmesh.Fil["p+"];
-        repeat(dgmesh.Fil["+"]', dgmesh.NBases, 1)[:];
+        repeat(dgmesh.Fil["+"]', dgNBases(mesh), 1)[:];
         dgmesh.Fil["q+"];
     ]
     plusIdxFV = [
         fvmesh.Fil["p+"];
-        repeat(fvmesh.Fil["+"]', fvmesh.NBases, 1)[:];
+        repeat(fvmesh.Fil["+"]', fvNBases(mesh), 1)[:];
         fvmesh.Fil["q+"];
     ]
     # get the elements of x0_DG in + states only
@@ -251,37 +251,37 @@ for order in orders
 
     minusIdx = [
         dgmesh.Fil["p-"];
-        repeat(dgmesh.Fil["-"]', dgmesh.NBases, 1)[:];
+        repeat(dgmesh.Fil["-"]', dgNBases(mesh), 1)[:];
         dgmesh.Fil["q-"];
     ]
     minusIdxFV = [
         fvmesh.Fil["p-"];
-        repeat(fvmesh.Fil["-"]', fvmesh.NBases, 1)[:];
+        repeat(fvmesh.Fil["-"]', fvNBases(mesh), 1)[:];
         fvmesh.Fil["q-"];
     ]
     z_DG = zeros(
         Float64,
-        dgmesh.NBases*dgmesh.NIntervals * model.NPhases +
+        dgNBases(mesh)*dgNIntervals(mesh) * NPhases(model) +
             sum(model.C.<=0) + sum(model.C.>=0)
     )
     z_ME = zeros(
         Float64,
-        dgmesh.NBases*dgmesh.NIntervals * model.NPhases +
+        dgNBases(mesh)*dgNIntervals(mesh) * NPhases(model) +
             sum(model.C.<=0) + sum(model.C.>=0)
     )
     z_Erlang = zeros(
         Float64,
-        dgmesh.NBases*dgmesh.NIntervals * model.NPhases +
+        dgNBases(mesh)*dgNIntervals(mesh) * NPhases(model) +
             sum(model.C.<=0) + sum(model.C.>=0)
     )
     z_MEPH = zeros(
         Float64,
-        dgmesh.NBases*dgmesh.NIntervals * model.NPhases +
+        dgNBases(mesh)*dgNIntervals(mesh) * NPhases(model) +
             sum(model.C.<=0) + sum(model.C.>=0)
     )
     z_FV = zeros(
         Float64,
-        fvmesh.NBases*fvmesh.NIntervals * model.NPhases +
+        fvNBases(mesh)*fvNIntervals(mesh) * NPhases(model) +
             sum(model.C.<=0) + sum(model.C.>=0)
     )
 

@@ -75,7 +75,7 @@ let
         Ψ = SFFM.PsiFun(D=All.D)
 
         # construct FRAP matrices
-        me = SFFM.MakeME(SFFM.CMEParams[NBases], mean = mesh.Δ[1])
+        me = SFFM.MakeME(SFFM.CMEParams[NBases], mean = Δ(mesh)[1])
         B = SFFM.MakeBFRAP( approxModel, mesh, me)
         D = SFFM.MakeD( All.R, B, approxModel, mesh)
         Ψme = SFFM.PsiFun( D)
@@ -90,7 +90,7 @@ let
             zeros(sum(approxModel.C.<=0)) # LHS point mass
             zeros(sum(approxModel.C.>=0)) # RHS point mass
         ]
-        initprobs = zeros(Float64,mesh.NBases,mesh.NIntervals,approxModel.NPhases)
+        initprobs = zeros(Float64,NBases(mesh),NIntervals(mesh),approxNPhases(model))
         initprobs[:,convert(Int,ceil(5/Δ)),3] = basisValues'*All.Matrices.Local.V.V*All.Matrices.Local.V.V'.*2/Δ
         initdist = (
             pm = initpm,
@@ -103,7 +103,7 @@ let
         # the initial condition on Ψ is restricted to + states so find the + states
         plusIdx = [
             mesh.Fil["p+"];
-            repeat(mesh.Fil["+"]', mesh.NBases, 1)[:];
+            repeat(mesh.Fil["+"]', NBases(mesh), 1)[:];
             mesh.Fil["q+"];
         ]
         # get the elements of x0 in + states only
@@ -118,18 +118,18 @@ let
         # this can occur in - states only, so find the - states
         minusIdx = [
             mesh.Fil["p-"];
-            repeat(mesh.Fil["-"]', mesh.NBases, 1)[:];
+            repeat(mesh.Fil["-"]', NBases(mesh), 1)[:];
             mesh.Fil["q-"];
         ]
         # then map to the whole state space for plotting
         z = zeros(
             Float64,
-            mesh.NBases*mesh.NIntervals * approxModel.NPhases +
+            NBases(mesh)*NIntervals(mesh) * approxNPhases(model) +
                 sum(approxModel.C.<=0) + sum(approxModel.C.>=0)
         )
         zme = zeros(
             Float64,
-            mesh.NBases*mesh.NIntervals * approxModel.NPhases +
+            NBases(mesh)*NIntervals(mesh) * approxNPhases(model) +
                 sum(approxModel.C.<=0) + sum(approxModel.C.>=0)
         )
         z[minusIdx] = w

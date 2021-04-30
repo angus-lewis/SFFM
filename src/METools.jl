@@ -29,8 +29,6 @@ struct ME
     S::Union{Array{<:Real,1},Array{<:Real,2}}
     s::Union{Array{<:Real,1},Array{<:Real,2}}
     D::Union{Array{<:Real,1},Array{<:Real,2}}
-    f::Function
-    F::Function
     function ME(
         a::Union{Array{<:Real,1},Array{<:Real,2}},
         S::Union{Array{<:Real,1},Array{<:Real,2}},
@@ -53,12 +51,13 @@ struct ME
         if test
             error("Dimensions of ME representation not consistent")
         else
-            f(x) = (a*exp(S*x)*s)[1]
-            F(x) = 1-sum(a*exp(S*x))
-            return new(a,S,s,D,f,F)
+            return new(a,S,s,D)
         end
     end
 end
+
+pdf(me::ME, x) = (me.a*exp(me.S*x)*me.s)[1]
+cdf(me::ME, x) = 1-sum(me.a*exp(me.S*x))
 
 """
 

@@ -57,7 +57,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
             NBases,
             Basis =  "lagrange",
         )
-        approxSpec[d, n] = (Δ, NBases, mesh.TotalNBases * approxModel.NPhases)
+        approxSpec[d, n] = (Δ, NBases, TotalNBases(mesh) * approxNPhases(model))
 
         # compute the marginal via DG
         All = SFFM.MakeAll( approxModel, mesh, approxType = "interpolation")
@@ -91,10 +91,10 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
             NBases,
             Basis =  "lagrange",
         )
-        approxSpecme[d, n] = (Δ, NBases, mesh.TotalNBases * approxModel.NPhases)
+        approxSpecme[d, n] = (Δ, NBases, TotalNBases(mesh) * approxNPhases(model))
 
         # compute the marginal via FRAP approx
-        me = SFFM.MakeME(SFFM.CMEParams[NBases], mean = mesh.Δ[1])
+        me = SFFM.MakeME(SFFM.CMEParams[NBases], mean = Δ(mesh)[1])
         B = SFFM.MakeBFRAP( approxModel, mesh, me)
         R = SFFM.MakeR( approxModel, dgmesh, approxType = "interpolation")
         D = SFFM.MakeD( mesh, B, R)
@@ -121,7 +121,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
             approxModel,
             Nodes,
         )
-        approxSpecfv[d, n] = (Δ, NBases, mesh.TotalNBases * approxModel.NPhases)
+        approxSpecfv[d, n] = (Δ, NBases, TotalNBases(mesh) * approxNPhases(model))
 
         # compute the marginal via FRAP approx
         B = SFFM.MakeBFV(approxModel, mesh, NBases)
@@ -183,7 +183,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         pm = [pₓ[:]; 0; 0],
         distribution =
             Πₓ(Matrix(mesh.Nodes[2:end]')) - Πₓ(Matrix(mesh.Nodes[1:end-1]')),
-        x = mesh.Nodes[1:end-1] + mesh.Δ / 2,
+        x = mesh.Nodes[1:end-1] + Δ(mesh) / 2,
         type = "probability",
     )
 
