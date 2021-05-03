@@ -589,7 +589,7 @@ Convert from simulations of a SFM or SFFM to a distribution.
     want to convert to. Options are `"probability"` to return the probabilities
     ``P(X(t)∈ D_k, φ(t) = i)`` where ``D_k``is the kth cell, `"cumulative"` to
     return the CDF evaluated at cell edges, or `"density"` to return an
-    approximation to the density ar at the mesh.CellNodes.
+    approximation to the density ar at the CellNodes(mesh).
 
 # Output
 - a tuple with keys
@@ -637,7 +637,7 @@ function Sims2Dist(
     pm = zeros(Float64, sum(model.C .<= 0) + sum(model.C .>= 0))
     pc = 0
     qc = 0
-    xvals = mesh.CellNodes
+    xvals = CellNodes(mesh)
     for i = 1:NPhases(model)
         # find the simluated value of imterest for this iteration
         whichsims =
@@ -653,9 +653,9 @@ function Sims2Dist(
                 distribution[:, :, i] = h
             end
             if NBases(mesh) == 1
-                xvals = mesh.CellNodes
+                xvals = CellNodes(mesh)
             else
-                xvals = mesh.CellNodes[1, :] + Δ(mesh) / 2
+                xvals = CellNodes(mesh)[1, :] + Δ(mesh) / 2
             end
         elseif type == "density"
             if length(data)!=0
@@ -669,7 +669,7 @@ function Sims2Dist(
                 end
                 distribution[:, :, i] =
                     reshape(
-                        KernelDensity.pdf(U, mesh.CellNodes[:])',
+                        KernelDensity.pdf(U, CellNodes(mesh)[:])',
                         NBases(mesh),
                         NIntervals(mesh),
                     ) * totalprob
@@ -684,7 +684,7 @@ function Sims2Dist(
                 if NBases(mesh) == 1
                     xvals = [mesh.Nodes[1:end-1]';mesh.Nodes[2:end]']
                 else
-                    xvals = mesh.CellNodes[[1;end], :]
+                    xvals = CellNodes(mesh)[[1;end], :]
                 end
             end
         end

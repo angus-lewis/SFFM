@@ -26,15 +26,15 @@ let
         tempModel = SFFM.Model( Ttemp, C, r, Bounds = approxModel.Bounds)
         println("created tempModel with upper bound x=", tempModel.Bounds[1,end])
         ## mesh
-        Δ = 0.4
-        Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
+        Δtemp = 0.4
+        Nodes = collect(approxBounds[1, 1]:Δtemp:approxBounds[1, 2])
 
         Basis = "lagrange"
-        NBases = 2
+        nBases = 2
         mesh = SFFM.DGMesh(
             tempModel,
             Nodes,
-            NBases,
+            nBases,
             Basis=Basis,
         )
 
@@ -69,7 +69,7 @@ let
             marginalX,
             type="density",
         )
-        temp = zeros(NBases(mesh),NIntervals(mesh),2)
+        temp = zeros(SFFM.NBases(mesh),SFFM.NIntervals(mesh),2)
         temp[:,:,1] = tempDist.distribution[:,:,1]+tempDist.distribution[:,:,2]
         temp[:,:,2] = tempDist.distribution[:,:,3]+tempDist.distribution[:,:,4]
         q = plot!(

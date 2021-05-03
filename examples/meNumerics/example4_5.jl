@@ -44,20 +44,20 @@ approxSpecfv = Array{Any}(undef, length(Δs), length(NBasesRange))
 
 for d = 1:length(Δs), n = 1:length(NBasesRange)
     # define the mesh for each iteration
-    NBases = NBasesRange[n]
-    Δ = Δs[d]
-    println("mesh details; h = ", Δ, " NBases = ", NBases)
+    nBases = NBasesRange[n]
+    Δtemp = Δs[d]
+    println("mesh details; h = ", Δtemp, " NBases = ", nBases)
 
     # collect time and memory stats
     ~, times[d, n], mems[d, n], gctimes[d, n], alloc[d, n] = @timed begin
-        Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
+        Nodes = collect(approxBounds[1, 1]:Δtemp:approxBounds[1, 2])
         mesh = SFFM.DGMesh(
             approxModel,
             Nodes,
-            NBases,
+            nBases,
             Basis =  "lagrange",
         )
-        approxSpec[d, n] = (Δ, NBases, TotalNBases(mesh) * approxNPhases(model))
+        approxSpec[d, n] = (Δtemp, nBases, SFFM.TotalNBases(mesh) * SFFM.NPhases(approxModel))
 
         # compute the marginal via DG
         All = SFFM.MakeAll( approxModel, mesh, approxType = "interpolation")
@@ -79,22 +79,22 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
 
     # collect time and memory stats
     ~, timesme[d, n], memsme[d, n], gctimesme[d, n], allocme[d, n] = @timed begin
-        Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
+        Nodes = collect(approxBounds[1, 1]:Δtemp:approxBounds[1, 2])
         mesh = SFFM.FRAPMesh(
             approxModel,
             Nodes,
-            NBases,
+            nBases,
         )
         dgmesh = SFFM.DGMesh(
             approxModel,
             Nodes,
-            NBases,
+            nBases,
             Basis =  "lagrange",
         )
-        approxSpecme[d, n] = (Δ, NBases, TotalNBases(mesh) * approxNPhases(model))
+        approxSpecme[d, n] = (Δtemp, nBases, SFFM.TotalNBases(mesh) * SFFM.NPhases(approxModel))
 
         # compute the marginal via FRAP approx
-        me = SFFM.MakeME(SFFM.CMEParams[NBases], mean = Δ(mesh)[1])
+        me = SFFM.MakeME(SFFM.CMEParams[nBases], mean = SFFM.Δ(mesh)[1])
         B = SFFM.MakeBFRAP( approxModel, mesh, me)
         R = SFFM.MakeR( approxModel, dgmesh, approxType = "interpolation")
         D = SFFM.MakeD( mesh, B, R)
@@ -116,15 +116,15 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
 
     # collect time and memory stats
     ~, timesfv[d, n], memsfv[d, n], gctimesfv[d, n], allocfv[d, n] = @timed begin
-        Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
+        Nodes = collect(approxBounds[1, 1]:Δtemp:approxBounds[1, 2])
         mesh = SFFM.FVMesh(
             approxModel,
             Nodes,
         )
-        approxSpecfv[d, n] = (Δ, NBases, TotalNBases(mesh) * approxNPhases(model))
+        approxSpecfv[d, n] = (Δtemp, nBases, SFFM.TotalNBases(mesh) * SFFM.NPhases(approxModel))
 
         # compute the marginal via FRAP approx
-        B = SFFM.MakeBFV(approxModel, mesh, NBases)
+        B = SFFM.MakeBFV(approxModel, mesh, nBases)
         R = SFFM.MakeR( approxModel, mesh, approxType = "interpolation")
         D = SFFM.MakeD( mesh, B, R)
         Ψfv = SFFM.PsiFun(D)
@@ -145,13 +145,13 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
     dgmesh = SFFM.DGMesh(
             approxModel,
             Nodes,
-            NBases,
+            nBases,
             Basis =  "lagrange",
         )
     frapmesh = SFFM.FRAPMesh(
             approxModel,
             Nodes,
-            NBases,
+            nBases,
         )
     fvmesh = SFFM.FVMesh(
         approxModel,
@@ -183,7 +183,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         pm = [pₓ[:]; 0; 0],
         distribution =
             Πₓ(Matrix(mesh.Nodes[2:end]')) - Πₓ(Matrix(mesh.Nodes[1:end-1]')),
-        x = mesh.Nodes[1:end-1] + Δ(mesh) / 2,
+        x = mesh.Nodes[1:end-1] + SFFM.Δ(mesh) / 2,
         type = "probability",
     )
 

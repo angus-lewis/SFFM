@@ -6,14 +6,14 @@ include("exampleModelDef.jl")
 
 ## section 4.3: the marginal stationary distribution of X
 ## mesh
-Δ = 0.4
-Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
-NBases = 3
+Δtemp = 0.4
+Nodes = collect(approxBounds[1, 1]:Δtemp:approxBounds[1, 2])
+nBases = 3
 Basis = "lagrange"
-mesh = SFFM.MakeMesh(
-    model = approxModel,
-    Nodes = Nodes,
-    NBases = NBases,
+mesh = SFFM.DGMesh(
+    approxModel,
+    Nodes,
+    nBases,
     Basis = Basis,
 )
 let 
@@ -24,12 +24,17 @@ let
     pₓ, πₓ, Πₓ, Kₓ = SFFM.StationaryDistributionX( approxModel, Ψₓ, ξₓ)
 
     c = 0
-    for NBases in 1:2:3
-        mesh = SFFM.MakeMesh(
+    for nBases in 1:2:3
+        mesh = SFFM.DGMesh(
             approxModel,
             Nodes,
-            NBases,
+            nBases,
             Basis=Basis,
+        )
+        frapmesh = SFFM.FRAPMesh(
+            approxModel,
+            Nodes,
+            nBases,
         )
 
         # evaluate the distribution
@@ -43,8 +48,8 @@ let
         # plot it
         q = SFFM.PlotSFM(
             approxModel,
-            mesh,
-            analyticX,
+            mesh = mesh,
+            dist = analyticX,
             color = :red,
             label = "Analytic",
             marker = :x,
@@ -60,30 +65,32 @@ let
         Ψ = SFFM.PsiFun(All.D)
 
         # construct FRAP matrices
-        me = SFFM.MakeME(SFFM.CMEParams[NBases], mean = Δ(mesh)[1])
-        B = SFFM.MakeBFRAP( approxModel, mesh, me)
-        D = SFFM.MakeD( All.R, B, approxModel, mesh)
+        me = SFFM.MakeME(SFFM.CMEParams[nBases], mean = SFFM.Δ(mesh)[1])
+        B = SFFM.MakeBFRAP( approxModel, frapmesh, me)
+        D = SFFM.MakeD( mesh, B, All.R)
         Ψme = SFFM.PsiFun( D)
 
         # the distribution of X when Y first returns to 0
         ξ = SFFM.MakeXi( All.B.BDict, Ψ)
         ξme = SFFM.MakeXi( B.BDict, Ψme)
 
-        marginalX, p, K = SFFM.MakeLimitDistMatrices(;
+        marginalX, p, K = SFFM.MakeLimitDistMatrices(
             All.B.BDict,
             All.D,
             All.R.RDict,
             Ψ,
             ξ,
             mesh,
+            approxModel,
         )
-        marginalXme, pme, Kme = SFFM.MakeLimitDistMatrices(;
+        marginalXme, pme, Kme = SFFM.MakeLimitDistMatrices(
             B.BDict,
             D,
             All.R.RDict,
             Ψme,
             ξme,
             mesh,
+            approxModel,
         )
         # convert marginalX to a distribution for plotting
         Dist = SFFM.Coeffs2Dist(
@@ -106,7 +113,7 @@ let
             mesh,
             Dist,
             color = :green,
-            label = "DG: N_k = "*string(NBases),
+            label = "DG: N_k = "*string(nBases),
             seriestype = :line,
             jitter = 0.5,
         )
@@ -114,9 +121,9 @@ let
             q,
             approxModel,
             mesh,
-            Dist = Distme,
+            Distme,
             color = :blue,
-            label = "ME: N_k = "*string(NBases),
+            label = "ME: N_k = "*string(nBases),
             seriestype = :line,
             jitter = 0.5,
         )

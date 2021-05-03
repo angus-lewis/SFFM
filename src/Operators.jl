@@ -34,7 +34,7 @@ function MakeR(
 )
     V = SFFM.vandermonde(NBases(mesh))
 
-    EvalR = 1.0 ./ model.r.a(mesh.CellNodes[:])
+    EvalR = 1.0 ./ model.r.a(CellNodes(mesh)[:])
 
     N₋ = sum(model.C .<= 0)
     N₊ = sum(model.C .>= 0)

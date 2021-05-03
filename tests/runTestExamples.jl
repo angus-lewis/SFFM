@@ -24,8 +24,8 @@ using LinearAlgebra, Plots
 
     analyticX = (
             pm = [pₓ[:];0;0],
-            distribution = πₓ(mesh.CellNodes),
-            x = mesh.CellNodes,
+            distribution = πₓ(SFFM.CellNodes(mesh)),
+            x = SFFM.CellNodes(mesh),
             type = "density"
         )
 

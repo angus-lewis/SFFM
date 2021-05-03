@@ -78,36 +78,43 @@ NPhases(model::Model) = length(model.C)
 
 """
 
-    SDict(model::Model) 
+    modelDicts(model::Model) 
 
-a dictionary with keys `"+","-","0","bullet"`
-and corresponding values `findall(model.C .> 0)`, `findall(model.C .< 0)`,
-`findall(model.C .== 0)`, `findall(model.C .!= 0)`, respectively.
+input: a Model object
+
+outputs:
+     - SDict: a dictionary with keys `"+","-","0","bullet"`
+    and corresponding values `findall(model.C .> 0)`, `findall(model.C .< 0)`,
+    `findall(model.C .== 0)`, `findall(model.C .!= 0)`, respectively.
+
+     - TDict: a dictionary of submatrices of `T` with keys
+    `"ℓm"` with ``ℓ,m∈{+,-,0,bullet}`` and corresponding values
+    `model.T[S[ℓ],S[m]]`.
 """
-function SDict(model::Model) 
+function modelDicts(model::Model) 
     nPhases = NPhases(model)
     SDict = Dict{String,Array}("S" => 1:nPhases)
     SDict["+"] = findall(model.C .> 0)
     SDict["-"] = findall(model.C .< 0)
     SDict["0"] = findall(model.C .== 0)
     SDict["bullet"] = findall(model.C .!= 0)
-    return SDict
+
+    TDict = Dict{String,Array}("T" => model.T)
+    for ℓ in ["+" "-" "0" "bullet"], m in ["+" "-" "0" "bullet"]
+        TDict[ℓ*m] = model.T[SDict[ℓ], SDict[m]]
+    end
+
+    return SDict, TDict
 end
 
 """
 
     TDict(model::Model) 
 
-a dictionary of submatrices of `T` with keys
-`"ℓm"` with ``ℓ,m∈{+,-,0,bullet}`` and corresponding values
-`model.T[S[ℓ],S[m]]`.
+
 """
 function TDict(model::Model) 
-    TDict = Dict{String,Array}("T" => model.T)
-    for ℓ in ["+" "-" "0" "bullet"], m in ["+" "-" "0" "bullet"]
-        TDict[ℓ*m] = model.T[SDict[ℓ], SDict[m]]
-    end
-    return TDict
+    
 end
 
 

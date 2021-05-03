@@ -20,9 +20,9 @@ model = SFFM.Model( T, C, r, Bounds = Bounds)
 ## Define mesh
 Δ = 5
 Nodes = collect(Bounds[1,1]:Δ:Bounds[1,2])
-NBases = 3
+nBases = 3
 Basis = "lagrange"
-mesh = SFFM.DGMesh(model, Nodes, NBases, Basis=Basis)
+mesh = SFFM.DGMesh(model, Nodes, nBases, Basis=Basis)
 
 ## Make matrices
 All = SFFM.MakeAll( model, mesh, approxType = "projection")
@@ -31,7 +31,7 @@ interp = SFFM.MakeAll(model,mesh,approxType="interpolation")
 
 vikramD = copy(interp.D["++"]())
 vikramD[sum(model.C.<=0)+1:end-sum(model.C.>=0),:] =
-    repeat(All.Matrices.Local.V.w, NIntervals(mesh)*NPhases(model), 1) .* vikramD[sum(model.C.<=0)+1:end-sum(model.C.>=0),:]
+    repeat(All.Matrices.Local.V.w, SFFM.NIntervals(mesh)*SFFM.NPhases(model), 1) .* vikramD[sum(model.C.<=0)+1:end-sum(model.C.>=0),:]
 
 ## sims fro gound truth
 x₀ = 15
@@ -43,7 +43,7 @@ y = 10
 
 ## DG stationary dist
 # construct initial condition
-theNodes = mesh.CellNodes[:,convert(Int,ceil(x₀/Δ))]
+theNodes = SFFM.CellNodes(mesh)[:,convert(Int,ceil(x₀/Δ))]
 basisValues = zeros(length(theNodes))
 for n in 1:length(theNodes)
     basisValues[n] = prod(x₀.-theNodes[[1:n-1;n+1:end]])./prod(theNodes[n].-theNodes[[1:n-1;n+1:end]])
@@ -52,12 +52,12 @@ initpm = [
     zeros(sum(model.C.<=0)) # LHS point mass
     zeros(sum(model.C.>=0)) # RHS point mass
 ]
-initprobs = zeros(Float64,NBases(mesh),NIntervals(mesh),NPhases(model))
+initprobs = zeros(Float64,SFFM.NBases(mesh),SFFM.NIntervals(mesh),SFFM.NPhases(model))
 initprobs[:,convert(Int,ceil(x₀/Δ)),1] = basisValues'*All.Matrices.Local.V.V*All.Matrices.Local.V.V'.*2/Δ
 initdist = (
     pm = initpm,
     distribution = initprobs,
-    x = mesh.CellNodes,
+    x = SFFM.CellNodes(mesh),
     type = "density"
 )
 x0 = SFFM.Dist2Coeffs( model, mesh, initdist)
@@ -122,9 +122,9 @@ model = SFFM.Model( T, C, r, Bounds = Bounds)
 ## Define mesh
 # Δ = 3
 Nodes = collect(Bounds[1,1]:Δ:Bounds[1,2])
-# NBases = 3
+# nBases = 3
 Basis = "lagrange"
-mesh = SFFM.DGMesh(model, Nodes, NBases, Basis=Basis)
+mesh = SFFM.DGMesh(model, Nodes, nBases, Basis=Basis)
 
 ## Make matrices
 All = SFFM.MakeAll( model, mesh, approxType = "projection")
@@ -133,7 +133,7 @@ interp = SFFM.MakeAll( model, mesh, approxType="interpolation")
 
 vikramD = copy(interp.D["++"]())
 vikramD[sum(model.C.<=0)+1:end-sum(model.C.>=0),:] =
-    repeat(All.Matrices.Local.V.w, NIntervals(mesh)*NPhases(model), 1) .* vikramD[sum(model.C.<=0)+1:end-sum(model.C.>=0),:]
+    repeat(All.Matrices.Local.V.w, SFFM.NIntervals(mesh)*SFFM.NPhases(model), 1) .* vikramD[sum(model.C.<=0)+1:end-sum(model.C.>=0),:]
 
 ## sims fro gound truth
 x₀ = 15
@@ -145,7 +145,7 @@ y = 10
 
 ## DG stationary dist
 # construct initial condition
-theNodes = mesh.CellNodes[:,convert(Int,ceil(x₀/Δ))]
+theNodes = SFFM.CellNodes(mesh)[:,convert(Int,ceil(x₀/Δ))]
 basisValues = zeros(length(theNodes))
 for n in 1:length(theNodes)
     basisValues[n] = prod(x₀.-theNodes[[1:n-1;n+1:end]])./prod(theNodes[n].-theNodes[[1:n-1;n+1:end]])
@@ -154,12 +154,12 @@ initpm = [
     zeros(sum(model.C.<=0)) # LHS point mass
     zeros(sum(model.C.>=0)) # RHS point mass
 ]
-initprobs = zeros(Float64,NBases(mesh),NIntervals(mesh),NPhases(model))
+initprobs = zeros(Float64,SFFM.NBases(mesh),SFFM.NIntervals(mesh),SFFM.NPhases(model))
 initprobs[:,convert(Int,ceil(x₀/Δ)),1] = basisValues'*All.Matrices.Local.V.V*All.Matrices.Local.V.V'.*2/Δ
 initdist = (
     pm = initpm,
     distribution = initprobs,
-    x = mesh.CellNodes,
+    x = SFFM.CellNodes(mesh),
     type = "density"
 )
 x0 = SFFM.Dist2Coeffs( model, mesh, initdist)
@@ -224,9 +224,9 @@ model = SFFM.Model( T, C, r, Bounds = Bounds)
 ## Define mesh
 # Δ = 3
 Nodes = collect(Bounds[1,1]:Δ:Bounds[1,2])
-# NBases = 3
+# nBases = 3
 Basis = "lagrange"
-mesh = SFFM.DGMesh(model, Nodes, NBases, Basis=Basis)
+mesh = SFFM.DGMesh(model, Nodes, nBases, Basis=Basis)
 
 ## Make matrices
 All = SFFM.MakeAll( model, mesh, approxType = "projection")
@@ -235,7 +235,7 @@ interp = SFFM.MakeAll( model, mesh, approxType="interpolation")
 
 vikramD = copy(interp.D["++"]())
 vikramD[sum(model.C.<=0)+1:end-sum(model.C.>=0),:] =
-    repeat(All.Matrices.Local.V.w, NIntervals(mesh)*NPhases(model), 1) .* vikramD[sum(model.C.<=0)+1:end-sum(model.C.>=0),:]
+    repeat(All.Matrices.Local.V.w, SFFM.NIntervals(mesh)*SFFM.NPhases(model), 1) .* vikramD[sum(model.C.<=0)+1:end-sum(model.C.>=0),:]
 
 ## sims fro gound truth
 x₀ = 15
@@ -247,7 +247,7 @@ y = 10
 
 ## DG stationary dist
 # construct initial condition
-theNodes = mesh.CellNodes[:,convert(Int,ceil(x₀/Δ))]
+theNodes = SFFM.CellNodes(mesh)[:,convert(Int,ceil(x₀/Δ))]
 basisValues = zeros(length(theNodes))
 for n in 1:length(theNodes)
     basisValues[n] = prod(x₀.-theNodes[[1:n-1;n+1:end]])./prod(theNodes[n].-theNodes[[1:n-1;n+1:end]])
@@ -256,12 +256,12 @@ initpm = [
     zeros(sum(model.C.<=0)) # LHS point mass
     zeros(sum(model.C.>=0)) # RHS point mass
 ]
-initprobs = zeros(Float64,NBases(mesh),NIntervals(mesh),NPhases(model))
+initprobs = zeros(Float64,SFFM.NBases(mesh),SFFM.NIntervals(mesh),SFFM.NPhases(model))
 initprobs[:,convert(Int,ceil(x₀/Δ)),1] = basisValues'*All.Matrices.Local.V.V*All.Matrices.Local.V.V'.*2/Δ
 initdist = (
     pm = initpm,
     distribution = initprobs,
-    x = mesh.CellNodes,
+    x = SFFM.CellNodes(mesh),
     type = "density"
 )
 x0 = SFFM.Dist2Coeffs( model, mesh, initdist)

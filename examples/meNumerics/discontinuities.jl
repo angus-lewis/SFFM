@@ -9,8 +9,8 @@ orders = [1;3;5;7;11;13;15;21]
 errors_1 = []
 errors_Psi = []
 errors_Pi = []
-Δ = 1/2 # the grid size; must have kΔ = 1 for some k due to discontinuity in r at 1
-nodes = collect(0:Δ:bounds[1,2])
+Δtemp = 1/2 # the grid size; must have kΔ = 1 for some k due to discontinuity in r at 1
+nodes = collect(0:Δtemp:bounds[1,2])
 for order in orders
 # order = 5
     println("order = "*string(order))
@@ -29,34 +29,29 @@ for order in orders
         model, 
         nodes, 
     )
-    simmesh = SFFM.SimMesh(
-        model, 
-        nodes, 
-        1,
-    )
 
     # simulated distributions 
     simprobs_Psi = SFFM.Sims2Dist(
         model, 
-        simmesh, 
+        fvmesh, 
         sims_Psi, 
         type = "probability"
     )
     simdensity_Psi = SFFM.Sims2Dist(
         model, 
-        simmesh, 
+        fvmesh, 
         sims_Psi, 
         type = "density"
     )
     simprobs_1 = SFFM.Sims2Dist(
         model,
-        simmesh, 
+        fvmesh, 
         sims_1, 
         type = "probability"
     )
     simdensity_1 = SFFM.Sims2Dist(
         model,
-        simmesh, 
+        fvmesh, 
         sims_1, 
         type = "density"
     )
@@ -64,10 +59,10 @@ for order in orders
     # DG
     B_DG = SFFM.MakeB(model, dgmesh)
     #ME
-    me = SFFM.MakeME(SFFM.CMEParams[order], mean = Δ)
+    me = SFFM.MakeME(SFFM.CMEParams[order], mean = Δtemp)
     B_ME = SFFM.MakeBFRAP(model, frapmesh, me)
     # Erlang (this is the erlang which is equivalent to DG)
-    erlang = SFFM.MakeErlang(order, mean = Δ)
+    erlang = SFFM.MakeErlang(order, mean = Δtemp)
     B_Erlang = SFFM.MakeBFRAP(model, frapmesh, erlang)
     # meph (this is the erlang treated as an ME)
     meph = SFFM.ME(erlang.a, erlang.S, erlang.s; D = SFFM.erlangDParams[string(order)])
@@ -77,10 +72,10 @@ for order in orders
     
     # construct initial condition
     point = 0+eps()
-    pointIdx = convert(Int,ceil(point/Δ))
+    pointIdx = convert(Int,ceil(point/Δtemp))
     begin
         V = SFFM.vandermonde(order)
-        theNodes = dgmesh.CellNodes[:,pointIdx]
+        theNodes = SFFM.CellNodes(dgmesh)[:,pointIdx]
         basisValues = zeros(length(theNodes))
         for n in 1:length(theNodes)
             basisValues[n] = prod(point.-theNodes[[1:n-1;n+1:end]])./prod(theNodes[n].-theNodes[[1:n-1;n+1:end]])
@@ -89,12 +84,12 @@ for order in orders
             zeros(sum(model.C.<=0)) # LHS point mass
             zeros(sum(model.C.>=0)) # RHS point mass
         ]
-        initprobs = zeros(Float64,dgNBases(mesh),dgNIntervals(mesh),NPhases(model))
-        initprobs[:,pointIdx,1] = basisValues'*V.V*V.V'.*2/Δ
+        initprobs = zeros(Float64,SFFM.NBases(dgmesh),SFFM.NIntervals(dgmesh),SFFM.NPhases(model))
+        initprobs[:,pointIdx,1] = basisValues'*V.V*V.V'.*2/Δtemp
         initdist = (
             pm = initpm,
             distribution = initprobs,
-            x = dgmesh.CellNodes,
+            x = SFFM.CellNodes(dgmesh),
             type = "density"
         ) # convert to a distribution object so we can apply Dist2Coeffs
         # convert to Coeffs α in the DG context
@@ -105,12 +100,12 @@ for order in orders
             zeros(sum(model.C.<=0)) # LHS point mass
             zeros(sum(model.C.>=0)) # RHS point mass
         ]
-        initprobs = zeros(Float64,frapNBases(mesh),frapNIntervals(mesh),NPhases(model))
+        initprobs = zeros(Float64,SFFM.NBases(frapmesh),SFFM.NIntervals(frapmesh),SFFM.NPhases(model))
         initprobs[:,pointIdx,1] = me.a
         initdist = (
             pm = initpm,
             distribution = initprobs,
-            x = frapmesh.CellNodes,
+            x = SFFM.CellNodes(frapmesh),
             type = "density"
         ) # convert to a distribution object so we can apply Dist2Coeffs
         # convert to Coeffs α in the DG context
@@ -121,12 +116,12 @@ for order in orders
             zeros(sum(model.C.<=0)) # LHS point mass
             zeros(sum(model.C.>=0)) # RHS point mass
         ]
-        initprobs = zeros(Float64,frapNBases(mesh),frapNIntervals(mesh),NPhases(model))
+        initprobs = zeros(Float64,SFFM.NBases(frapmesh),SFFM.NIntervals(frapmesh),SFFM.NPhases(model))
         initprobs[1,pointIdx,1] = 1
         initdist = (
             pm = initpm,
             distribution = initprobs,
-            x = frapmesh.CellNodes,
+            x = SFFM.CellNodes(frapmesh),
             type = "density"
         ) # convert to a distribution object so we can apply Dist2Coeffs
         # convert to Coeffs α in the DG context
@@ -137,12 +132,12 @@ for order in orders
             zeros(sum(model.C.<=0)) # LHS point mass
             zeros(sum(model.C.>=0)) # RHS point mass
         ]
-        initprobs = zeros(Float64,fvNBases(mesh),fvNIntervals(mesh),NPhases(model))
+        initprobs = zeros(Float64,SFFM.NBases(fvmesh),SFFM.NIntervals(fvmesh),SFFM.NPhases(model))
         initprobs[1,pointIdx,1] = 1
         initdist = (
             pm = initpm,
             distribution = initprobs,
-            x = fvmesh.CellNodes,
+            x = SFFM.CellNodes(fvmesh),
             type = "density"
         ) # convert to a distribution object so we can apply Dist2Coeffs
         # convert to Coeffs α in the DG context
@@ -202,7 +197,7 @@ for order in orders
     #     color = 2, label = "ME")
     # SFFM.PlotSFM!(p, model, frapmesh, x1_Erlang, 
     #     color = 3, label = "Erlang")
-    # SFFM.PlotSFM!(p, model, simmesh, simprobs_1, 
+    # SFFM.PlotSFM!(p, model, frapmesh, simprobs_1, 
     #     color = 4, label = "Sim")
     # SFFM.PlotSFM!(p, model, frapmesh, x1_MEPH, 
     #     color = 5, label = "ME-PH")
@@ -214,12 +209,12 @@ for order in orders
     # the initial condition on Ψ is restricted to + states so find the + states
     plusIdx = [
         dgmesh.Fil["p+"];
-        repeat(dgmesh.Fil["+"]', dgNBases(mesh), 1)[:];
+        repeat(dgmesh.Fil["+"]', SFFM.NBases(dgmesh), 1)[:];
         dgmesh.Fil["q+"];
     ]
     plusIdxFV = [
         fvmesh.Fil["p+"];
-        repeat(fvmesh.Fil["+"]', fvNBases(mesh), 1)[:];
+        repeat(fvmesh.Fil["+"]', SFFM.NBases(fvmesh), 1)[:];
         fvmesh.Fil["q+"];
     ]
     # get the elements of x0_DG in + states only
@@ -251,37 +246,37 @@ for order in orders
 
     minusIdx = [
         dgmesh.Fil["p-"];
-        repeat(dgmesh.Fil["-"]', dgNBases(mesh), 1)[:];
+        repeat(dgmesh.Fil["-"]', SFFM.NBases(dgmesh), 1)[:];
         dgmesh.Fil["q-"];
     ]
     minusIdxFV = [
         fvmesh.Fil["p-"];
-        repeat(fvmesh.Fil["-"]', fvNBases(mesh), 1)[:];
+        repeat(fvmesh.Fil["-"]', SFFM.NBases(fvmesh), 1)[:];
         fvmesh.Fil["q-"];
     ]
     z_DG = zeros(
         Float64,
-        dgNBases(mesh)*dgNIntervals(mesh) * NPhases(model) +
+        SFFM.NBases(dgmesh)*SFFM.NIntervals(dgmesh) * SFFM.NPhases(model) +
             sum(model.C.<=0) + sum(model.C.>=0)
     )
     z_ME = zeros(
         Float64,
-        dgNBases(mesh)*dgNIntervals(mesh) * NPhases(model) +
+        SFFM.NBases(dgmesh)*SFFM.NIntervals(dgmesh) * SFFM.NPhases(model) +
             sum(model.C.<=0) + sum(model.C.>=0)
     )
     z_Erlang = zeros(
         Float64,
-        dgNBases(mesh)*dgNIntervals(mesh) * NPhases(model) +
+        SFFM.NBases(dgmesh)*SFFM.NIntervals(dgmesh) * SFFM.NPhases(model) +
             sum(model.C.<=0) + sum(model.C.>=0)
     )
     z_MEPH = zeros(
         Float64,
-        dgNBases(mesh)*dgNIntervals(mesh) * NPhases(model) +
+        SFFM.NBases(dgmesh)*SFFM.NIntervals(dgmesh) * SFFM.NPhases(model) +
             sum(model.C.<=0) + sum(model.C.>=0)
     )
     z_FV = zeros(
         Float64,
-        fvNBases(mesh)*fvNIntervals(mesh) * NPhases(model) +
+        SFFM.NBases(fvmesh)*SFFM.NIntervals(fvmesh) * SFFM.NPhases(model) +
             sum(model.C.<=0) + sum(model.C.>=0)
     )
 
@@ -337,7 +332,7 @@ for order in orders
     #     color = 2, label = "ME")
     # p = SFFM.PlotSFM!(p, model, frapmesh, returnDist_Erlang, 
     #     color = 3, label = "Erlang")
-    # p = SFFM.PlotSFM!(p, model, simmesh, simprobs_Psi, 
+    # p = SFFM.PlotSFM!(p, model, frapmesh, simprobs_Psi, 
     #     color = 4, label = "Sim")   
     # p = SFFM.PlotSFM!(p, model, frapmesh, returnDist_MEPH, 
     #     color = 5, label = "MEPH") 
@@ -347,18 +342,18 @@ for order in orders
     # display(p)
 end
 
-simmesh = SFFM.SimMesh(
+fvmesh = SFFM.FVMesh(
     model, 
     collect(model.Bounds[1,1]:0.1:model.Bounds[1,2]), 
-    1,
 )
+
 simdensity_Psi = SFFM.Sims2Dist(
     model, 
-    simmesh, 
+    fvmesh, 
     sims_Psi, 
     type = "probability"
 )
-q = SFFM.PlotSFM(model, mesh = simmesh, dist = simdensity_Psi)
+q = SFFM.PlotSFM(model, mesh = fvmesh, dist = simdensity_Psi)
 display(q)
 
 q = plot(xlabel = "order", ylabel = "log10 error", title = "error for Psi")
@@ -384,11 +379,11 @@ display(q)
 
 simdensity_1 = SFFM.Sims2Dist(
     model, 
-    simmesh, 
+    fvmesh, 
     sims_1, 
     type = "probability"
 )
-q = SFFM.PlotSFM(model, mesh = simmesh, dist = simdensity_1)
+q = SFFM.PlotSFM(model, mesh = fvmesh, dist = simdensity_1)
 display(q)
 
 q = plot(

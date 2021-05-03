@@ -17,20 +17,22 @@ Uses newtons method to solve the Ricatti equation
 - `Ψ(s)::Array{Float64,2}` the matrix ``Ψ``
 """
 function PsiFunX( model::SFFM.Model; s = 0, MaxIters = 1000, err = 1e-8)
-    T00inv = inv(model.TDict["00"] - s * LinearAlgebra.I)
+    SDict, TDict = modelDicts(model)
+
+    T00inv = inv(TDict["00"] - s * LinearAlgebra.I)
     # construct the generator Q(s)
     Q =
-        (1 ./ abs.(model.C[model.SDict["bullet"]])) .* (
-            model.TDict["bulletbullet"] - s * LinearAlgebra.I -
-            model.TDict["bullet0"] * T00inv * model.TDict["0bullet"]
+        (1 ./ abs.(model.C[SDict["bullet"]])) .* (
+            TDict["bulletbullet"] - s * LinearAlgebra.I -
+            TDict["bullet0"] * T00inv * TDict["0bullet"]
         )
 
     QDict = Dict{String,Array}("Q" => Q)
     for ℓ in ["+" "-"], m in ["+" "-"]
-        QDict[ℓ*m] = Q[model.SDict[ℓ], model.SDict[m]]
+        QDict[ℓ*m] = Q[SDict[ℓ], SDict[m]]
     end
 
-    Ψ = zeros(Float64, length(model.SDict["+"]), length(model.SDict["-"]))
+    Ψ = zeros(Float64, length(SDict["+"]), length(SDict["-"]))
     A = QDict["++"]
     B = QDict["--"]
     D = QDict["+-"]
@@ -65,17 +67,19 @@ function MakeXiX( model::SFFM.Model, Ψ::Array)
     # the system to solve is [ξ 0](-[B₋₋ B₋₀; B₀₋ B₀₀])⁻¹[B₋₊; B₀₊]Ψ = ξ
     # writing this out and using block inversion (as described on wikipedia)
     # we can solve this in the following way
-    T00inv = inv(model.TDict["00"])
+    SDict, TDict = modelDicts(model)
+
+    T00inv = inv(TDict["00"])
     invT₋₋ =
-        inv(model.TDict["--"] - model.TDict["-0"] * T00inv * model.TDict["0-"])
-    invT₋₀ = -invT₋₋ * model.TDict["-0"] * T00inv
+        inv(TDict["--"] - TDict["-0"] * T00inv * TDict["0-"])
+    invT₋₀ = -invT₋₋ * TDict["-0"] * T00inv
 
     A =
         -(
-            invT₋₋ * model.TDict["-+"] * Ψ + invT₋₀ * model.TDict["0+"] * Ψ +
+            invT₋₋ * TDict["-+"] * Ψ + invT₋₀ * TDict["0+"] * Ψ +
             LinearAlgebra.I
         )
-    b = zeros(1, size(model.TDict["--"], 1))
+    b = zeros(1, size(TDict["--"], 1))
     A[:, 1] .= 1.0 # normalisation conditions
     b[1] = 1.0 # normalisation conditions
 
@@ -105,20 +109,22 @@ Construct the stationary distribution of the SFM
 """
 function StationaryDistributionX( model::SFFM.Model, Ψ::Array, ξ::Array)
     # using the same block inversion trick as in MakeXiX
-    T00inv = inv(model.TDict["00"])
+    SDict, TDict = modelDicts(model)
+    
+    T00inv = inv(TDict["00"])
     invT₋₋ =
-        inv(model.TDict["--"] - model.TDict["-0"] * T00inv * model.TDict["0-"])
-    invT₋₀ = -invT₋₋ * model.TDict["-0"] * T00inv
+        inv(TDict["--"] - TDict["-0"] * T00inv * TDict["0-"])
+    invT₋₀ = -invT₋₋ * TDict["-0"] * T00inv
 
     Q =
-        (1 ./ abs.(model.C[model.SDict["bullet"]])) .* (
-            model.TDict["bulletbullet"] -
-            model.TDict["bullet0"] * T00inv * model.TDict["0bullet"]
+        (1 ./ abs.(model.C[SDict["bullet"]])) .* (
+            TDict["bulletbullet"] -
+            TDict["bullet0"] * T00inv * TDict["0bullet"]
         )
 
     QDict = Dict{String,Array}("Q" => Q)
     for ℓ in ["+" "-"], m in ["+" "-"]
-        QDict[ℓ*m] = Q[model.SDict[ℓ], model.SDict[m]]
+        QDict[ℓ*m] = Q[SDict[ℓ], SDict[m]]
     end
 
     K = QDict["++"] + Ψ * QDict["-+"]
@@ -129,12 +135,12 @@ function StationaryDistributionX( model::SFFM.Model, Ψ::Array, ξ::Array)
     αpₓ = ξ * A
 
     απₓ = αpₓ *
-        [model.TDict["-+"]; model.TDict["0+"]] *
+        [TDict["-+"]; TDict["0+"]] *
         -inv(K) *
-        [LinearAlgebra.I(length(model.SDict["+"])) Ψ] *
-        LinearAlgebra.diagm(1 ./ abs.(model.C[model.SDict["bullet"]]))
+        [LinearAlgebra.I(length(SDict["+"])) Ψ] *
+        LinearAlgebra.diagm(1 ./ abs.(model.C[SDict["bullet"]]))
 
-    απₓ0 = -απₓ * [model.TDict["+0"];model.TDict["-0"]] * T00inv
+    απₓ0 = -απₓ * [TDict["+0"];TDict["-0"]] * T00inv
 
     # normalising constant
     α = sum(αpₓ) + sum(απₓ) + sum(απₓ0)
@@ -145,11 +151,11 @@ function StationaryDistributionX( model::SFFM.Model, Ψ::Array, ξ::Array)
     # density method for scalar x-values
     function πₓ(x::Real)
         pₓ *
-        [model.TDict["-+"]; model.TDict["0+"]] *
+        [TDict["-+"]; TDict["0+"]] *
         exp(K*x) *
-        [LinearAlgebra.I(length(model.SDict["+"])) Ψ] *
-        LinearAlgebra.diagm(1 ./ abs.(model.C[model.SDict["bullet"]])) *
-        [LinearAlgebra.I(sum(model.C .!= 0)) [model.TDict["+0"];model.TDict["-0"]] * T00inv]
+        [LinearAlgebra.I(length(SDict["+"])) Ψ] *
+        LinearAlgebra.diagm(1 ./ abs.(model.C[SDict["bullet"]])) *
+        [LinearAlgebra.I(sum(model.C .!= 0)) [TDict["+0"];TDict["-0"]] * T00inv]
     end
     # density method for arrays so that πₓ returns an array with the same shape
     # as is output by Coeff2Dist
@@ -168,11 +174,11 @@ function StationaryDistributionX( model::SFFM.Model, Ψ::Array, ξ::Array)
     function Πₓ(x::Real)
         [pₓ zeros(1,sum(model.C.>0))] .+
         pₓ *
-        [model.TDict["-+"]; model.TDict["0+"]] *
+        [TDict["-+"]; TDict["0+"]] *
         (exp(K*x) - LinearAlgebra.I) / K *
-        [LinearAlgebra.I(length(model.SDict["+"])) Ψ] *
-        LinearAlgebra.diagm(1 ./ abs.(model.C[model.SDict["bullet"]])) *
-        [LinearAlgebra.I(sum(model.C .!= 0)) [model.TDict["+0"];model.TDict["-0"]] * T00inv]
+        [LinearAlgebra.I(length(SDict["+"])) Ψ] *
+        LinearAlgebra.diagm(1 ./ abs.(model.C[SDict["bullet"]])) *
+        [LinearAlgebra.I(sum(model.C .!= 0)) [TDict["+0"];TDict["-0"]] * T00inv]
     end
     # CDF method for arrays so that Πₓ returns an array with the same shape
     # as is output by Coeff2Dist

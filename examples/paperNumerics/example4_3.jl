@@ -6,14 +6,14 @@ include("exampleModelDef.jl")
 
 ## section 4.3: the marginal stationary distribution of X
 ## mesh
-Δ = 0.4
-Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
-NBases = 2
+Δtemp = 0.4
+Nodes = collect(approxBounds[1, 1]:Δtemp:approxBounds[1, 2])
+nBases = 2
 Basis = "lagrange"
 mesh = SFFM.DGMesh(
     approxModel,
     Nodes,
-    NBases,
+    nBases,
     Basis = Basis,
 )
 let q = SFFM.PlotSFM(approxModel)
@@ -26,8 +26,8 @@ let q = SFFM.PlotSFM(approxModel)
     # evaluate the distribution
     analyticX = (
         pm = [pₓ[:];0;0],
-        distribution = πₓ(mesh.CellNodes),
-        x = mesh.CellNodes,
+        distribution = πₓ(SFFM.CellNodes(mesh)),
+        x = SFFM.CellNodes(mesh),
         type = "density"
     )
 
@@ -46,12 +46,12 @@ let q = SFFM.PlotSFM(approxModel)
     # now DG it
     c = 0
     colours = [:green;:blue]
-    for NBases in 1:2
+    for nBases in 1:2
         c = c+1
         mesh = SFFM.DGMesh(
             approxModel,
             Nodes,
-            NBases,
+            nBases,
             Basis=Basis,
         )
 
@@ -85,7 +85,7 @@ let q = SFFM.PlotSFM(approxModel)
             mesh,
             Dist,
             color = colours[c],
-            label = "DG: N_k = "*string(NBases),
+            label = "DG: N_k = "*string(nBases),
             seriestype = :line,
             jitter = 0.5,
         )

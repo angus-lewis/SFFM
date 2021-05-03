@@ -10,15 +10,15 @@ include("exampleModelDef.jl")
 @load pwd()*"/examples/paperNumerics/dump/sims.jld2" sims
 
 ## mesh
-Δ = 0.4
-Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
+Δtemp = 0.4
+Nodes = collect(approxBounds[1, 1]:Δtemp:approxBounds[1, 2])
 
-NBases = 1
+nBases = 1
 Basis = "lagrange"
 mesh = SFFM.DGMesh(
     approxModel,
     Nodes,
-    NBases,
+    nBases,
     Basis = Basis,
 )
 
@@ -26,7 +26,7 @@ mesh = SFFM.DGMesh(
 simprobs = SFFM.Sims2Dist(simModel,mesh,sims,type="cumulative")
 
 ## bootstrap to get CI
-function bootFun(sims; nBoot = 10_000)
+function bootFun(sims; nBoot = 10)
     l = length(sims.t)
     samplesBoot = Array{Float64,3}(undef,nBoot,6,2)
     for n in 1:nBoot
@@ -62,12 +62,12 @@ let
     ## DG
     c = 0
     styles = [:dashdot,:dash]
-    for NBases in 1:2
+    for nBases in 1:2
         c = c+1
         mesh = SFFM.DGMesh(
             approxModel,
             Nodes,
-            NBases,
+            nBases,
             Basis = Basis,
         )
         # construct matrices
@@ -75,7 +75,7 @@ let
         Ψ = SFFM.PsiFun(All.D)
 
         # construct initial condition
-        theNodes = mesh.CellNodes[:,convert(Int,ceil(5/Δ))]
+        theNodes = SFFM.CellNodes(mesh)[:,convert(Int,ceil(5/Δtemp))]
         basisValues = zeros(length(theNodes))
         for n in 1:length(theNodes)
             basisValues[n] = prod(5.0.-theNodes[[1:n-1;n+1:end]])./prod(theNodes[n].-theNodes[[1:n-1;n+1:end]])
@@ -84,12 +84,12 @@ let
             zeros(sum(approxModel.C.<=0)) # LHS point mass
             zeros(sum(approxModel.C.>=0)) # RHS point mass
         ]
-        initprobs = zeros(Float64,NBases(mesh),NIntervals(mesh),approxNPhases(model))
-        initprobs[:,convert(Int,ceil(5/Δ)),3] = basisValues'*All.Matrices.Local.V.V*All.Matrices.Local.V.V'.*2/Δ
+        initprobs = zeros(Float64,SFFM.NBases(mesh),SFFM.NIntervals(mesh),SFFM.NPhases(approxModel))
+        initprobs[:,convert(Int,ceil(5/Δtemp)),3] = basisValues'*All.Matrices.Local.V.V*All.Matrices.Local.V.V'.*2/Δtemp
         initdist = (
             pm = initpm,
             distribution = initprobs,
-            x = mesh.CellNodes,
+            x = SFFM.CellNodes(mesh),
             type = "density"
         ) # convert to a distribution object so we can apply Dist2Coeffs
         # convert to Coeffs α in the DG context
@@ -97,7 +97,7 @@ let
         # the initial condition on Ψ is restricted to + states so find the + states
         plusIdx = [
             mesh.Fil["p+"];
-            repeat(mesh.Fil["+"]', NBases(mesh), 1)[:];
+            repeat(mesh.Fil["+"]', SFFM.NBases(mesh), 1)[:];
             mesh.Fil["q+"];
         ]
         # get the elements of x0 in + states only
@@ -110,13 +110,13 @@ let
         # this can occur in - states only, so find the - states
         minusIdx = [
             mesh.Fil["p-"];
-            repeat(mesh.Fil["-"]', NBases(mesh), 1)[:];
+            repeat(mesh.Fil["-"]', SFFM.NBases(mesh), 1)[:];
             mesh.Fil["q-"];
         ]
         # then map to the whole state space for plotting
         z = zeros(
             Float64,
-            NBases(mesh)*NIntervals(mesh) * approxNPhases(model) +
+            SFFM.NBases(mesh)*SFFM.NIntervals(mesh) * SFFM.NPhases(approxModel) +
                 sum(approxModel.C.<=0) + sum(approxModel.C.>=0)
         )
         z[minusIdx] = w
@@ -135,26 +135,26 @@ let
         p2 = plot!(p2,
             DGProbs.x[:],
             DGProbs.distribution[:,:,2][:],
-            label = "DG: N_k = "*string(NBases),
-            color = colours[NBases],
+            label = "DG: N_k = "*string(nBases),
+            color = colours[nBases],
             xlims = (-0.1,2.1),
             seriestype = :scatter,
             # linestyle = styles[c],
-            markershape = shapes[NBases],
-            markerstrokecolor = colours[NBases],
+            markershape = shapes[nBases],
+            markerstrokecolor = colours[nBases],
             markersize=6,
         )
 
         p4 = plot!(p4,
             DGProbs.x[:],
             DGProbs.distribution[:,:,4][:],
-            label = "DG:  N_k = "*string(NBases),
-            color = colours[NBases],
+            label = "DG:  N_k = "*string(nBases),
+            color = colours[nBases],
             xlims = (-0.1,2.1),
             seriestype = :scatter,
             # linestyle = styles[c],
-            markershape = shapes[NBases],
-            markerstrokecolor = colours[NBases],
+            markershape = shapes[nBases],
+            markerstrokecolor = colours[nBases],
             markersize=6,
         )
     end

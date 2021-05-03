@@ -14,7 +14,7 @@ Constructs a block diagonal matrix from blocks
 - `Blocks(x::Array{Float64}, i::Int)`: a function wich returns a
     `NBases(mesh)×NBases(mesh)` array to put along the diagonal. The input
     argument `x` is a column vector of corresponding to the nodes in each cell,
-    i.e. `mesh.CellNodes[:,n]`. `i` denotes the phase.
+    i.e. `SFFM.CellNodes(mesh)[:,n]`. `i` denotes the phase.
 - `Factors::Array{<:Real,1}`: a `NIntervals(mesh)×1` vector of factors which multiply blocks
 
 # Output
@@ -33,7 +33,7 @@ function MakeBlockDiagonalMatrixR(
     end
     for i = 1:NIntervals(mesh), j = 1:NPhases(model)
         idx = (1:NBases(mesh)) .+ (i - 1) * NBases(mesh)
-        BlockMatrix[j][idx, idx] = Blocks(mesh.CellNodes[:, i], j) * Factors[i]
+        BlockMatrix[j][idx, idx] = Blocks(SFFM.CellNodes(mesh)[:, i], j) * Factors[i]
     end
     return (BlockMatrix = BlockMatrix)
 end
@@ -77,23 +77,23 @@ function MakeFluxMatrixR(
         for k = 1:NIntervals(mesh)
             idx = (1:NBases(mesh)) .+ (k - 1) * NBases(mesh)
             if model.C[i] > 0
-                xright = mesh.CellNodes[end, k]
+                xright = SFFM.CellNodes(mesh)[end, k]
                 R = 1.0 ./ model.r.a(xright)[i]
                 F[i][idx, idx] = PosDiagBlock * R
             elseif model.C[i] < 0
-                xleft = mesh.CellNodes[1, k]
+                xleft = SFFM.CellNodes(mesh)[1, k]
                 R = 1.0 ./ model.r.a(xleft)[i]
                 F[i][idx, idx] = NegDiagBlock * R
             end # end if C[i]
             if k > 1
                 idxup = (1:NBases(mesh)) .+ (k - 2) * NBases(mesh)
                 if model.C[i] > 0
-                    xright = mesh.CellNodes[end, k-1]
+                    xright = SFFM.CellNodes(mesh)[end, k-1]
                     R = 1.0 ./ model.r.a(xright)[i]
                     η = (Δ(mesh)[k] / NBases(mesh)) / (Δ(mesh)[k-1] / NBases(mesh))
                     F[i][idxup, idx] = UpDiagBlock * η * R
                 elseif model.C[i] < 0
-                    xleft = mesh.CellNodes[1, k]
+                    xleft = SFFM.CellNodes(mesh)[1, k]
                     R = 1.0 ./ model.r.a(xleft)[i]
                     η = (Δ(mesh)[k-1] / NBases(mesh)) / (Δ(mesh)[k] / NBases(mesh))
                     F[i][idx, idxup] = LowDiagBlock * η * R

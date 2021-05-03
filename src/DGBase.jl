@@ -44,7 +44,7 @@ A blank initialiser for a DGMesh.
 Used for initialising a blank plot only. There is no reason to call this, ever. 
 """
 struct DGMesh <: Mesh 
-    Nodes::Array{Float64,1}
+    Nodes::Array{<:Real,1}
     NBases::Int
     Fil::Dict{String,BitArray{1}}
     Basis::String
@@ -66,7 +66,7 @@ struct DGMesh <: Mesh
     end
     function DGMesh()
         new(
-            0,
+            [0.0],
             0,
             Dict{String,BitArray{1}}(),
             "",
@@ -79,11 +79,14 @@ function MakeFil(
     Nodes::Array{<:Real,1},
     )
     meshNIntervals = length(Nodes) - 1
+    Δtemp = Nodes[2:end] - Nodes[1:end-1]
 
+    Fil = Dict{String,BitArray{1}}()
+    
     ## Construct the sets Fᵐ = ⋃ᵢ Fᵢᵐ, global index for sets of type m
-    idxPlus = model.r.r(Nodes[1:end-1].+Δ[:]/2).>0
-    idxZero = model.r.r(Nodes[1:end-1].+Δ[:]/2).==0
-    idxMinus = model.r.r(Nodes[1:end-1].+Δ[:]/2).<0
+    idxPlus = model.r.r(Nodes[1:end-1].+Δtemp[:]/2).>0
+    idxZero = model.r.r(Nodes[1:end-1].+Δtemp[:]/2).==0
+    idxMinus = model.r.r(Nodes[1:end-1].+Δtemp[:]/2).<0
     for i in 1:NPhases(model)
         Fil[string(i)*"+"] = idxPlus[:,i]
         Fil[string(i)*"0"] = idxZero[:,i]
@@ -141,28 +144,28 @@ NBases(mesh::DGMesh) = mesh.NBases
 
 """
 
-    NIntervals(mesh<:Mesh)
+    NIntervals(mesh::Mesh)
 
 Total number of cells for a mesh
 """
-NIntervals(mesh<:Mesh) = length(mesh.Nodes) - 1
+NIntervals(mesh::Mesh) = length(mesh.Nodes) - 1
 
 
 """
 
-    Δ(mesh<:Mesh)
+    Δ(mesh::Mesh)
 
 The width of each cell
 """
-Δ(mesh<:Mesh) = mesh.Nodes[2:end] - mesh.Nodes[1:end-1]
+Δ(mesh::Mesh) = mesh.Nodes[2:end] - mesh.Nodes[1:end-1]
 
 """
 
-    TotalNBases(mesh<:DGMesh)
+    TotalNBases(mesh::DGMesh)
 
 Total number of bases in the stencil
 """
-TotalNBases(mesh<:Mesh) = NBases(mesh) * NIntervals(mesh)
+TotalNBases(mesh::Mesh) = NBases(mesh) * NIntervals(mesh)
 
 """
 

@@ -29,20 +29,20 @@ approxSpec = Array{Any}(undef, length(Δs), length(NBasesRange))
 for d = 1:length(Δs), n = 1:length(NBasesRange)
     if d + 2 * n <= 10
         # define the mesh for each iteration
-        NBases = NBasesRange[n]
-        Δ = Δs[d]
-        println("mesh details; h = ", Δ, " NBases = ", NBases)
+        nBases = NBasesRange[n]
+        Δtemp = Δs[d]
+        println("mesh details; h = ", Δtemp, " NBases = ", nBases)
 
         # collect time and memory stats
         ~, times[d, n], mems[d, n], gctimes[d, n], alloc[d, n] = @timed begin
-            Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
+            Nodes = collect(approxBounds[1, 1]:Δtemp:approxBounds[1, 2])
             mesh = SFFM.DGMesh(
                 approxModel,
                 Nodes,
-                NBases,
+                nBases,
                 Basis = Basis,
             )
-            approxSpec[d, n] = (Δ, NBases, TotalNBases(mesh) * approxNPhases(model))
+            approxSpec[d, n] = (Δtemp, nBases, SFFM.TotalNBases(mesh) * SFFM.NPhases(approxModel))
 
             # compute the marginal via DG
             All = SFFM.MakeAll( approxModel, mesh, approxType = "projection")
@@ -75,7 +75,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
             pm = [pₓ[:]; 0; 0],
             distribution =
                 Πₓ(Matrix(mesh.Nodes[2:end]')) - Πₓ(Matrix(mesh.Nodes[1:end-1]')),
-            x = mesh.Nodes[1:end-1] + Δ(mesh) / 2,
+            x = mesh.Nodes[1:end-1] + SFFM.Δ(mesh) / 2,
             type = "probability",
         )
 
@@ -88,7 +88,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
             SFFM.Sims2Dist( simModel, mesh, sims, type = "probability")
 
         # do DG for Ψ
-        theNodes = mesh.CellNodes[:, convert(Int, ceil(5 / Δ))]
+        theNodes = SFFM.CellNodes(mesh)[:, convert(Int, ceil(5 / Δtemp))]
         basisValues = zeros(length(theNodes))
         for n = 1:length(theNodes)
             basisValues[n] =
@@ -99,17 +99,17 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
             zeros(sum(approxModel.C .<= 0)) # LHS point mass
             zeros(sum(approxModel.C .>= 0)) # RHS point mass
         ]
-        initprobs = zeros(Float64, NBases(mesh), NIntervals(mesh), approxNPhases(model))
-        initprobs[:, convert(Int, ceil(5 / Δ)), 3] =
-            basisValues' * All.Matrices.Local.V.V * All.Matrices.Local.V.V' .* 2 / Δ
+        initprobs = zeros(Float64, SFFM.NBases(mesh), SFFM.NIntervals(mesh), SFFM.NPhases(approxModel))
+        initprobs[:, convert(Int, ceil(5 / Δtemp)), 3] =
+            basisValues' * All.Matrices.Local.V.V * All.Matrices.Local.V.V' .* 2 / Δtemp
         initdist =
-            (pm = initpm, distribution = initprobs, x = mesh.CellNodes, type = "density") # convert to a distribution object so we can apply Dist2Coeffs
+            (pm = initpm, distribution = initprobs, x = SFFM.CellNodes(mesh), type = "density") # convert to a distribution object so we can apply Dist2Coeffs
         # convert to Coeffs α in the DG context
         x0 = SFFM.Dist2Coeffs( approxModel, mesh, initdist)
         # the initial condition on Ψ is restricted to + states so find the + states
         plusIdx = [
             mesh.Fil["p+"]
-            repeat(mesh.Fil["+"]', NBases(mesh), 1)[:]
+            repeat(mesh.Fil["+"]', SFFM.NBases(mesh), 1)[:]
             mesh.Fil["q+"]
         ]
         # get the elements of x0 in + states only
@@ -120,13 +120,13 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         # this can occur in - states only, so find the - states
         minusIdx = [
             mesh.Fil["p-"]
-            repeat(mesh.Fil["-"]', NBases(mesh), 1)[:]
+            repeat(mesh.Fil["-"]', SFFM.NBases(mesh), 1)[:]
             mesh.Fil["q-"]
         ]
         # then map to the whole state space for analysis
         z = zeros(
             Float64,
-            NBases(mesh) * NIntervals(mesh) * approxNPhases(model) +
+            SFFM.NBases(mesh) * SFFM.NIntervals(mesh) * SFFM.NPhases(approxModel) +
             sum(approxModel.C .<= 0) +
             sum(approxModel.C .>= 0),
         )

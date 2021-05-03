@@ -33,20 +33,20 @@ approxSpec = Array{Any}(undef, length(Δs), length(NBasesRange))
 for d = 1:length(Δs), n = 1:length(NBasesRange)
     if d + 2 * n <= 10
         # define the mesh for each iteration
-        NBases = NBasesRange[n]
-        Δ = Δs[d]
-        println("mesh details; h = ", Δ, " NBases = ", NBases)
+        nBases = NBasesRange[n]
+        Δtemp = Δs[d]
+        println("mesh details; h = ", Δtemp, " NBases = ", nBases)
 
         # collect time and memory stats
         ~, times[d, n], mems[d, n], gctimes[d, n], alloc[d, n] = @timed begin
-            Nodes = collect(approxBounds[1, 1]:Δ:approxBounds[1, 2])
+            Nodes = collect(approxBounds[1, 1]:Δtemp:approxBounds[1, 2])
             mesh = SFFM.DGMesh(
                 approxModel,
                 Nodes,
-                NBases,
+                nBases,
                 Basis = Basis,
             )
-            approxSpec[d, n] = (Δ, NBases, TotalNBases(mesh) * approxNPhases(model))
+            approxSpec[d, n] = (Δtemp, nBases, SFFM.TotalNBases(mesh) * SFFM.NPhases(approxModel))
 
             # compute the marginal via DG
             Matrices = SFFM.MakeMatrices(approxModel, mesh,probTransform=false)
@@ -91,7 +91,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
             pm = [pₓ[:]; 0; 0],
             distribution =
                 Πₓ(Matrix(mesh.Nodes[2:end]')) - Πₓ(Matrix(mesh.Nodes[1:end-1]')),
-            x = mesh.Nodes[1:end-1] + Δ(mesh) / 2,
+            x = mesh.Nodes[1:end-1] + SFFM.Δ(mesh) / 2,
             type = "probability",
         )
 

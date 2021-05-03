@@ -11,8 +11,8 @@ NSim = 10^1 * innerNSim
 # # we can do this in parallell
 using SharedArrays, Distributed
 nprocs() < 5 && addprocs(5 - nprocs())
-@everywhere include("src/SFFM.jl")
-@everywhere include("examples/paperNumerics/exampleModelDef.jl")
+@everywhere include("../../src/SFFM.jl")
+@everywhere include("exampleModelDef.jl")
 simsOuter = SharedArray(zeros(NSim, 5))
 
 @time @sync @distributed for n = 1:(NSim÷innerNSim)

@@ -24,7 +24,7 @@ Convert from a vector of coefficients for the DG system to a distribution.
     want to convert to. Options are `"probability"` to return the probabilities
     ``P(X(t)∈ D_k, φ(t) = i)`` where ``D_k``is the kth cell, `"cumulative"` to
     return the CDF evaluated at cell edges, or `"density"` to return an
-    approximation to the density ar at the mesh.CellNodes.
+    approximation to the density ar at the SFFM.CellNodes(mesh).
 - `probTransform::Bool` a boolean value specifying whether to transform to a
     probabilistic interpretation or not. Valid only for lagrange basis.
 
@@ -73,7 +73,7 @@ function Coeffs2Dist(
         Coeffs = [Coeffs[1:N₋]; temp[:]; Coeffs[end-N₊+1:end]]
     end
     if type == "density"
-        xvals = mesh.CellNodes
+        xvals = SFFM.CellNodes(mesh)
         if Basis(mesh) == "legendre"
             yvals = reshape(Coeffs[N₋+1:end-N₊], NBases(mesh), NIntervals(mesh), NPhases(model))
             for i in 1:NPhases(model)
@@ -89,13 +89,13 @@ function Coeffs2Dist(
         end
         if NBases(mesh) == 1
             yvals = [1;1].*yvals
-            xvals = [mesh.CellNodes-Δ(mesh)'/2;mesh.CellNodes+Δ(mesh)'/2]
+            xvals = [SFFM.CellNodes(mesh)-Δ(mesh)'/2;SFFM.CellNodes(mesh)+Δ(mesh)'/2]
         end
     elseif type == "probability"
         if NBases(mesh) > 1 && typeof(mesh)==SFFM.DGMesh
-            xvals = mesh.CellNodes[1, :] + (Δ(mesh) ./ 2)
+            xvals = SFFM.CellNodes(mesh)[1, :] + (Δ(mesh) ./ 2)
         else
-            xvals = mesh.CellNodes
+            xvals = SFFM.CellNodes(mesh)
         end
         if Basis(mesh) == "legendre"
             yvals = (reshape(Coeffs[N₋+1:NBases(mesh):end-N₊], 1, NIntervals(mesh), NPhases(model)).*Δ(mesh)')./sqrt(2)
@@ -109,9 +109,9 @@ function Coeffs2Dist(
         end
     elseif type == "cumulative"
         if NBases(mesh) > 1 
-            xvals = mesh.CellNodes[[1;end], :]
+            xvals = SFFM.CellNodes(mesh)[[1;end], :]
         else
-            xvals = [mesh.CellNodes-Δ(mesh)'/2;mesh.CellNodes+Δ(mesh)'/2]
+            xvals = [SFFM.CellNodes(mesh)-Δ(mesh)'/2;SFFM.CellNodes(mesh)+Δ(mesh)'/2]
         end
         if Basis(mesh) == "legendre"
             tempDist = (reshape(Coeffs[N₋+1:NBases(mesh):end-N₊], 1, NIntervals(mesh), NPhases(model)).*Δ(mesh)')./sqrt(2)

@@ -19,9 +19,9 @@ model = SFFM.Model(T, C, r, Bounds = Bounds)
 
 ## Define mesh
 Nodes = [0;1;1.8]
-NBases = 2
+nBases = 2
 Basis = "lagrange"
-mesh = SFFM.DGMesh(model, Nodes, NBases, Basis=Basis)
+mesh = SFFM.DGMesh(model, Nodes, nBases, Basis=Basis)
 
 ## Make matrices
 All = SFFM.MakeAll( model, mesh)
