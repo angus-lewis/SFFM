@@ -1,6 +1,17 @@
-# include(pwd()*"/src/SFFM.jl")
-# include(pwd()*"/examples/meNumerics/discontinuitiesModelDef.jl")
+"""
 
+    FVMesh(
+        model::SFFM.Model,
+        Nodes::Array{Float64,1};
+        Fil::Dict{String,BitArray{1}}=Dict{String,BitArray{1}}(),
+    ) 
+
+Constructor for a mesh for a finite volume scheme. 
+    Inputs: 
+     - `model::Model` a Model object
+     - `Nodes::Array{Float64,1}` a vector specifying the cell edges
+     - `Fil::Dict` an optional dictionary allocating the cells to the sets Fᵢᵐ
+"""
 struct FVMesh <: SFFM.Mesh 
     Nodes::Array{Float64,1}
     Fil::Dict{String,BitArray{1}}
@@ -40,9 +51,9 @@ CellNodes(mesh::FVMesh) = Array(((mesh.Nodes[1:end-1] + mesh.Nodes[2:end]) / 2 )
 
     Basis(mesh::FVMesh)
 
-Constant "lagrange"
+Constant ""
 """
-Basis(mesh::FVMesh) = "lagrange"
+Basis(mesh::FVMesh) = ""
 
 function interp(nodes, evalPt)
     order = length(nodes)

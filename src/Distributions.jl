@@ -1,3 +1,24 @@
+"""
+
+    SFFMDistribution(
+        pm::Array{<:Real},
+        distribution::Array{<:Real,3},
+        x::Array{<:Real},
+        type::String,
+    )
+
+- `pm::Array{Float64}`: a vector containing the point masses, the first
+    `sum(model.C.<=0)` entries are the left hand point masses and the last
+    `sum(model.C.>=0)` are the right-hand point masses.
+- `distribution::Array{Float64,3}`: "probability" or "density"` 
+- `x::Array{Float64,2}`:
+    - if `type="probability"` is a `1×NIntervals×NPhases` array
+        containing the cell centers.
+    - if `type="density"` is a `NBases×NIntervals×NPhases` array
+        containing the cell nodes at which the denisty is evaluated.
+- `type::String`: either `"probability"` or `"density"`. `"cumulative"` is
+    not possible.
+"""
 struct SFFMDistribution
     pm::Array{<:Real}
     distribution::Array{<:Real,3}
@@ -59,7 +80,7 @@ Convert from a vector of coefficients for the DG system to a distribution.
 """
 function Coeffs2Dist(
     model::SFFM.Model,
-    mesh::SFFM.Mesh,
+    mesh::SFFM.DGMesh,
     Coeffs::AbstractArray;
     type::String = "probability",
     probTransform::Bool = true,
@@ -92,7 +113,7 @@ function Coeffs2Dist(
             xvals = [SFFM.CellNodes(mesh)-Δ(mesh)'/2;SFFM.CellNodes(mesh)+Δ(mesh)'/2]
         end
     elseif type == "probability"
-        if NBases(mesh) > 1 && typeof(mesh)==SFFM.DGMesh
+        if NBases(mesh) > 1 
             xvals = SFFM.CellNodes(mesh)[1, :] + (Δ(mesh) ./ 2)
         else
             xvals = SFFM.CellNodes(mesh)
@@ -134,8 +155,40 @@ function Coeffs2Dist(
         pm[N₋+1:end] = pm[N₋+1:end] + yvals[end,end,model.C.>=0]
     end
 
-    out = (pm=pm, distribution=yvals, x=xvals, type=type)
-    println("UPDATE: distribution object created with keys ", keys(out))
+    out = SFFMDistribution(pm, yvals, xvals, type)
+    println("UPDATE: distribution object created with keys ", fieldnames(SFFMDistribution))
+    return out
+end
+function Coeffs2Dist(
+    model::SFFM.Model,
+    mesh::Union{FRAPMesh, FVMesh},
+    Coeffs::AbstractArray;
+    type::String = "probability",
+)
+
+    if type != "probability"
+        args = [
+            model;
+            mesh;
+            Coeffs;
+            type;
+        ]
+        error("Input Error: no functionality other than 'probability' implemented")
+    end
+    
+    N₋ = sum(model.C .<= 0)
+    N₊ = sum(model.C .>= 0)
+    
+    xvals = SFFM.CellNodes(mesh)
+    
+    yvals = sum(
+        reshape(Coeffs[N₋+1:end-N₊], NBases(mesh), NIntervals(mesh), NPhases(model)),
+        dims = 1,
+    )
+    pm = [Coeffs[1:N₋]; Coeffs[end-N₊+1:end]]
+
+    out = SFFMDistribution(pm, yvals, xvals, type)
+    println("UPDATE: distribution object created with keys ", fieldnames(SFFMDistribution))
     return out
 end
 
@@ -146,33 +199,21 @@ coefficients.
     Dist2Coeffs(
         model::SFFM.Model,
         mesh::SFFM.Mesh,
-        Distn::NamedTuple{(:pm, :distribution, :x, :type)};
+        Distn::SFFMDistribution;
         probTransform::Bool = true,
     )
 
 # Arguments
 - `model`: a Model object
 - `mesh`: a Mesh object as output from MakeMesh
-- `Distn::NamedTuple{(:pm, :distribution, :x, :type)}`: a distribution object
-    i.e. a `NamedTuple` with fields
-    - `pm::Array{Float64}`: a vector containing the point masses, the first
-        `sum(model.C.<=0)` entries are the left hand point masses and the last
-        `sum(model.C.>=0)` are the right-hand point masses.
-    - `distribution::Array{Float64,3}`:
-        - if `type="probability"` is a `1×NIntervals×NPhases` array containing
-            the probabilities ``P(X(t)∈ D_k, φ(t) = i)`` where ``D_k``
-            is the kth cell.
-        - if `type="density"` is a `NBases×NIntervals×NPhases` array containing
-            either the density function evaluated at the cell nodes which are in
-            `x` below, or, the inner product of the density function against the
-            lagrange polynomials.
-    - `x::Array{Float64,2}`:
-        - if `type="probability"` is a `1×NIntervals×NPhases` array
-            containing the cell centers.
-        - if `type="density"` is a `NBases×NIntervals×NPhases` array
-            containing the cell nodes at which the denisty is evaluated.
-    - `type::String`: either `"probability"` or `"density"`. `:cumulative` is
-        not possible.
+- `Distn::SFFMDistribution
+    - if `type="probability"` is a `1×NIntervals×NPhases` array containing
+        the probabilities ``P(X(t)∈ D_k, φ(t) = i)`` where ``D_k``
+        is the kth cell.
+    - if `type="density"` is a `NBases×NIntervals×NPhases` array containing
+        either the density function evaluated at the cell nodes which are in
+        `x` below, or, the inner product of the density function against the
+        lagrange polynomials.
 - `probTransform::Bool` a boolean value specifying whether to transform to a
     probabilistic interpretation or not. Valid only for lagrange basis.
 
@@ -184,8 +225,8 @@ coefficients.
 """
 function Dist2Coeffs(
     model::SFFM.Model,
-    mesh::SFFM.Mesh,
-    Distn::NamedTuple{(:pm, :distribution, :x, :type)};
+    mesh::SFFM.DGMesh,
+    Distn::SFFMDistribution;
     probTransform::Bool = true,
 )
     V = SFFM.vandermonde(NBases(mesh))
@@ -234,13 +275,30 @@ function Dist2Coeffs(
     coeffs = Matrix(coeffs[:]')
     return coeffs
 end
+function Dist2Coeffs(
+    model::SFFM.Model,
+    mesh::Union{SFFM.FRAPMesh,SFFM.FVMesh},
+    Distn::SFFMDistribution;
+    probTransform::Bool = true,
+)
+    
+    # also put the point masses on the ends
+    coeffs = [
+        Distn.pm[1:sum(model.C .<= 0)]
+        Distn.distribution[:]
+        Distn.pm[sum(model.C .<= 0)+1:end]
+    ]
+    
+    coeffs = Matrix(coeffs[:]')
+    return coeffs
+end
 
 """
 Computes the error between distributions.
 
     starSeminorm(
-        d1::NamedTuple{(:pm, :distribution, :x, :type)},
-        d2::NamedTuple{(:pm, :distribution, :x, :type)},
+        d1::SFFMDistribution,
+        d2::SFFMDistribution,
         )
 
 # Arguments
@@ -250,8 +308,8 @@ Computes the error between distributions.
     `type="probability"``
 """
 function starSeminorm(
-    d1::NamedTuple{(:pm, :distribution, :x, :type)},
-    d2::NamedTuple{(:pm, :distribution, :x, :type)},
+    d1::SFFMDistribution,
+    d2::SFFMDistribution,
     )
     if ((d1.type!="probability") || (d2.type!="probability"))
         throw(ArgumentError("distributions need to be of type probability"))

@@ -75,6 +75,8 @@ function MakeR(
                     temp = LinearAlgebra.diagm(V.w)*LinearAlgebra.diagm(EvalR[NBases(mesh)*(n-1).+(1:NBases(mesh))])*V.V*V.V'
                 end
             end
+        elseif Basis(mesh) == ""
+            temp = LinearAlgebra.diagm(EvalR[NBases(mesh)*(n-1).+(1:NBases(mesh))])
         end
         R[NBases(mesh)*(n-1).+(1:NBases(mesh)).+N₋, NBases(mesh)*(n-1).+(1:NBases(mesh)).+N₋] = temp
     end

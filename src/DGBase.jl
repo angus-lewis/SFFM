@@ -74,6 +74,15 @@ struct DGMesh <: Mesh
     end
 end 
 
+"""
+
+    MakeFil(
+        model::SFFM.Model,
+        Nodes::Array{<:Real,1},
+        )
+
+Construct dict with entries indexing which cells belong to Fᵢᵐ. 
+"""
 function MakeFil(
     model::SFFM.Model,
     Nodes::Array{<:Real,1},

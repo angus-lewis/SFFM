@@ -24,11 +24,11 @@ let q = SFFM.PlotSFM(approxModel)
     pₓ, πₓ, Πₓ, Kₓ = SFFM.StationaryDistributionX( approxModel, Ψₓ, ξₓ)
 
     # evaluate the distribution
-    analyticX = (
-        pm = [pₓ[:];0;0],
-        distribution = πₓ(SFFM.CellNodes(mesh)),
-        x = SFFM.CellNodes(mesh),
-        type = "density"
+    analyticX = SFFM.SFFMDistribution(
+        [pₓ[:];0;0],
+        πₓ(SFFM.CellNodes(mesh)),
+        SFFM.CellNodes(mesh),
+        "density"
     )
 
     # plot it

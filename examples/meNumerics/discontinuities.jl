@@ -1,11 +1,11 @@
-# using Plots, JLD2
+using Plots, JLD2
 include(pwd()*"/src/SFFM.jl")
 include(pwd()*"/examples/meNumerics/discontinuitiesModelDef.jl")
 
 @load pwd()*"/examples/meNumerics/discontinuitiesModelSims.jld2" sims_Psi sims_1
 
 ## mesh set up
-orders = [1;3;5;7;11;13;15;21]
+orders = [1;3;5]#;7;11]#;13;15;21]
 errors_1 = []
 errors_Psi = []
 errors_Pi = []
@@ -27,31 +27,35 @@ for order in orders
     )
     fvmesh = SFFM.FVMesh(
         model, 
+        collect(0:Δtemp/order:bounds[1,2]), 
+    )
+    simmesh = SFFM.FVMesh(
+        model, 
         nodes, 
     )
 
     # simulated distributions 
     simprobs_Psi = SFFM.Sims2Dist(
         model, 
-        fvmesh, 
+        simmesh, 
         sims_Psi, 
         type = "probability"
     )
     simdensity_Psi = SFFM.Sims2Dist(
         model, 
-        fvmesh, 
+        simmesh, 
         sims_Psi, 
         type = "density"
     )
     simprobs_1 = SFFM.Sims2Dist(
         model,
-        fvmesh, 
+        simmesh, 
         sims_1, 
         type = "probability"
     )
     simdensity_1 = SFFM.Sims2Dist(
         model,
-        fvmesh, 
+        simmesh, 
         sims_1, 
         type = "density"
     )
@@ -68,7 +72,7 @@ for order in orders
     meph = SFFM.ME(erlang.a, erlang.S, erlang.s; D = SFFM.erlangDParams[string(order)])
     B_MEPH = SFFM.MakeBFRAP(model, frapmesh, meph)
     # FVM
-    B_FV = SFFM.MakeBFV(model, fvmesh, order)
+    B_FV = SFFM.MakeBFV(model, fvmesh, 3)
     
     # construct initial condition
     point = 0+eps()
@@ -86,11 +90,11 @@ for order in orders
         ]
         initprobs = zeros(Float64,SFFM.NBases(dgmesh),SFFM.NIntervals(dgmesh),SFFM.NPhases(model))
         initprobs[:,pointIdx,1] = basisValues'*V.V*V.V'.*2/Δtemp
-        initdist = (
-            pm = initpm,
-            distribution = initprobs,
-            x = SFFM.CellNodes(dgmesh),
-            type = "density"
+        initdist = SFFM.SFFMDistribution(
+            initpm,
+            initprobs,
+            SFFM.CellNodes(dgmesh),
+            "density",
         ) # convert to a distribution object so we can apply Dist2Coeffs
         # convert to Coeffs α in the DG context
         x0_DG = SFFM.Dist2Coeffs(model, dgmesh, initdist)
@@ -102,11 +106,11 @@ for order in orders
         ]
         initprobs = zeros(Float64,SFFM.NBases(frapmesh),SFFM.NIntervals(frapmesh),SFFM.NPhases(model))
         initprobs[:,pointIdx,1] = me.a
-        initdist = (
-            pm = initpm,
-            distribution = initprobs,
-            x = SFFM.CellNodes(frapmesh),
-            type = "density"
+        initdist = SFFM.SFFMDistribution(
+            initpm,
+            initprobs,
+            SFFM.CellNodes(frapmesh),
+            "density",
         ) # convert to a distribution object so we can apply Dist2Coeffs
         # convert to Coeffs α in the DG context
         x0_ME = SFFM.Dist2Coeffs( model, frapmesh, initdist, probTransform = false)
@@ -118,11 +122,11 @@ for order in orders
         ]
         initprobs = zeros(Float64,SFFM.NBases(frapmesh),SFFM.NIntervals(frapmesh),SFFM.NPhases(model))
         initprobs[1,pointIdx,1] = 1
-        initdist = (
-            pm = initpm,
-            distribution = initprobs,
-            x = SFFM.CellNodes(frapmesh),
-            type = "density"
+        initdist = SFFM.SFFMDistribution(
+            initpm,
+            initprobs,
+            SFFM.CellNodes(frapmesh),
+            "density",
         ) # convert to a distribution object so we can apply Dist2Coeffs
         # convert to Coeffs α in the DG context
         x0_Erlang = SFFM.Dist2Coeffs( model, frapmesh, initdist, probTransform = false)
@@ -134,11 +138,11 @@ for order in orders
         ]
         initprobs = zeros(Float64,SFFM.NBases(fvmesh),SFFM.NIntervals(fvmesh),SFFM.NPhases(model))
         initprobs[1,pointIdx,1] = 1
-        initdist = (
-            pm = initpm,
-            distribution = initprobs,
-            x = SFFM.CellNodes(fvmesh),
-            type = "density"
+        initdist = SFFM.SFFMDistribution(
+            initpm,
+            initprobs,
+            SFFM.CellNodes(fvmesh),
+            "density",
         ) # convert to a distribution object so we can apply Dist2Coeffs
         # convert to Coeffs α in the DG context
         x0_FV = SFFM.Dist2Coeffs( model, fvmesh, initdist, probTransform = false)
@@ -175,9 +179,17 @@ for order in orders
         x1_MEPH,
         type = "probability",
     )
+
+    # # reshape x1_FV to same size as DG/FRAP
+    # N₋ = sum(model.C.<=0)
+    # N₊ = sum(model.C.>=0)
+    # nCells = (length(x1_FV)-N₋-N₊)÷order
+    # temp = sum( reshape( x1_FV[(N₋+1):(end-N₊)], order, nCells), dims=1)
+    # x1_FV = [x1_FV[1:N₋]' temp x1_FV[(end-N₊+1):end]']
+    
     x1_FV = SFFM.Coeffs2Dist(
         model,
-        fvmesh,
+        frapmesh,
         x1_FV,
         type = "probability",
     )
@@ -191,7 +203,7 @@ for order in orders
     )
     push!(errors_1, errVec_1)
 
-    # p = SFFM.PlotSFM(model, mesh = dgmesh, dist = x1_DG,
+    # p = SFFM.PlotSFM(model, dgmesh, x1_DG,
     #     color = 1, label = "DG")
     # p = SFFM.PlotSFM!(p, model, frapmesh, x1_ME, 
     #     color = 2, label = "ME")
@@ -286,6 +298,11 @@ for order in orders
     z_MEPH[minusIdx] = w_MEPH
     z_FV[minusIdxFV] = w_FV
 
+    # # reshape z_FV to same size as DG/FRAP
+    # nCells = (length(z_FV)-N₋-N₊)÷order
+    # temp = sum( reshape( z_FV[(N₋+1):(end-N₊)], order, nCells), dims=1)
+    # z_FV = [z_FV[1:N₋]' temp z_FV[(end-N₊+1):end]']
+
     returnDist_DG =  SFFM.Coeffs2Dist(
         model,
         frapmesh,
@@ -312,7 +329,7 @@ for order in orders
     )
     returnDist_FV =  SFFM.Coeffs2Dist(
         model,
-        fvmesh,
+        frapmesh,
         z_FV,
         type = "probability",
     ) 
@@ -326,7 +343,7 @@ for order in orders
     )
     push!(errors_Psi, errVec_Psi)
 
-    # p = SFFM.PlotSFM(model, mesh = dgmesh, dist = returnDist_DG,
+    # p = SFFM.PlotSFM(model, dgmesh, returnDist_DG,
     #     color = 1, label = "DG")
     # p = SFFM.PlotSFM!(p, model, dgmesh, returnDist_ME, 
     #     color = 2, label = "ME")
@@ -342,18 +359,18 @@ for order in orders
     # display(p)
 end
 
-fvmesh = SFFM.FVMesh(
+simmesh = SFFM.FVMesh(
     model, 
     collect(model.Bounds[1,1]:0.1:model.Bounds[1,2]), 
 )
 
 simdensity_Psi = SFFM.Sims2Dist(
     model, 
-    fvmesh, 
+    simmesh, 
     sims_Psi, 
     type = "probability"
 )
-q = SFFM.PlotSFM(model, mesh = fvmesh, dist = simdensity_Psi)
+q = SFFM.PlotSFM(model, simmesh, simdensity_Psi)
 display(q)
 
 q = plot(xlabel = "order", ylabel = "log10 error", title = "error for Psi")
@@ -379,11 +396,11 @@ display(q)
 
 simdensity_1 = SFFM.Sims2Dist(
     model, 
-    fvmesh, 
+    simmesh, 
     sims_1, 
     type = "probability"
 )
-q = SFFM.PlotSFM(model, mesh = fvmesh, dist = simdensity_1)
+q = SFFM.PlotSFM(model, simmesh, simdensity_1)
 display(q)
 
 q = plot(

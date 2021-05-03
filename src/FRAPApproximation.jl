@@ -52,9 +52,9 @@ CellNodes(mesh::FRAPMesh) = Array(((mesh.Nodes[1:end-1] + mesh.Nodes[2:end]) / 2
 
     Basis(mesh::FRAPMesh)
 
-Constant "lagrange"
+Constant ""
 """
-Basis(mesh::FRAPMesh) = "lagrange"
+Basis(mesh::FRAPMesh) = ""
 
 function MakeBFRAP(model::Model, mesh::FRAPMesh, me::ME)
     N₊ = sum(model.C .>= 0)

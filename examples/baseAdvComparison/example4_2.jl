@@ -86,11 +86,11 @@ let
         ]
         initprobs = zeros(Float64,SFFM.NBases(mesh),SFFM.NIntervals(mesh),SFFM.NPhases(approxModel))
         initprobs[:,convert(Int,ceil(5/Δtemp)),3] = basisValues'*All.Matrices.Local.V.V*All.Matrices.Local.V.V'.*2/Δtemp
-        initdist = (
-            pm = initpm,
-            distribution = initprobs,
-            x = SFFM.CellNodes(mesh),
-            type = "density"
+        initdist = SFFM.SFFMDistribution(
+            initpm,
+            initprobs,
+            SFFM.CellNodes(mesh),
+            "density"
         ) # convert to a distribution object so we can apply Dist2Coeffs
         # convert to Coeffs α in the DG context
 
@@ -195,11 +195,11 @@ let
         ]
         initprobs = zeros(Float64,SFFM.NBases(mesh),SFFM.NIntervals(mesh),SFFM.NPhases(approxModel))
         initprobs[:,convert(Int,ceil(5/Δtemp)),3] = basisValues'*V.V*V.V'.*2/Δtemp
-        initdist = (
-            pm = initpm,
-            distribution = initprobs,
-            x = SFFM.CellNodes(mesh),
-            type = "density"
+        initdist = SFFM.SFFMDistribution(
+            initpm,
+            initprobs,
+            SFFM.CellNodes(mesh),
+            "density",
         ) # convert to a distribution object so we can apply Dist2Coeffs
         x0 = SFFM.Dist2Coeffs( approxModel, mesh, initdist, probTransform = false)#[0;0;initdist.distribution[:];0;0]'
         # the initial condition on Ψ is restricted to + states so find the + states

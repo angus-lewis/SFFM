@@ -54,11 +54,11 @@ initpm = [
 ]
 initprobs = zeros(Float64,SFFM.NBases(mesh),SFFM.NIntervals(mesh),SFFM.NPhases(model))
 initprobs[:,convert(Int,ceil(x₀/Δ)),1] = basisValues'*All.Matrices.Local.V.V*All.Matrices.Local.V.V'.*2/Δ
-initdist = (
-    pm = initpm,
-    distribution = initprobs,
-    x = SFFM.CellNodes(mesh),
-    type = "density"
+initdist = SFFM.SFFMDistribution(
+    initpm,
+    initprobs,
+    SFFM.CellNodes(mesh),
+    "density",
 )
 x0 = SFFM.Dist2Coeffs( model, mesh, initdist)
 h = 0.0001
@@ -156,11 +156,11 @@ initpm = [
 ]
 initprobs = zeros(Float64,SFFM.NBases(mesh),SFFM.NIntervals(mesh),SFFM.NPhases(model))
 initprobs[:,convert(Int,ceil(x₀/Δ)),1] = basisValues'*All.Matrices.Local.V.V*All.Matrices.Local.V.V'.*2/Δ
-initdist = (
-    pm = initpm,
-    distribution = initprobs,
-    x = SFFM.CellNodes(mesh),
-    type = "density"
+initdist = SFFM.SFFMDistribution(
+    initpm,
+    initprobs,
+    SFFM.CellNodes(mesh),
+    "density",
 )
 x0 = SFFM.Dist2Coeffs( model, mesh, initdist)
 h = 0.0001
@@ -258,11 +258,11 @@ initpm = [
 ]
 initprobs = zeros(Float64,SFFM.NBases(mesh),SFFM.NIntervals(mesh),SFFM.NPhases(model))
 initprobs[:,convert(Int,ceil(x₀/Δ)),1] = basisValues'*All.Matrices.Local.V.V*All.Matrices.Local.V.V'.*2/Δ
-initdist = (
-    pm = initpm,
-    distribution = initprobs,
-    x = SFFM.CellNodes(mesh),
-    type = "density"
+initdist = SFFM.SFFMDistribution(
+    initpm,
+    initprobs,
+    SFFM.CellNodes(mesh),
+    "density",
 )
 x0 = SFFM.Dist2Coeffs( model, mesh, initdist)
 h = 0.0001

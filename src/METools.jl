@@ -56,8 +56,13 @@ struct ME
     end
 end
 
-pdf(me::ME, x) = (me.a*exp(me.S*x)*me.s)[1]
-cdf(me::ME, x) = 1-sum(me.a*exp(me.S*x))
+pdf(me::SFFM.ME) = x->(me.a*exp(me.S*x)*me.s)[1]
+cdf(me::SFFM.ME) = x->1-sum(me.a*exp(me.S*x))
+pdf(me::SFFM.ME, x::Real) = pdf(me::SFFM.ME)(x)
+cdf(me::SFFM.ME, x::Real) = cdf(me::SFFM.ME)(x)
+pdf(me::SFFM.ME, x::Array{<:Real,1}) = pdf(me::SFFM.ME).(x)
+cdf(me::SFFM.ME, x::Array{<:Real,1}) = cdf(me::SFFM.ME).(x)
+
 
 """
 

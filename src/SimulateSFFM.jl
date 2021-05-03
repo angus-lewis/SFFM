@@ -1,12 +1,12 @@
+"""
+
+
+Constructor for SimMesh object. 
+"""
 struct SimMesh <: Mesh 
-    NBases::Int
-    CellNodes::Array{<:Real,2}
-    Fil::Dict{String,BitArray{1}}
-    Δ::Array{Float64,1}
-    NIntervals::Int
     Nodes::Array{Float64,1}
-    TotalNBases::Int
-    Basis::String
+    NBases::Int
+    Fil::Dict{String,BitArray{1}}
     function SimMesh(
         model::Model,
         Nodes::Array{Float64,1},
@@ -713,5 +713,5 @@ function Sims2Dist(
         distribution = [1; 1] .* distribution
         xvals = [mesh.Nodes[1:end-1]';mesh.Nodes[2:end]']
     end
-    return (pm = pm, distribution = distribution, x = xvals, type = type)
+    return SFFMDistribution(pm, distribution, xvals, type)
 end

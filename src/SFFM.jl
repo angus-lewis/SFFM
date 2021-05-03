@@ -149,16 +149,24 @@ function MakeDict(
                 pjtemp = falses(N₋)
                 qjtemp = falses(N₊)
                 if model.C[i] <= 0
-                    pitemp[ppositions[i]] = mesh.Fil["p"*string(i)*ℓ][1]
+                    if length(pitemp) > 0 
+                        pitemp[ppositions[i]] = mesh.Fil["p"*string(i)*ℓ][1]
+                    end
                 end
                 if model.C[j] <= 0
-                    pjtemp[ppositions[j]] = mesh.Fil["p"*string(j)*m][1]
+                    if length(pjtemp) > 0
+                        pjtemp[ppositions[j]] = mesh.Fil["p"*string(j)*m][1]
+                    end
                 end
                 if model.C[i] >= 0
-                    qitemp[qpositions[i]] = mesh.Fil["q"*string(i)*ℓ][1]
+                    if length(qitemp) > 0
+                        qitemp[qpositions[i]] = mesh.Fil["q"*string(i)*ℓ][1]
+                    end
                 end
                 if model.C[j] >= 0
-                    qjtemp[qpositions[j]] = mesh.Fil["q"*string(j)*m][1]
+                    if length(qjtemp) > 0
+                        qjtemp[qpositions[j]] = mesh.Fil["q"*string(j)*m][1]
+                    end
                 end
                 i_idx = [
                     pitemp
@@ -216,16 +224,16 @@ function MakeDict(
     return BDict
 end
 
-include("Plots.jl")
 include("SimulateSFFM.jl")
 include("DGBase.jl")
 include("DGAdv.jl")
 include("Operators.jl")
-include("Distributions.jl")
-include("SFM.jl")
+include("FVM.jl")
 include("METools.jl")
 include("FRAPApproximation.jl")
-include("../dev/FVM.jl")
+include("Distributions.jl")
+include("SFM.jl")
+include("Plots.jl")
 
 function MyPrint(Obj)
     show(stdout, "text/plain", Obj)

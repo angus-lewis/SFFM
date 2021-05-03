@@ -71,18 +71,17 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
 
         ## stationary distirbution stuff
         # evaluate the analytic result given the mesh
-        analyticX = (
-            pm = [pₓ[:]; 0; 0],
-            distribution =
-                Πₓ(Matrix(mesh.Nodes[2:end]')) - Πₓ(Matrix(mesh.Nodes[1:end-1]')),
-            x = mesh.Nodes[1:end-1] + SFFM.Δ(mesh) / 2,
-            type = "probability",
+        analyticX = SFFM.SFFMDistribution(
+            [pₓ[:]; 0; 0],
+            Πₓ(Matrix(mesh.Nodes[2:end]')) - Πₓ(Matrix(mesh.Nodes[1:end-1]')),
+            mesh.Nodes[1:end-1] + SFFM.Δ(mesh) / 2,
+            "probability",
         )
 
         # save them
         πnorms[d, n] = SFFM.starSeminorm( DGStationaryDist, analyticX)
 
-##      ## now do Ψ
+        ## now do Ψ
         ## turn sims into a cdf
         simprobs =
             SFFM.Sims2Dist( simModel, mesh, sims, type = "probability")
@@ -103,7 +102,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         initprobs[:, convert(Int, ceil(5 / Δtemp)), 3] =
             basisValues' * All.Matrices.Local.V.V * All.Matrices.Local.V.V' .* 2 / Δtemp
         initdist =
-            (pm = initpm, distribution = initprobs, x = SFFM.CellNodes(mesh), type = "density") # convert to a distribution object so we can apply Dist2Coeffs
+            SFFM.SFFMDistribution(initpm, initprobs, SFFM.CellNodes(mesh), "density") # convert to a distribution object so we can apply Dist2Coeffs
         # convert to Coeffs α in the DG context
         x0 = SFFM.Dist2Coeffs( approxModel, mesh, initdist)
         # the initial condition on Ψ is restricted to + states so find the + states

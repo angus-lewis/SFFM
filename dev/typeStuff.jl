@@ -12,7 +12,7 @@ end
 
 b(a) = 1
 
-fun(a::MyType2) = b(a)
+fun(a::MyType2) = begin; if a.a==1 || typeof(a)==MyType2; b(a); end; end
 
 a = MyType(2)
 a = MyType(2)

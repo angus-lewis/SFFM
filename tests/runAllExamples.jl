@@ -9,6 +9,6 @@
 # include("../examples/meNumerics/example4_5.jl"); 
 # include("../examples/meNumerics/discontinuities.jl"); 
 
-include("../examples/whichR.jl"); 
-include("../examples/baseAdvComparison/example4_2.jl"); 
+# include("../examples/whichR.jl"); 
+# include("../examples/baseAdvComparison/example4_2.jl"); 
 include("../examples/baseAdvComparison/example4_5.jl")
