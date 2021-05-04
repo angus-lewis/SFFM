@@ -1,4 +1,5 @@
 include(pwd()*"/src/SFFM.jl")
+using Plots 
 
 ## define a model
 T = [0.0]
@@ -25,8 +26,8 @@ errors_1 = []
 Δtemp = 1/2 # the grid size; must have kΔ = 1 for some k due to discontinuity in r at 1
 nodes = collect(0:Δtemp:bounds[1,2])
 
-for order in orders
-    # order = 5
+# for order in orders
+    order = 3
     println("order = "*string(order))
     dgmesh = SFFM.DGMesh(
         model, 
@@ -209,7 +210,7 @@ for order in orders
     display(p)
 
     push!(errors_1, errVec_1)
-end
+# end
 
 q = plot(
     xlabel = "order", 
