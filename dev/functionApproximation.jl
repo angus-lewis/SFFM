@@ -29,7 +29,7 @@ mesh = SFFM.DGMesh(model, nodes, order)
 
 ## Initial condition 
 λ = -0.25# me.S[1,1]
-f(x::Real) = 1/12 #-λ*exp(λ*x)/(1-exp(λ*10))
+f(x::Real) = -λ*exp(λ*x)/(1-exp(λ*10))#1/12 #
 
 ## approximate integral of A(x)f(x)dx on [xₖ, xₖ₊₁]
 nevals = 10000
@@ -69,7 +69,7 @@ for m in 1:SFFM.NIntervals(mesh)
         orbit_RHS = orbit_RHS./sum(orbit_RHS)
         orbit = (orbit_LHS+orbit_RHS)./2
         
-        aInt += orbit.*h.*f(x) #(f(x)-f(x+h))
+        aInt += orbit.*h.*(f(x)+f(x-h))/2
 
         orbit_LHS = copy(orbit_RHS)
     end
@@ -86,8 +86,8 @@ api = me.a*(-me.S)^-1
 api = api./sum(api)/12
 mepi = SFFM.ME(api,me.S,me.s,D = me.D)
 plot!(xvec,  SFFM.pdf(mepi,xvec), label = "pi")
-xvec = collect(0:0.05:2Δ)
-for k in 1#:SFFM.NIntervals(mesh)
+xvec = collect(0:0.05:Δ)
+for k in 1:SFFM.NIntervals(mesh)
     # mekD = SFFM.ME(Matrix(A[k,:]')*me.D,me.S,me.s,D = me.D)
     mek = SFFM.ME(Matrix(A[k,:]'),me.S,me.s,D = me.D)
     thePDF = SFFM.pdf(mek,xvec)
