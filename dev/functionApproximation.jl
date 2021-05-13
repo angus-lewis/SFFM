@@ -29,7 +29,7 @@ mesh = SFFM.DGMesh(model, nodes, order)
 
 ## Initial condition 
 λ = -0.25# me.S[1,1]
-f(x::Real) = -λ*exp(λ*x)/(1-exp(λ*10))#1/12 #
+f(x::Real) = sin(3*pi*x)#-λ*exp(λ*x)/(1-exp(λ*10))#1/12 #
 
 ## approximate integral of A(x)f(x)dx on [xₖ, xₖ₊₁]
 nevals = 10000
@@ -74,25 +74,16 @@ for m in 1:SFFM.NIntervals(mesh)
         orbit_LHS = copy(orbit_RHS)
     end
     A[m,:] = aInt
-    display(A)
 end
 
-xvec = collect(mesh.Nodes[1]:0.05:mesh.Nodes[3])
+xvec = collect(mesh.Nodes[1]:0.05:mesh.Nodes[end])
 p = plot(xvec,f.(xvec),label = "f")
-# plot!(xvec,SFFM.pdf(SFFM.ME(me.a*exp(0.25*me.S)./sum(me.a*exp(0.25*me.S)),me.S,me.s),xvec)./12, label = "0.25")
-# plot!(xvec,SFFM.pdf(me,xvec)./12, label = "alpha")
 
-api = me.a*(-me.S)^-1
-api = api./sum(api)/12
-mepi = SFFM.ME(api,me.S,me.s,D = me.D)
-plot!(xvec,  SFFM.pdf(mepi,xvec), label = "pi")
 xvec = collect(0:0.05:Δ)
 for k in 1:SFFM.NIntervals(mesh)
-    # mekD = SFFM.ME(Matrix(A[k,:]')*me.D,me.S,me.s,D = me.D)
     mek = SFFM.ME(Matrix(A[k,:]'),me.S,me.s,D = me.D)
     thePDF = SFFM.pdf(mek,xvec)
-    # thePDFD = SFFM.pdf(mekD,xvec)
-    plot!(mesh.Nodes[k+1] .- xvec, thePDF, label = "A")
-    # plot!(xvec .+ mesh.Nodes[k], thePDFD, label = "D")
+    thePDFplusΔ = SFFM.pdf(mek,xvec.+Δ)[end:-1:1]
+    plot!(mesh.Nodes[k+1] .- xvec, thePDF+thePDFplusΔ, label = "A")
 end
 p
