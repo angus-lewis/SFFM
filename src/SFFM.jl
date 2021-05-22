@@ -224,7 +224,6 @@ function MakeDict(
     return BDict
 end
 
-include("SimulateSFFM.jl")
 include("DGBase.jl")
 include("DGAdv.jl")
 include("Operators.jl")
@@ -232,6 +231,7 @@ include("FVM.jl")
 include("METools.jl")
 include("FRAPApproximation.jl")
 include("Distributions.jl")
+include("SimulateSFFM.jl")
 include("SFM.jl")
 include("Plots.jl")
 

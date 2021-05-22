@@ -1,3 +1,5 @@
+abstract type SFFMDistribution end
+
 """
 
     SFFMDistribution(
@@ -19,11 +21,20 @@
 - `type::String`: either `"probability"` or `"density"`. `"cumulative"` is
     not possible.
 """
-struct SFFMDistribution
+struct SFFMDensity <: SFFMDistribution
     pm::Array{<:Real}
     distribution::Array{<:Real,3}
     x::Array{<:Real}
-    type::String
+end
+struct SFFMProbability <: SFFMDistribution
+    pm::Array{<:Real}
+    distribution::Array{<:Real,3}
+    x::Array{<:Real}
+end
+struct SFFMCDF <: SFFMDistribution
+    pm::Array{<:Real}
+    distribution::Array{<:Real,3}
+    x::Array{<:Real}
 end
 
 """
@@ -34,7 +45,6 @@ Convert from a vector of coefficients for the DG system to a distribution.
         mesh::SFFM.Mesh,
         Coeffs;
         type::String = "probability",
-        probTransform::Bool = true,
     )
 
 # Arguments
@@ -46,8 +56,6 @@ Convert from a vector of coefficients for the DG system to a distribution.
     ``P(X(t)∈ D_k, φ(t) = i)`` where ``D_k``is the kth cell, `"cumulative"` to
     return the CDF evaluated at cell edges, or `"density"` to return an
     approximation to the density ar at the SFFM.CellNodes(mesh).
-- `probTransform::Bool` a boolean value specifying whether to transform to a
-    probabilistic interpretation or not. Valid only for lagrange basis.
 
 # Output
 - a tuple with keys
@@ -81,19 +89,15 @@ Convert from a vector of coefficients for the DG system to a distribution.
 function Coeffs2Dist(
     model::SFFM.Model,
     mesh::SFFM.DGMesh,
-    Coeffs::AbstractArray;
-    type::String = "probability",
-    probTransform::Bool = true,
-)
+    Coeffs::AbstractArray,
+    type::Type{T} = SFFMProbability,
+) where {T<:SFFMDistribution} 
+
     V = SFFM.vandermonde(NBases(mesh))
     N₋ = sum(model.C .<= 0)
     N₊ = sum(model.C .>= 0)
-    if !probTransform
-        temp = reshape(Coeffs[N₋+1:end-N₊], NBases(mesh), NIntervals(mesh), NPhases(model))
-        temp = V.w.*temp.*(Δ(mesh)./2.0)'
-        Coeffs = [Coeffs[1:N₋]; temp[:]; Coeffs[end-N₊+1:end]]
-    end
-    if type == "density"
+
+    if type == SFFMDensity
         xvals = SFFM.CellNodes(mesh)
         if Basis(mesh) == "legendre"
             yvals = reshape(Coeffs[N₋+1:end-N₊], NBases(mesh), NIntervals(mesh), NPhases(model))
@@ -112,7 +116,7 @@ function Coeffs2Dist(
             yvals = [1;1].*yvals
             xvals = [SFFM.CellNodes(mesh)-Δ(mesh)'/2;SFFM.CellNodes(mesh)+Δ(mesh)'/2]
         end
-    elseif type == "probability"
+    elseif type == SFFMProbability
         if NBases(mesh) > 1 
             xvals = SFFM.CellNodes(mesh)[1, :] + (Δ(mesh) ./ 2)
         else
@@ -128,7 +132,7 @@ function Coeffs2Dist(
             )
             pm = [Coeffs[1:N₋]; Coeffs[end-N₊+1:end]]
         end
-    elseif type == "cumulative"
+    elseif type == SFFMCDF
         if NBases(mesh) > 1 
             xvals = SFFM.CellNodes(mesh)[[1;end], :]
         else
@@ -154,26 +158,26 @@ function Coeffs2Dist(
         yvals = yvals .+ reshape(temppm[1,1,:],1,1,NPhases(model))
         pm[N₋+1:end] = pm[N₋+1:end] + yvals[end,end,model.C.>=0]
     end
-
-    out = SFFMDistribution(pm, yvals, xvals, type)
-    println("UPDATE: distribution object created with keys ", fieldnames(SFFMDistribution))
+    
+    out = type(pm, yvals, xvals)
+    println("UPDATE: distribution object created with keys ", fieldnames(type))
     return out
 end
 function Coeffs2Dist(
     model::SFFM.Model,
     mesh::Union{FRAPMesh, FVMesh},
-    Coeffs::AbstractArray;
-    type::String = "probability",
-)
+    Coeffs::AbstractArray,
+    type::Type{T} = SFFMProbability,
+) where {T<:SFFMDistribution}
 
-    if type != "probability"
+    if type != SFFMProbability
         args = [
             model;
             mesh;
             Coeffs;
             type;
         ]
-        error("Input Error: no functionality other than 'probability' implemented")
+        error("Input Error: no functionality other than 'probability' implemented, yet...")
     end
     
     N₋ = sum(model.C .<= 0)
@@ -187,8 +191,8 @@ function Coeffs2Dist(
     )
     pm = [Coeffs[1:N₋]; Coeffs[end-N₊+1:end]]
 
-    out = SFFMDistribution(pm, yvals, xvals, type)
-    println("UPDATE: distribution object created with keys ", fieldnames(SFFMDistribution))
+    out = type(pm, yvals, xvals)
+    println("UPDATE: distribution object created with keys ", fieldnames(type))
     return out
 end
 
@@ -199,8 +203,7 @@ coefficients.
     Dist2Coeffs(
         model::SFFM.Model,
         mesh::SFFM.Mesh,
-        Distn::SFFMDistribution;
-        probTransform::Bool = true,
+        Distn::SFFMDistribution,
     )
 
 # Arguments
@@ -214,8 +217,6 @@ coefficients.
         either the density function evaluated at the cell nodes which are in
         `x` below, or, the inner product of the density function against the
         lagrange polynomials.
-- `probTransform::Bool` a boolean value specifying whether to transform to a
-    probabilistic interpretation or not. Valid only for lagrange basis.
 
 # Output
 - `coeffs` a row vector of coefficient values of length
@@ -226,60 +227,64 @@ coefficients.
 function Dist2Coeffs(
     model::SFFM.Model,
     mesh::SFFM.DGMesh,
-    Distn::SFFMDistribution;
-    probTransform::Bool = true,
+    Distn::SFFMDensity,
 )
     V = SFFM.vandermonde(NBases(mesh))
     theDistribution =
         zeros(Float64, NBases(mesh), NIntervals(mesh), NPhases(model))
     if Basis(mesh) == "legendre"
-        if Distn.type == "probability"
-            # for the legendre basis the first basis function is ϕ(x)=Δ√2 and
-            # all other basis functions are orthogonal to this. Hence, we map
-            # the cell probabilities to the first basis function only.
-            theDistribution[1, :, :] = Distn.distribution./Δ(mesh)'.*sqrt(2)
-        elseif Distn.type == "density"
-            # if given density coefficients in lagrange form
-            theDistribution = Distn.distribution
-            for i = 1:NPhases(model)
-                theDistribution[:, :, i] = V.inv * theDistribution[:, :, i]
-            end
+        theDistribution = Distn.distribution
+        for i = 1:NPhases(model)
+            theDistribution[:, :, i] = V.inv * theDistribution[:, :, i]
         end
-        # also put the point masses on the ends
-        coeffs = [
-            Distn.pm[1:sum(model.C .<= 0)]
-            theDistribution[:]
-            Distn.pm[sum(model.C .<= 0)+1:end]
-        ]
     elseif Basis(mesh) == "lagrange"
         theDistribution .= Distn.distribution
-        if !probTransform
-            theDistribution = (1.0./V.w) .* theDistribution .* (2.0./Δ(mesh)')
-        end
-        if Distn.type == "probability"
-            # convert to probability coefficients by multiplying by the
-            # weights in V.w/2
-            theDistribution = (V.w .* theDistribution / 2)[:]
-        elseif Distn.type == "density"
-            # convert to probability coefficients by multiplying by the
-            # weights in V.w/2 and cell widths Δ
-            theDistribution = ((V.w .* theDistribution).*(Δ(mesh) / 2)')[:]
-        end
-        # also put the point masses on the ends
-        coeffs = [
-            Distn.pm[1:sum(model.C .<= 0)]
-            theDistribution
-            Distn.pm[sum(model.C .<= 0)+1:end]
-        ]
+        # convert to probability coefficients by multiplying by the
+        # weights in V.w/2 and cell widths Δ
+        theDistribution = ((V.w .* theDistribution).*(Δ(mesh) / 2)')[:]
     end
+    # also put the point masses on the ends
+    coeffs = [
+        Distn.pm[1:sum(model.C .<= 0)]
+        theDistribution[:]
+        Distn.pm[sum(model.C .<= 0)+1:end]
+    ]
+    coeffs = Matrix(coeffs[:]')
+    return coeffs
+end
+
+function Dist2Coeffs(
+    model::SFFM.Model,
+    mesh::SFFM.DGMesh,
+    Distn::SFFMProbability,
+)
+    V = SFFM.vandermonde(NBases(mesh))
+    theDistribution =
+        zeros(Float64, NBases(mesh), NIntervals(mesh), NPhases(model))
+    if Basis(mesh) == "legendre"
+        # for the legendre basis the first basis function is ϕ(x)=Δ√2 and
+        # all other basis functions are orthogonal to this. Hence, we map
+        # the cell probabilities to the first basis function only.
+        theDistribution[1, :, :] = Distn.distribution./Δ(mesh)'.*sqrt(2)
+    elseif Basis(mesh) == "lagrange"
+        theDistribution .= Distn.distribution
+        # convert to probability coefficients by multiplying by the
+        # weights in V.w/2
+        theDistribution = (V.w .* theDistribution / 2)[:]
+    end
+    # also put the point masses on the ends
+    coeffs = [
+        Distn.pm[1:sum(model.C .<= 0)]
+        theDistribution[:]
+        Distn.pm[sum(model.C .<= 0)+1:end]
+    ]
     coeffs = Matrix(coeffs[:]')
     return coeffs
 end
 function Dist2Coeffs(
     model::SFFM.Model,
     mesh::Union{SFFM.FRAPMesh,SFFM.FVMesh},
-    Distn::SFFMDistribution;
-    probTransform::Bool = true,
+    Distn::SFFMDistribution
 )
     
     # also put the point masses on the ends
@@ -296,23 +301,12 @@ end
 """
 Computes the error between distributions.
 
-    starSeminorm(
-        d1::SFFMDistribution,
-        d2::SFFMDistribution,
-        )
+    starSeminorm(d1::SFFMProbability, d2::SFFMProbability)
 
 # Arguments
-- `d1`: a distribution object as output from `Coeffs2Dist` with
-    `type="probability"``
-- `d2`: a distribution object as output from `Coeffs2Dist` with
-    `type="probability"``
+- `d1`: a distribution object as output from `Coeffs2Dist` 
+- `d2`: a distribution object as output from `Coeffs2Dist` 
 """
-function starSeminorm(
-    d1::SFFMDistribution,
-    d2::SFFMDistribution,
-    )
-    if ((d1.type!="probability") || (d2.type!="probability"))
-        throw(ArgumentError("distributions need to be of type probability"))
-    end
+function starSeminorm(d1::SFFMProbability, d2::SFFMProbability)
     return sum(abs.(d1.pm-d2.pm)) + sum(abs.(d1.distribution-d2.distribution))
 end

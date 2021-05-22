@@ -67,7 +67,7 @@ let
             tempModel,
             mesh,
             marginalX,
-            type="density",
+            SFFM.SFFMDensity,
         )
         temp = zeros(SFFM.NBases(mesh),SFFM.NIntervals(mesh),2)
         temp[:,:,1] = tempDist.distribution[:,:,1]+tempDist.distribution[:,:,2]

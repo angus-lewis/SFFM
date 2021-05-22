@@ -1,5 +1,3 @@
-abstract type SFFMDistribution2 end
-
 """
 
     SFFMDistribution(
@@ -21,20 +19,11 @@ abstract type SFFMDistribution2 end
 - `type::String`: either `"probability"` or `"density"`. `"cumulative"` is
     not possible.
 """
-struct SFFMDensity <: SFFMDistribution2
+struct SFFMDistribution
     pm::Array{<:Real}
     distribution::Array{<:Real,3}
     x::Array{<:Real}
-end
-struct SFFMProbability <: SFFMDistribution2
-    pm::Array{<:Real}
-    distribution::Array{<:Real,3}
-    x::Array{<:Real}
-end
-struct SFFMCDF <: SFFMDistribution2
-    pm::Array{<:Real}
-    distribution::Array{<:Real,3}
-    x::Array{<:Real}
+    type::String
 end
 
 """
@@ -89,12 +78,12 @@ Convert from a vector of coefficients for the DG system to a distribution.
             containing the cell nodes.
     - `type`: as input in arguments.
 """
-function Coeffs2Dist2(
+function Coeffs2Dist(
     model::SFFM.Model,
     mesh::SFFM.DGMesh,
-    Coeffs::AbstractArray,
-    type::Type{T} = SFFMProbability,
-    probTransform::Bool = true;
+    Coeffs::AbstractArray;
+    type::String = "probability",
+    probTransform::Bool = true,
 )
     V = SFFM.vandermonde(NBases(mesh))
     N₋ = sum(model.C .<= 0)
@@ -165,7 +154,7 @@ function Coeffs2Dist2(
         yvals = yvals .+ reshape(temppm[1,1,:],1,1,NPhases(model))
         pm[N₋+1:end] = pm[N₋+1:end] + yvals[end,end,model.C.>=0]
     end
-    
+
     out = SFFMDistribution(pm, yvals, xvals, type)
     println("UPDATE: distribution object created with keys ", fieldnames(SFFMDistribution))
     return out
@@ -327,5 +316,3 @@ function starSeminorm(
     end
     return sum(abs.(d1.pm-d2.pm)) + sum(abs.(d1.distribution-d2.distribution))
 end
-
-dd(x::Type{T}) where {T<:SFFMDistribution} = x  

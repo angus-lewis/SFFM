@@ -23,7 +23,7 @@ mesh = SFFM.DGMesh(
 )
 
 ## turn sims into a cdf
-simprobs = SFFM.Sims2Dist(simModel,mesh,sims,type="cumulative")
+simprobs = SFFM.Sims2Dist(simModel,mesh,sims,SFFM.SFFMCDF)
 
 ## bootstrap to get CI
 function bootFun(sims; nBoot = 10)
@@ -35,7 +35,7 @@ function bootFun(sims; nBoot = 10)
             φ = sims.φ[sampleIdx],
             X = sims.X[sampleIdx],
         )
-        tempDist = SFFM.Sims2Dist(simModel, mesh, tempData, type="cumulative").distribution[1,1:6,[2;4]]
+        tempDist = SFFM.Sims2Dist(simModel, mesh, tempData, SFFM.SFFMCDF).distribution[1,1:6,[2;4]]
         samplesBoot[n,:,:] = tempDist
     end
     ql = zeros(6,2)
@@ -86,11 +86,10 @@ let
         ]
         initprobs = zeros(Float64,SFFM.NBases(mesh),SFFM.NIntervals(mesh),SFFM.NPhases(approxModel))
         initprobs[:,convert(Int,ceil(5/Δtemp)),3] = basisValues'*All.Matrices.Local.V.V*All.Matrices.Local.V.V'.*2/Δtemp
-        initdist = SFFM.SFFMDistribution(
+        initdist = SFFM.SFFMDensity(
             initpm,
             initprobs,
             SFFM.CellNodes(mesh),
-            "density"
         ) # convert to a distribution object so we can apply Dist2Coeffs
         # convert to Coeffs α in the DG context
 
@@ -129,7 +128,7 @@ let
             approxModel,
             mesh,
             z,
-            type="cumulative",
+            SFFM.SFFMCDF,
         )
 
         # plot them
@@ -195,11 +194,10 @@ let
         ]
         initprobs = zeros(Float64,SFFM.NBases(mesh),SFFM.NIntervals(mesh),SFFM.NPhases(approxModel))
         initprobs[:,convert(Int,ceil(5/Δtemp)),3] = basisValues'*V.V*V.V'.*2/Δtemp
-        initdist = SFFM.SFFMDistribution(
+        initdist = SFFM.SFFMDensity(
             initpm,
             initprobs,
             SFFM.CellNodes(mesh),
-            "density",
         ) # convert to a distribution object so we can apply Dist2Coeffs
         x0 = SFFM.Dist2Coeffs( approxModel, mesh, initdist, probTransform = false)#[0;0;initdist.distribution[:];0;0]'
         # the initial condition on Ψ is restricted to + states so find the + states
@@ -236,7 +234,7 @@ let
             approxModel,
             mesh,
             z,
-            type="cumulative",
+            SFFM.SFFMCDF,
             probTransform = false,
         )
 

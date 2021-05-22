@@ -16,7 +16,7 @@ mesh = SFFM.DGMesh(
     nBases,
     Basis = Basis,
 )
-let q = SFFM.PlotSFM(approxModel)
+let q = SFFM.plot(approxModel)
     ## analytic version for comparison
     # construction
     Ψₓ = SFFM.PsiFunX(approxModel)
@@ -24,15 +24,14 @@ let q = SFFM.PlotSFM(approxModel)
     pₓ, πₓ, Πₓ, Kₓ = SFFM.StationaryDistributionX( approxModel, Ψₓ, ξₓ)
 
     # evaluate the distribution
-    analyticX = SFFM.SFFMDistribution(
+    analyticX = SFFM.SFFMDensity(
         [pₓ[:];0;0],
         πₓ(SFFM.CellNodes(mesh)),
         SFFM.CellNodes(mesh),
-        "density"
     )
 
     # plot it
-    q = SFFM.PlotSFM!(q,
+    q = SFFM.plot!(q,
         approxModel,
         mesh,
         analyticX,
@@ -76,10 +75,10 @@ let q = SFFM.PlotSFM(approxModel)
             approxModel,
             mesh,
             marginalX,
-            type="density",
+            SFFM.SFFMDensity,
         )
         # plot it
-        q = SFFM.PlotSFM!(
+        q = SFFM.plot!(
             q,
             approxModel,
             mesh,

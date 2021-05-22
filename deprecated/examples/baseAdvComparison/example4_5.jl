@@ -81,17 +81,16 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
             approxModel,
             mesh,
             marginalX,
-            type = "probability",
+            SFFM.SFFMProbaility,
             probTransform = false,
         )
 
         ## stationary distirbution stuff
         # evaluate the analytic result given the mesh
-        analyticX = SFFM.SFFMDistribution(
+        analyticX = SFFM.SFFMProbability(
             [pₓ[:]; 0; 0],
             Πₓ(Matrix(mesh.Nodes[2:end]')) - Πₓ(Matrix(mesh.Nodes[1:end-1]')),
             mesh.Nodes[1:end-1] + SFFM.Δ(mesh) / 2,
-            "probability",
         )
 
         # save them

@@ -42,11 +42,11 @@ let
             pm = [pₓ[:];0;0],
             distribution = Πₓ(mesh.Nodes[2:end]) - Πₓ(mesh.Nodes[1:end-1]),
             x = (mesh.Nodes[1:end-1]+mesh.Nodes[2:end])./2,
-            type = "probability"
+            SFFM.SFFMProbability,
         )
 
         # plot it
-        q = SFFM.PlotSFM(
+        q = SFFM.plot(
             approxModel,
             mesh = mesh,
             dist = analyticX,
@@ -97,17 +97,16 @@ let
             approxModel,
             mesh,
             marginalX,
-            type="probability",
+            SFFM.SFFMProbability,
         )
         Distme = SFFM.Coeffs2Dist(
             approxModel,
             mesh,
             marginalXme,
-            type = "probability",
-            probTransform = true,
+            SFFM.SFFMProbability,
         )
         # plot it
-        q = SFFM.PlotSFM!(
+        q = SFFM.plot!(
             q,
             approxModel,
             mesh,
@@ -117,7 +116,7 @@ let
             seriestype = :line,
             jitter = 0.5,
         )
-        q = SFFM.PlotSFM!(
+        q = SFFM.plot!(
             q,
             approxModel,
             mesh,

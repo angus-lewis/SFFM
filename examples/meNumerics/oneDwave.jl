@@ -26,8 +26,8 @@ errors_1 = []
 Δtemp = 1/2 # the grid size; must have kΔ = 1 for some k due to discontinuity in r at 1
 nodes = collect(0:Δtemp:bounds[1,2])
 
-# for order in orders
-    order = 3
+for order in orders
+    # order = 3
     println("order = "*string(order))
     dgmesh = SFFM.DGMesh(
         model, 
@@ -52,11 +52,10 @@ nodes = collect(0:Δtemp:bounds[1,2])
     trueprobs = zeros(Float64,1,SFFM.NIntervals(frapmesh),SFFM.NPhases(model))
     truepos = convert(Int,ceil((1.2+eps())/Δtemp))
     trueprobs[truepos] = 1
-    groundtruth = SFFM.SFFMDistribution(
+    groundtruth = SFFM.SFFMProbability(
         [0],
         trueprobs,
         SFFM.CellNodes(frapmesh),
-        "probability",
     )
 
     # DG
@@ -88,11 +87,10 @@ nodes = collect(0:Δtemp:bounds[1,2])
         ]
         initprobs = zeros(Float64,SFFM.NBases(dgmesh),SFFM.NIntervals(dgmesh),SFFM.NPhases(model))
         initprobs[:,pointIdx,1] = basisValues'*V.V*V.V'.*2/Δtemp
-        initdist = SFFM.SFFMDistribution(
+        initdist = SFFM.SFFMDensity(
             initpm,
             initprobs,
             SFFM.CellNodes(dgmesh),
-            "density",
         ) # convert to a distribution object so we can apply Dist2Coeffs
         # convert to Coeffs α in the DG context
         x0_DG = SFFM.Dist2Coeffs(model, dgmesh, initdist)
@@ -104,14 +102,13 @@ nodes = collect(0:Δtemp:bounds[1,2])
         ]
         initprobs = zeros(Float64,SFFM.NBases(frapmesh),SFFM.NIntervals(frapmesh),SFFM.NPhases(model))
         initprobs[:,pointIdx,1] = me.a
-        initdist = SFFM.SFFMDistribution(
+        initdist = SFFM.SFFMDensity(
             initpm,
             initprobs,
             SFFM.CellNodes(frapmesh),
-            "density",
         ) # convert to a distribution object so we can apply Dist2Coeffs
         # convert to Coeffs α in the DG context
-        x0_ME = SFFM.Dist2Coeffs( model, frapmesh, initdist, probTransform = false)
+        x0_ME = SFFM.Dist2Coeffs( model, frapmesh, initdist)
     end
     begin
         initpm = [
@@ -120,14 +117,13 @@ nodes = collect(0:Δtemp:bounds[1,2])
         ]
         initprobs = zeros(Float64,SFFM.NBases(frapmesh),SFFM.NIntervals(frapmesh),SFFM.NPhases(model))
         initprobs[1,pointIdx,1] = 1
-        initdist = SFFM.SFFMDistribution(
+        initdist = SFFM.SFFMDensity(
             initpm,
             initprobs,
             SFFM.CellNodes(frapmesh),
-            "density",
         ) # convert to a distribution object so we can apply Dist2Coeffs
         # convert to Coeffs α in the DG context
-        x0_Erlang = SFFM.Dist2Coeffs( model, frapmesh, initdist, probTransform = false)
+        x0_Erlang = SFFM.Dist2Coeffs( model, frapmesh, initdist)
     end
     begin
         initpm = [
@@ -136,14 +132,13 @@ nodes = collect(0:Δtemp:bounds[1,2])
         ]
         initprobs = zeros(Float64,SFFM.NBases(fvmesh),SFFM.NIntervals(fvmesh),SFFM.NPhases(model))
         initprobs[1,pointIdx,1] = 1
-        initdist = SFFM.SFFMDistribution(
+        initdist = SFFM.SFFMDensity(
             initpm,
             initprobs,
             SFFM.CellNodes(fvmesh),
-            "density",
         ) # convert to a distribution object so we can apply Dist2Coeffs
         # convert to Coeffs α in the DG context
-        x0_FV = SFFM.Dist2Coeffs( model, fvmesh, initdist, probTransform = false)
+        x0_FV = SFFM.Dist2Coeffs( model, fvmesh, initdist)
     end
 
     euler(B,x0) = SFFM.EulerDG( B, 1.2, x0, h = 0.0001) 
@@ -157,32 +152,32 @@ nodes = collect(0:Δtemp:bounds[1,2])
         model,
         dgmesh,
         x1_DG,
-        type = "probability",
+        SFFM.SFFMProbability,
     )
     x1_ME = SFFM.Coeffs2Dist(
         model,
         frapmesh,
         x1_ME,
-        type = "probability",
+        SFFM.SFFMProbability,
     )
     x1_Erlang = SFFM.Coeffs2Dist(
         model,
         frapmesh,
         x1_Erlang,
-        type = "probability",
+        SFFM.SFFMProbability,
     )
     x1_MEPH = SFFM.Coeffs2Dist(
         model,
         frapmesh,
         x1_MEPH,
-        type = "probability",
+        SFFM.SFFMProbability,
     )
 
     x1_FV = SFFM.Coeffs2Dist(
         model,
         frapmesh,
         x1_FV,
-        type = "probability",
+        SFFM.SFFMProbability,
     )
 
     errVec_1 = (
@@ -192,25 +187,25 @@ nodes = collect(0:Δtemp:bounds[1,2])
         SFFM.starSeminorm(x1_MEPH, groundtruth),
         SFFM.starSeminorm(x1_FV, groundtruth),
     )
-    p = SFFM.PlotSFM(model, frapmesh, x1_ME,
+    p = SFFM.plot(model, frapmesh, x1_ME,
         color = 1, label = "DG")
     display(p)
 
-    p = SFFM.PlotSFM(model, dgmesh, x1_DG,
+    p = SFFM.plot(model, dgmesh, x1_DG,
         color = 1, label = "DG", alpha = 0.25)
-    p = SFFM.PlotSFM!(p, model, frapmesh, x1_ME, 
+    p = SFFM.plot!(p, model, frapmesh, x1_ME, 
         color = 2, label = "ME", alpha = 0.25)
-    # SFFM.PlotSFM!(p, model, frapmesh, x1_Erlang, 
+    # SFFM.plot!(p, model, frapmesh, x1_Erlang, 
     #     color = 3, label = "Erlang", alpha = 0.25)
-    # SFFM.PlotSFM!(p, model, frapmesh, x1_MEPH, 
+    # SFFM.plot!(p, model, frapmesh, x1_MEPH, 
     #     color = 5, label = "ME-PH", alpha = 0.25)
-    SFFM.PlotSFM!(p, model, frapmesh, x1_FV, 
+    SFFM.plot!(p, model, frapmesh, x1_FV, 
         color = 7, label = "FV", alpha = 0.25)
     p = plot!(title = "approx dist at t=1.2; order = "*string(order), subplot = 1)
     display(p)
 
     push!(errors_1, errVec_1)
-# end
+end
 
 q = plot(
     xlabel = "order", 
@@ -218,6 +213,7 @@ q = plot(
     title = "error for t=1.2", 
     legend = :bottomleft
 )
+
 for whichOrder in 2:length(orders)
 # order = 3
     for whichMethod in 1:length(methodNames)

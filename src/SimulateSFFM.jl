@@ -623,15 +623,15 @@ Convert from simulations of a SFM or SFFM to a distribution.
 function Sims2Dist(
     model::SFFM.Model,
     mesh::SFFM.Mesh,
-    sims::NamedTuple;
-    type::String = "density",
-)
+    sims::NamedTuple,
+    type::Type{T} = SFFMProbability,
+) where {T<:SFFMDistribution} 
 
-    if type == "density"
+    if type == SFFMDensity
         distribution = zeros(Float64, NBases(mesh), NIntervals(mesh), NPhases(model))
-    elseif type == "probability"
+    elseif type == SFFMProbability
         distribution = zeros(Float64, 1, NIntervals(mesh), NPhases(model))
-    elseif type == "cumulative"
+    elseif type == SFFMCDF
         distribution = zeros(Float64, 2, NIntervals(mesh), NPhases(model))
     end
     pm = zeros(Float64, sum(model.C .<= 0) + sum(model.C .>= 0))
@@ -646,7 +646,7 @@ function Sims2Dist(
             (sims.X .!= model.Bounds[1, end])
         data = sims.X[whichsims]
         totalprob = sum(whichsims) / length(sims.φ)
-        if type == "probability"
+        if type == SFFMProbability
             if length(data)!=0
                 h = StatsBase.fit(StatsBase.Histogram, data, mesh.Nodes)
                 h = h.weights ./ sum(h.weights) * totalprob
@@ -657,7 +657,7 @@ function Sims2Dist(
             else
                 xvals = CellNodes(mesh)[1, :] + Δ(mesh) / 2
             end
-        elseif type == "density"
+        elseif type == SFFMDensity
             if length(data)!=0
                 if model.Bounds[1, end] == Inf
                     U = KernelDensity.kde(data)
@@ -674,7 +674,7 @@ function Sims2Dist(
                         NIntervals(mesh),
                     ) * totalprob
             end
-        elseif type == "cumulative"
+        elseif type == SFFMCDF
             if length(data)!=0
                 h = StatsBase.fit(StatsBase.Histogram, data, mesh.Nodes)
                 tempDist = h.weights ./ sum(h.weights) * totalprob
@@ -694,7 +694,7 @@ function Sims2Dist(
             whichsims = (sims.φ .== i) .& (sims.X .== model.Bounds[1, 1])
             p = sum(whichsims) / length(sims.φ)
             pm[pc] = p
-            if type == "cumulative"
+            if type == SFFMCDF
                 distribution[:,:,i] = distribution[:,:,i] .+ pm[pc]
             end
         end
@@ -702,16 +702,16 @@ function Sims2Dist(
             qc = qc + 1
             whichsims = (sims.φ .== i) .& (sims.X .== model.Bounds[1, end])
             p = sum(whichsims) / length(sims.φ)
-            if type == "cumulative"
+            if type == SFFMCDF
                 pm[sum(model.C .<= 0)+qc] = p + distribution[end,end,i]
             else
                 pm[sum(model.C .<= 0)+qc] = p
             end
         end
     end
-    if type == "density" && NBases(mesh) == 1
+    if type == SFFMDensity && NBases(mesh) == 1
         distribution = [1; 1] .* distribution
         xvals = [mesh.Nodes[1:end-1]';mesh.Nodes[2:end]']
     end
-    return SFFMDistribution(pm, distribution, xvals, type)
+    return type(pm, distribution, xvals)
 end

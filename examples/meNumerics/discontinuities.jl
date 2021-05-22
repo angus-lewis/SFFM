@@ -39,25 +39,25 @@ for order in orders
         model, 
         simmesh, 
         sims_Psi, 
-        type = "probability"
+        SFFM.SFFMProbability,
     )
     simdensity_Psi = SFFM.Sims2Dist(
         model, 
         simmesh, 
         sims_Psi, 
-        type = "density"
+        SFFM.SFFMDensity,
     )
     simprobs_1 = SFFM.Sims2Dist(
         model,
         simmesh, 
         sims_1, 
-        type = "probability"
+        SFFM.SFFMProbability,
     )
     simdensity_1 = SFFM.Sims2Dist(
         model,
         simmesh, 
         sims_1, 
-        type = "density"
+        SFFM.SFFMDensity
     )
 
     # DG
@@ -90,11 +90,10 @@ for order in orders
         ]
         initprobs = zeros(Float64,SFFM.NBases(dgmesh),SFFM.NIntervals(dgmesh),SFFM.NPhases(model))
         initprobs[:,pointIdx,1] = basisValues'*V.V*V.V'.*2/Δtemp
-        initdist = SFFM.SFFMDistribution(
+        initdist = SFFM.SFFMDensity(
             initpm,
             initprobs,
             SFFM.CellNodes(dgmesh),
-            "density",
         ) # convert to a distribution object so we can apply Dist2Coeffs
         # convert to Coeffs α in the DG context
         x0_DG = SFFM.Dist2Coeffs(model, dgmesh, initdist)
@@ -106,14 +105,13 @@ for order in orders
         ]
         initprobs = zeros(Float64,SFFM.NBases(frapmesh),SFFM.NIntervals(frapmesh),SFFM.NPhases(model))
         initprobs[:,pointIdx,1] = me.a
-        initdist = SFFM.SFFMDistribution(
+        initdist = SFFM.SFFMDensity(
             initpm,
             initprobs,
             SFFM.CellNodes(frapmesh),
-            "density",
         ) # convert to a distribution object so we can apply Dist2Coeffs
         # convert to Coeffs α in the DG context
-        x0_ME = SFFM.Dist2Coeffs( model, frapmesh, initdist, probTransform = false)
+        x0_ME = SFFM.Dist2Coeffs( model, frapmesh, initdist)
     end
     begin
         initpm = [
@@ -122,14 +120,13 @@ for order in orders
         ]
         initprobs = zeros(Float64,SFFM.NBases(frapmesh),SFFM.NIntervals(frapmesh),SFFM.NPhases(model))
         initprobs[1,pointIdx,1] = 1
-        initdist = SFFM.SFFMDistribution(
+        initdist = SFFM.SFFMDensity(
             initpm,
             initprobs,
             SFFM.CellNodes(frapmesh),
-            "density",
         ) # convert to a distribution object so we can apply Dist2Coeffs
         # convert to Coeffs α in the DG context
-        x0_Erlang = SFFM.Dist2Coeffs( model, frapmesh, initdist, probTransform = false)
+        x0_Erlang = SFFM.Dist2Coeffs( model, frapmesh, initdist)
     end
     begin
         initpm = [
@@ -138,14 +135,13 @@ for order in orders
         ]
         initprobs = zeros(Float64,SFFM.NBases(fvmesh),SFFM.NIntervals(fvmesh),SFFM.NPhases(model))
         initprobs[1,pointIdx,1] = 1
-        initdist = SFFM.SFFMDistribution(
+        initdist = SFFM.SFFMDensity(
             initpm,
             initprobs,
             SFFM.CellNodes(fvmesh),
-            "density",
         ) # convert to a distribution object so we can apply Dist2Coeffs
         # convert to Coeffs α in the DG context
-        x0_FV = SFFM.Dist2Coeffs( model, fvmesh, initdist, probTransform = false)
+        x0_FV = SFFM.Dist2Coeffs( model, fvmesh, initdist)
     end
 
     euler(B,x0) = SFFM.EulerDG( B, 1.2, x0, h = 0.0001) 
@@ -159,25 +155,25 @@ for order in orders
         model,
         dgmesh,
         x1_DG,
-        type = "probability",
+        SFFM.SFFMProbability,
     )
     x1_ME = SFFM.Coeffs2Dist(
         model,
         frapmesh,
         x1_ME,
-        type = "probability",
+        SFFM.SFFMProbability,
     )
     x1_Erlang = SFFM.Coeffs2Dist(
         model,
         frapmesh,
         x1_Erlang,
-        type = "probability",
+        SFFM.SFFMProbability,
     )
     x1_MEPH = SFFM.Coeffs2Dist(
         model,
         frapmesh,
         x1_MEPH,
-        type = "probability",
+        SFFM.SFFMProbability,
     )
 
     # # reshape x1_FV to same size as DG/FRAP
@@ -191,7 +187,7 @@ for order in orders
         model,
         frapmesh,
         x1_FV,
-        type = "probability",
+        SFFM.SFFMProbability,
     )
 
     errVec_1 = (
@@ -203,17 +199,17 @@ for order in orders
     )
     push!(errors_1, errVec_1)
 
-    # p = SFFM.PlotSFM(model, dgmesh, x1_DG,
+    # p = SFFM.plot(model, dgmesh, x1_DG,
     #     color = 1, label = "DG")
-    # p = SFFM.PlotSFM!(p, model, frapmesh, x1_ME, 
+    # p = SFFM.plot!(p, model, frapmesh, x1_ME, 
     #     color = 2, label = "ME")
-    # SFFM.PlotSFM!(p, model, frapmesh, x1_Erlang, 
+    # SFFM.plot!(p, model, frapmesh, x1_Erlang, 
     #     color = 3, label = "Erlang")
-    # SFFM.PlotSFM!(p, model, frapmesh, simprobs_1, 
+    # SFFM.plot!(p, model, frapmesh, simprobs_1, 
     #     color = 4, label = "Sim")
-    # SFFM.PlotSFM!(p, model, frapmesh, x1_MEPH, 
+    # SFFM.plot!(p, model, frapmesh, x1_MEPH, 
     #     color = 5, label = "ME-PH")
-    # SFFM.PlotSFM!(p, model, fvmesh, x1_FV, 
+    # SFFM.plot!(p, model, fvmesh, x1_FV, 
     #     color = 7, label = "FV")
     # p = plot!(title = "approx dist at t=1.2; order = "*string(order), subplot = 1)
     # display(p)
@@ -307,31 +303,31 @@ for order in orders
         model,
         frapmesh,
         z_DG,
-        type = "probability",
+        SFFM.SFFMProbability,
     ) 
     returnDist_ME =  SFFM.Coeffs2Dist(
         model,
         frapmesh,
         z_ME,
-        type = "probability",
+        SFFM.SFFMProbability,
     ) 
     returnDist_Erlang =  SFFM.Coeffs2Dist(
         model,
         frapmesh,
         z_Erlang,
-        type = "probability",
+        SFFM.SFFMProbability,
     )
     returnDist_MEPH =  SFFM.Coeffs2Dist(
         model,
         frapmesh,
         z_MEPH,
-        type = "probability",
+        SFFM.SFFMProbability,
     )
     returnDist_FV =  SFFM.Coeffs2Dist(
         model,
         frapmesh,
         z_FV,
-        type = "probability",
+        SFFM.SFFMProbability,
     ) 
 
     errVec_Psi = (
@@ -343,17 +339,17 @@ for order in orders
     )
     push!(errors_Psi, errVec_Psi)
 
-    # p = SFFM.PlotSFM(model, dgmesh, returnDist_DG,
+    # p = SFFM.plot(model, dgmesh, returnDist_DG,
     #     color = 1, label = "DG")
-    # p = SFFM.PlotSFM!(p, model, dgmesh, returnDist_ME, 
+    # p = SFFM.plot!(p, model, dgmesh, returnDist_ME, 
     #     color = 2, label = "ME")
-    # p = SFFM.PlotSFM!(p, model, frapmesh, returnDist_Erlang, 
+    # p = SFFM.plot!(p, model, frapmesh, returnDist_Erlang, 
     #     color = 3, label = "Erlang")
-    # p = SFFM.PlotSFM!(p, model, frapmesh, simprobs_Psi, 
+    # p = SFFM.plot!(p, model, frapmesh, simprobs_Psi, 
     #     color = 4, label = "Sim")   
-    # p = SFFM.PlotSFM!(p, model, frapmesh, returnDist_MEPH, 
+    # p = SFFM.plot!(p, model, frapmesh, returnDist_MEPH, 
     #     color = 5, label = "MEPH") 
-    # p = SFFM.PlotSFM!(p, model, fvmesh, returnDist_FV, 
+    # p = SFFM.plot!(p, model, fvmesh, returnDist_FV, 
     #     color = 7, label = "FV") 
     # p = plot!(title = "approx Ψ; order = "*string(order), subplot = 1)
     # display(p)
@@ -368,9 +364,9 @@ simdensity_Psi = SFFM.Sims2Dist(
     model, 
     simmesh, 
     sims_Psi, 
-    type = "probability"
+    SFFM.SFFMProbability,
 )
-q = SFFM.PlotSFM(model, simmesh, simdensity_Psi)
+q = SFFM.plot(model, simmesh, simdensity_Psi)
 display(q)
 
 q = plot(xlabel = "order", ylabel = "log10 error", title = "error for Psi")
@@ -398,9 +394,9 @@ simdensity_1 = SFFM.Sims2Dist(
     model, 
     simmesh, 
     sims_1, 
-    type = "probability"
+    SFFM.SFFMProbability,
 )
-q = SFFM.PlotSFM(model, simmesh, simdensity_1)
+q = SFFM.plot(model, simmesh, simdensity_1)
 display(q)
 
 q = plot(

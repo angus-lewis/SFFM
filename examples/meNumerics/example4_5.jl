@@ -162,28 +162,27 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         approxModel,
         dgmesh,
         marginalX,
-        type = "probability",
+        SFFM.SFFMProbability,
     )
     meStationaryDist = SFFM.Coeffs2Dist(
         approxModel,
         frapmesh,
         marginalXme,
-        type = "probability",
+        SFFM.SFFMProbability,
     )
     fvStationaryDist = SFFM.Coeffs2Dist(
         approxModel,
         fvmesh,
         marginalXfv,
-        type = "probability",
+        SFFM.SFFMProbability,
     )
 
     ## stationary distirbution stuff
     # evaluate the analytic result given the mesh
-    analyticX = SFFM.SFFMDistribution(
+    analyticX = SFFM.SFFMProbability(
         [pₓ[:]; 0; 0],
         Πₓ(Matrix(mesh.Nodes[2:end]')) - Πₓ(Matrix(mesh.Nodes[1:end-1]')),
         mesh.Nodes[1:end-1] + SFFM.Δ(mesh) / 2,
-        "probability",
     )
 
     # save them
