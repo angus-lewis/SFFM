@@ -180,10 +180,15 @@ function PsiFun(D::Dict{String,Any}; s::Real = 0, MaxIters::Int = 1000, err::Flo
     A = EvalD["++"]
     B = EvalD["--"]
     C = EvalD["+-"]
+    # RA, QA = LinearAlgebra.schur(Matrix(A)) # uncomment for algorithm 1
+    # RB, QB = LinearAlgebra.schur(Matrix(B)) # uncomment for algorithm 1
     OldPsi = Psi
     flag = 1
     for n = 1:MaxIters
+        ## line below goes with algorithm 4, is quadratically convergent
         Psi = LinearAlgebra.sylvester(Matrix(A), Matrix(B), Matrix(C))
+        ## line below goes with algorithm 1
+        # Psi = mysyl(RA,QA,RB,QB,C)
         if maximum(abs.(OldPsi - Psi)) < err
             flag = 0
             exitflag = string(
@@ -199,9 +204,15 @@ function PsiFun(D::Dict{String,Any}; s::Real = 0, MaxIters::Int = 1000, err::Flo
             break
         end
         OldPsi = Psi
+        ## Algorithm 4 of Bean, O'Reilly, Taylor, 2008, 
+        ## Algorithms for the Laplace–Stieltjes Transforms of First Return Times for Stochastic Fluid Flows, 
+        ## Methodol Comput Appl Probab (2008) 10:381–408, DOI 10.1007/s11009-008-9077-3
         A = EvalD["++"] + Psi * EvalD["-+"]
         B = EvalD["--"] + EvalD["-+"] * Psi
         C = EvalD["+-"] - Psi * EvalD["-+"] * Psi
+        ## Algorithm 1 of the above citation
+        # A, B dont change, need only comput schur decomp once 
+        # C = EvalD["+-"] + Psi * EvalD["-+"] * Psi
     end
     if flag == 1
         exitflag = string(
@@ -213,6 +224,16 @@ function PsiFun(D::Dict{String,Any}; s::Real = 0, MaxIters::Int = 1000, err::Flo
     end
     println("UPDATE: Iterations for Ψ(s=", s,") exited with flag: ", exitflag)
     return Psi
+end
+
+function mysyl(RA,QA,RB,QB,C)
+    # sylvester but we give it the schur decomps
+    # RA, QA = schur(A)
+    # RB, QB = schur(B)
+
+    D = -(adjoint(QA) * (C*QB))
+    Y, scale = LinearAlgebra.LAPACK.trsyl!('N','N', RA, RB, D)
+    LinearAlgebra.rmul!(QA*(Y * adjoint(QB)), inv(scale))
 end
 
 
