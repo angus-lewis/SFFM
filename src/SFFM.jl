@@ -46,11 +46,12 @@ struct Model
         C::Array{<:Real,1},
         r::NamedTuple{(:r, :R)};
         Bounds::Array{<:Real,2} = [-Inf Inf; -Inf Inf],
+        v::Bool = false,
     )
         a(x) = abs.(r.r(x))
         r = (r = r.r, R = r.R, a = a)
     
-        println("UPDATE: Model object created with fields ", fieldnames(SFFM.Model))
+        v && println("UPDATE: Model object created with fields ", fieldnames(SFFM.Model))
         return new(
             T,
             C,

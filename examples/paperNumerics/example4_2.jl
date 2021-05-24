@@ -74,6 +74,7 @@ let
         # construct matrices
         All = SFFM.MakeAll( approxModel, mesh, approxType = "projection")
         Ψ = SFFM.PsiFun(All.D)
+        # @btime SFFM.PsiFun(All.D)
 
         # construct initial condition
         theNodes = SFFM.CellNodes(mesh)[:,convert(Int,ceil(5/Δtemp))]

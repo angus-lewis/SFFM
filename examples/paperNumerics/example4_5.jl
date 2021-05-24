@@ -32,7 +32,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         nBases = NBasesRange[n]
         Δtemp = Δs[d]
         println("mesh details; h = ", Δtemp, " NBases = ", nBases)
-
+        
         # collect time and memory stats
         ~, times[d, n], mems[d, n], gctimes[d, n], alloc[d, n] = @timed begin
             Nodes = collect(approxBounds[1, 1]:Δtemp:approxBounds[1, 2])
@@ -47,9 +47,11 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
             # compute the marginal via DG
             All = SFFM.MakeAll( approxModel, mesh, approxType = "projection")
             Ψ = SFFM.PsiFun( All.D)
+            # @btime SFFM.PsiFun( $All.D)
 
             # the distribution of X when Y first returns to 0
             ξ = SFFM.MakeXi(All.B.BDict, Ψ)
+            # @btime SFFM.MakeXi($All.B.BDict, $Ψ)
 
             marginalX, p, K = SFFM.MakeLimitDistMatrices(
                 All.B.BDict,
@@ -60,6 +62,15 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
                 mesh,
                 approxModel,
             )
+            # @btime SFFM.MakeLimitDistMatrices(
+            #     $All.B.BDict,
+            #     $All.D,
+            #     $All.R.RDict,
+            #     $Ψ,
+            #     $ξ,
+            #     $mesh,
+            #     $approxModel,
+            # )
         end
         # convert marginalX to a distribution for analysis
         DGStationaryDist = SFFM.Coeffs2Dist(

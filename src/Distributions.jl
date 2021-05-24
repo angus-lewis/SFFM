@@ -91,6 +91,7 @@ function Coeffs2Dist(
     mesh::SFFM.DGMesh,
     Coeffs::AbstractArray,
     type::Type{T} = SFFMProbability,
+    v::Bool = false,
 ) where {T<:SFFMDistribution} 
 
     V = SFFM.vandermonde(NBases(mesh))
@@ -160,7 +161,7 @@ function Coeffs2Dist(
     end
     
     out = type(pm, yvals, xvals)
-    println("UPDATE: distribution object created with keys ", fieldnames(type))
+    v && println("UPDATE: distribution object created with keys ", fieldnames(type))
     return out
 end
 function Coeffs2Dist(
@@ -168,6 +169,7 @@ function Coeffs2Dist(
     mesh::Union{FRAPMesh, FVMesh},
     Coeffs::AbstractArray,
     type::Type{T} = SFFMProbability,
+    v::Bool = false,
 ) where {T<:SFFMDistribution}
 
     if type != SFFMProbability
@@ -192,7 +194,7 @@ function Coeffs2Dist(
     pm = [Coeffs[1:N₋]; Coeffs[end-N₊+1:end]]
 
     out = type(pm, yvals, xvals)
-    println("UPDATE: distribution object created with keys ", fieldnames(type))
+    v && println("UPDATE: distribution object created with keys ", fieldnames(type))
     return out
 end
 

@@ -54,6 +54,7 @@ struct DGMesh <: Mesh
         NBases::Int;
         Fil::Dict{String,BitArray{1}}=Dict{String,BitArray{1}}(),
         Basis::String = "lagrange",
+        v::Bool = false,
     )
         if isempty(Fil)
             Fil = MakeFil(model, Nodes)
@@ -61,7 +62,7 @@ struct DGMesh <: Mesh
 
         mesh = new(Nodes, NBases, Fil, Basis)
 
-        println("UPDATE: DGMesh object created with fields ", fieldnames(SFFM.DGMesh))
+        v && println("UPDATE: DGMesh object created with fields ", fieldnames(SFFM.DGMesh))
         return mesh
     end
     function DGMesh()
@@ -380,6 +381,7 @@ function MakeMatrices(
     model::SFFM.Model,
     mesh::DGMesh;
     probTransform::Bool=true,
+    v::Bool = false,
 )
     ## Construct local blocks
     V = vandermonde(NBases(mesh))
@@ -445,9 +447,9 @@ function MakeMatrices(
     Local = (G = GLocal, M = MLocal, MInv = MInvLocal, V = V, Phi = Phi, Dw = Dw)
     Global = (G = G, M = M, MInv = MInv, F = F, Q = Q)
     out = (Local = Local, Global = Global)
-    println("UPDATE: Matrices object created with keys ", keys(out))
-    println("UPDATE:    Matrices[:",keys(out)[1],"] object created with keys ", keys(out[1]))
-    println("UPDATE:    Matrices[:",keys(out)[2],"] object created with keys ", keys(out[2]))
+    v && println("UPDATE: Matrices object created with keys ", keys(out))
+    v && println("UPDATE:    Matrices[:",keys(out)[1],"] object created with keys ", keys(out[1]))
+    v && println("UPDATE:    Matrices[:",keys(out)[2],"] object created with keys ", keys(out[2]))
     return out
 end
 
@@ -482,6 +484,7 @@ function MakeB(
     mesh::DGMesh,
     Matrices::NamedTuple;
     probTransform::Bool=true,
+    v::Bool = false,
 )
     ## Make B on the interior of the space
     N₊ = sum(model.C .>= 0)
@@ -580,7 +583,7 @@ function MakeB(
     QBDidx[(end-N₊+1):end] = (NPhases(model) * TotalNBases(mesh) + N₋) .+ (1:N₊)
 
     out = (BDict = BDict, B = B, QBDidx = QBDidx)
-    println("UPDATE: B object created with keys ", keys(out))
+    v && println("UPDATE: B object created with keys ", keys(out))
     return out
 end
 
@@ -612,6 +615,7 @@ function MakeB(
     model::SFFM.Model,
     mesh::DGMesh;
     probTransform::Bool=true,
+    v::Bool = false,
 )
     M = SFFM.MakeMatrices(
         model,
@@ -619,7 +623,7 @@ function MakeB(
         probTransform=probTransform,
     )
     B = SFFM.MakeB(model, mesh, M; probTransform=probTransform)
-    println("UPDATE: B object created with keys ", keys(B))
+    v && println("UPDATE: B object created with keys ", keys(B))
     return B
 end
 

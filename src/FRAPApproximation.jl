@@ -7,6 +7,7 @@ struct FRAPMesh <: Mesh
         Nodes::Array{<:Real,1},
         NBases::Int;
         Fil::Dict{String,BitArray{1}}=Dict{String,BitArray{1}}(),
+        v::Bool = false,
     )
 
         ## Construct the sets Fᵐ = ⋃ᵢ Fᵢᵐ, global index for sets of type m
@@ -19,7 +20,7 @@ struct FRAPMesh <: Mesh
             NBases,
             Fil,
         )
-        println("UPDATE: DGMesh object created with fields ", fieldnames(SFFM.DGMesh))
+        v && println("UPDATE: DGMesh object created with fields ", fieldnames(SFFM.DGMesh))
         return mesh
     end
     function FRAPMesh()

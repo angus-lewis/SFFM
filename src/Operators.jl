@@ -31,6 +31,7 @@ function MakeR(
     mesh::Mesh;
     approxType::String = "projection",
     probTransform::Bool = true,
+    v::Bool = false,
 )
     V = SFFM.vandermonde(NBases(mesh))
 
@@ -85,7 +86,7 @@ function MakeR(
     RDict = MakeDict(R,model,mesh,zero=false)
 
     out = (R=R, RDict=RDict)
-    println("UPDATE: R object created with keys ", keys(out))
+    v && println("UPDATE: R object created with keys ", keys(out))
     return out
 end
 
@@ -113,6 +114,7 @@ function MakeD(
     mesh::SFFM.Mesh,
     B::NamedTuple{(:BDict, :B, :QBDidx)},
     R::NamedTuple{(:R, :RDict)},
+    v::Bool = false,
 )
     DDict = Dict{String,Any}()
     for ℓ in ["+", "-"], m in ["+", "-"]
@@ -146,7 +148,7 @@ function MakeD(
             end # end function
         end # end if ...
     end # end for ℓ ...
-    println("UPDATE: D(s) operator created with keys ", keys(DDict))
+    v && println("UPDATE: D(s) operator created with keys ", keys(DDict))
     return (DDict = DDict)
 end
 
@@ -168,7 +170,14 @@ Uses newtons method to solve the Ricatti equation
 # Output
 - `Ψ(s)::Array{Float64,2}`: a matrix approxiamtion to ``Ψ(s)``.
 """
-function PsiFun(D::Dict{String,Any}; s::Real = 0, MaxIters::Int = 1000, err::Float64 = 1e-8)
+function PsiFun(
+    D::Dict{String,Any}; 
+    s::Real = 0, 
+    MaxIters::Int = 1000, 
+    err::Float64 = 1e-8,
+    v::Bool = false,
+)
+
     exitflag = ""
 
     EvalD = Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}}("+-" => D["+-"](s = s))
@@ -222,7 +231,7 @@ function PsiFun(D::Dict{String,Any}; s::Real = 0, MaxIters::Int = 1000, err::Flo
             string(maximum(abs.(OldPsi - Psi))),
         )
     end
-    println("UPDATE: Iterations for Ψ(s=", s,") exited with flag: ", exitflag)
+    v && println("UPDATE: Iterations for Ψ(s=", s,") exited with flag: ", exitflag)
     return Psi
 end
 
@@ -346,7 +355,7 @@ function MakeLimitDistMatrices(
     R::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
     Ψ::Array{<:Real},
     ξ::Array{<:Real},
-    mesh::Mesh,
+    mesh::SFFM.Mesh,
     model::Model;
     probTransform::Bool = true,
 )
