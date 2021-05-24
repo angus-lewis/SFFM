@@ -225,6 +225,7 @@ function MakeDict(
 end
 
 include("DGBase.jl")
+include("DGAdv.jl")
 include("Operators.jl")
 include("FVM.jl")
 include("METools.jl")
