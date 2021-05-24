@@ -282,11 +282,11 @@ function MakeBlockDiagonalMatrix(
     Blocks::Array{Float64,2},
     Factors::Array,
 )
-    BlockMatrix = SparseArrays.spzeros(Float64, TotalNBases(mesh), TotalNBases(mesh))
-    for i = 1:NIntervals(mesh)
-        idx = (1:NBases(mesh)) .+ (i - 1) * NBases(mesh)
-        BlockMatrix[idx, idx] = Blocks * Factors[i]
-    end
+    BlockMatrix = kron(SparseArrays.spdiagm(0=>Factors), Blocks) # SparseArrays.spzeros(Float64, TotalNBases(mesh), TotalNBases(mesh))
+    # for i = 1:NIntervals(mesh)
+    #     idx = (1:NBases(mesh)) .+ (i - 1) * NBases(mesh)
+    #     BlockMatrix[idx, idx] = Blocks * Factors[i]
+    # end
     return (BlockMatrix = BlockMatrix)
 end
 
@@ -307,8 +307,6 @@ Constructs the flux matrices for DG
     function evaluated at the left-hand and right-hand edge of a cell,
     respectively
 - `Dw::Array{Float64,2}`: a diagonal matrix function weights
-- `probTransform::Bool=true`: an (optional) specification for the lagrange basis
-    to specify whether transform to probability coefficients.
 
 # Output
 - `F::Dict{String, SparseArrays.SparseMatrixCSC{Float64,Int64},1}`: a dictionary
@@ -328,46 +326,20 @@ function MakeFluxMatrix(
     LowDiagBlock = -Dw.DwInv * Phi[1, :] * Phi[end, :]' * Dw.Dw
 
     ## Construct global block diagonal matrix
+    if Basis(mesh) == "legendre"
+        η = ones(NIntervals(mesh)-1)
+    elseif Basis(mesh) == "lagrange"
+        if probTransform
+            η = Δ(mesh)[2:end] ./ Δ(mesh)[1:end-1]
+        else 
+            η = ones(NIntervals(mesh)-1)
+        end
+    end
+    
     F = Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}}()
-    for i = ["+","-"]
-        F[i] = SparseArrays.spzeros(Float64, TotalNBases(mesh), TotalNBases(mesh))
-        for k = 1:NIntervals(mesh)
-            idx = (1:NBases(mesh)) .+ (k - 1) * NBases(mesh)
-            if i=="+"
-                F[i][idx, idx] = PosDiagBlock
-            elseif i=="-"
-                F[i][idx, idx] = NegDiagBlock
-            end # end if C[i]
-            if k > 1
-                idxup = (1:NBases(mesh)) .+ (k - 2) * NBases(mesh)
-                if i=="+"
-                    # the legendre basis works in density world so there are no etas
-                    if Basis(mesh) == "legendre"
-                        η = 1
-                    elseif Basis(mesh) == "lagrange"
-                        if !probTransform
-                            η = 1
-                        else
-                            η = Δ(mesh)[k] / Δ(mesh)[k-1]
-                        end
-                    end
-                    F[i][idxup, idx] = UpDiagBlock * η
-                elseif i=="-"
-                    if Basis(mesh) == "legendre"
-                        η = 1
-                    elseif Basis(mesh) == "lagrange"
-                        if !probTransform
-                            η = 1
-                        else
-                            η = Δ(mesh)[k-1] / Δ(mesh)[k]
-                        end
-                    end
-                    F[i][idx, idxup] = LowDiagBlock * η
-                end # end if C[i]
-            end # end if k>1
-        end # for k in ...
-    end # for i in ...
-
+    ncells = NIntervals(mesh)
+    F["+"] = kron( SparseArrays.spdiagm(0=>ones(ncells)), PosDiagBlock) + kron( SparseArrays.spdiagm(1=>η), UpDiagBlock)
+    F["-"] = kron( SparseArrays.spdiagm(0=>ones(ncells)), NegDiagBlock) + kron( SparseArrays.spdiagm(-1=> (1 ./η)), LowDiagBlock)
     return (F = F)
 end
 
@@ -383,8 +355,6 @@ Creates the Local and global mass, stiffness and flux matrices to compute `B`.
 # Arguments
 - `model`: A Model object
 - `mesh`: A Mesh object
-- `probTransform::Bool=true`: an (optional) specification for the lagrange basis
-    to specify whether transform to probability coefficients.
 
 # Output
 - A tuple of tuples
@@ -424,19 +394,19 @@ function MakeMatrices(
         MInvLocal = Matrix{Float64}(LinearAlgebra.I(NBases(mesh)))
         Phi = V.V[[1; end], :]
     elseif Basis(mesh) == "lagrange"
-        if !probTransform
-            Dw = (
-                DwInv = LinearAlgebra.I,
-                Dw = LinearAlgebra.I,
-            )# function weights so that we can work in probability land as
-            # opposed to density land
-        else
+        if probTransform
             Dw = (
                 DwInv = LinearAlgebra.diagm(0 => 1.0 ./ V.w),
                 Dw = LinearAlgebra.diagm(0 => V.w),
             )# function weights so that we can work in probability land as
             # opposed to density land
+        else
+            Dw = (
+                DwInv = LinearAlgebra.I,
+                Dw = LinearAlgebra.I,
+            )
         end
+
         MLocal = Dw.DwInv * V.inv' * V.inv * Dw.Dw
         GLocal = Dw.DwInv * V.inv' * V.inv * (V.D * V.inv) * Dw.Dw
         MInvLocal = Dw.DwInv * V.V * V.V' * Dw.Dw
@@ -458,16 +428,19 @@ function MakeMatrices(
     F = SFFM.MakeFluxMatrix(mesh, Phi, Dw, probTransform = probTransform)
 
     ## Assemble the DG drift operator
-    Q = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,NPhases(model))
-    for i = 1:NPhases(model)
-        if model.C[i] > 0
-            Q[i] = model.C[i] * (G + F["+"]) * MInv
-        elseif model.C[i] < 0
-            Q[i] = model.C[i] * (G + F["-"]) * MInv
-        else
-            Q[i] = SparseArrays.spzeros(size(G,1),size(G,2))
-        end
-    end
+    up = model.C.*(model.C .> 0)
+    down = model.C.*(model.C .< 0)
+    Q = kron( SparseArrays.spdiagm(0=>up), (G + F["+"]) * MInv) + kron( SparseArrays.spdiagm(0=>down), (G + F["-"]) * MInv) 
+    # Q = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,NPhases(model))
+    # for i = 1:NPhases(model)
+    #     if model.C[i] > 0
+    #         Q[i] = model.C[i] * (G + F["+"]) * MInv
+    #     elseif model.C[i] < 0
+    #         Q[i] = model.C[i] * (G + F["-"]) * MInv
+    #     else
+    #         Q[i] = SparseArrays.spzeros(size(G,1),size(G,2))
+    #     end
+    # end
 
     Local = (G = GLocal, M = MLocal, MInv = MInvLocal, V = V, Phi = Phi, Dw = Dw)
     Global = (G = G, M = M, MInv = MInv, F = F, Q = Q)
@@ -492,8 +465,6 @@ Creates the DG approximation to the generator `B`.
 - `model`: A Model object
 - `mesh`: A Mesh object
 - `Matrices`: A Matrices tuple from `MakeMatrices`
-- `probTransform::Bool=true`: an (optional) specification for the lagrange basis
-    to specify whether transform to probability coefficients.
 
 # Output
 - A tuple with fields `:BDict, :B, :QBDidx`
@@ -515,66 +486,87 @@ function MakeB(
     ## Make B on the interior of the space
     N₊ = sum(model.C .>= 0)
     N₋ = sum(model.C .<= 0)
-    B = SparseArrays.spzeros(
-        Float64,
-        NPhases(model) * TotalNBases(mesh) + N₋ + N₊,
-        NPhases(model) * TotalNBases(mesh) + N₋ + N₊,
-    )
+    # B = SparseArrays.spzeros(
+    #     Float64,
+    #     NPhases(model) * TotalNBases(mesh) + N₋ + N₊,
+    #     NPhases(model) * TotalNBases(mesh) + N₋ + N₊,
+    # )
     Id = SparseArrays.I(TotalNBases(mesh))
-    for i = 1:NPhases(model)
-        idx = ((i-1)*TotalNBases(mesh)+1:i*TotalNBases(mesh)) .+ N₋
-        B[idx, idx] = Matrices.Global.Q[i]
-    end
-    B[(N₋+1):(end-N₊), (N₋+1):(end-N₊)] =
-        B[(N₋+1):(end-N₊), (N₋+1):(end-N₊)] + LinearAlgebra.kron(model.T, Id)
+    # for i = 1:NPhases(model)
+    #     idx = ((i-1)*TotalNBases(mesh)+1:i*TotalNBases(mesh)) .+ N₋
+    #     B[idx, idx] = Matrices.Global.Q[i]
+    # end
+    # B[(N₋+1):(end-N₊), (N₋+1):(end-N₊)] +=
+    #     B[(N₋+1):(end-N₊), (N₋+1):(end-N₊)] + LinearAlgebra.kron(model.T, Id) 
+    B = LinearAlgebra.kron(model.T, Id) + Matrices.Global.Q
 
     # Boundary behaviour
     if Basis(mesh) == "legendre"
         η = Δ(mesh)[[1; end]] ./ 2 # this is the inverse of the η=Δ(mesh)/2 bit
         # below there are no η's for the legendre basis
     elseif Basis(mesh) == "lagrange"
-        if !probTransform
-            η = Δ(mesh)[[1; end]] ./ 2
-        else
+        if probTransform
             η = [1; 1]
+        else
+            η = Δ(mesh)[[1; end]] ./ 2
         end
     end
-
+    
     # Lower boundary
+    tmp = Matrices.Local.Phi[1, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv ./ η[1]
+    top_left = model.T[model.C.<=0, model.C.<=0]
+    top_mid = kron( kron( model.T[model.C.<=0, :].*(model.C.>0)', [1 SparseArrays.spzeros(1,NIntervals(mesh)-1)]),tmp)
+    top_right = SparseArrays.spzeros(sum(model.C.<=0), sum(model.C.>=0))
+    top = [top_left top_mid top_right]
     # At boundary
-    B[1:N₋, 1:N₋] = model.T[model.C.<=0, model.C.<=0]
+    # B[1:N₋, 1:N₋] = model.T[model.C.<=0, model.C.<=0]
     # Out of boundary
-    idxup = ((1:NBases(mesh)).+TotalNBases(mesh)*(findall(model.C .> 0) .- 1)')[:] .+ N₋
-    B[1:N₋, idxup] = kron(
-        model.T[model.C.<=0, model.C.>0],
-        Matrices.Local.Phi[1, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv ./ η[1],
-    )
+    # idxup = ((1:NBases(mesh)).+TotalNBases(mesh)*(findall(model.C .> 0) .- 1)')[:] .+ N₋
+    # B[1:N₋, idxup] = kron(
+    #     model.T[model.C.<=0, model.C.>0],
+    #     Matrices.Local.Phi[1, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv ./ η[1],
+    # )
     # Into boundary
-    idxdown = ((1:NBases(mesh)).+TotalNBases(mesh)*(findall(model.C .<= 0) .- 1)')[:] .+ N₋
-    B[idxdown, 1:N₋] = LinearAlgebra.kron(
+    lft = SparseArrays.spzeros(TotalNBases(mesh).*NPhases(model), N₋)
+    idxdown = ((1:NBases(mesh)).+TotalNBases(mesh)*(findall(model.C .<= 0) .- 1)')[:]
+    # B[idxdown, 1:N₋] 
+    lft[idxdown,:] = LinearAlgebra.kron(
         LinearAlgebra.diagm(0 => model.C[model.C.<=0]),
         -Matrices.Local.Dw.DwInv * 2.0 ./ Δ(mesh)[1] * Matrices.Local.Phi[1, :] * η[1],
     )
 
     # Upper boundary
+    tmp = Matrices.Local.Phi[end, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv  ./ η[end]
+    btm_left = SparseArrays.spzeros(sum(model.C.>=0), sum(model.C.<=0))
+    btm_mid = kron( kron(model.T[model.C.>=0, :].*(model.C.<0)',[SparseArrays.spzeros(1,NIntervals(mesh)-1) 1]), tmp)
+    btm_right = model.T[model.C.>=0, model.C.>=0]
+    btm = [btm_left btm_mid btm_right]
     # At boundary
-    B[(end-N₊+1):end, (end-N₊+1):end] = model.T[model.C.>=0, model.C.>=0]
-    # Out of boundary
-    idxdown =
-        ((1:NBases(mesh)).+TotalNBases(mesh)*(findall(model.C .< 0) .- 1)')[:] .+
-        (N₋ + TotalNBases(mesh) - NBases(mesh))
-    B[(end-N₊+1):end, idxdown] = kron(
-        model.T[model.C.>=0, model.C.<0],
-        Matrices.Local.Phi[end, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv  ./ η[end],
-    )
+    # B[(end-N₊+1):end, (end-N₊+1):end] = model.T[model.C.>=0, model.C.>=0]
+    # # Out of boundary
+    # idxdown =
+    #     ((1:NBases(mesh)).+TotalNBases(mesh)*(findall(model.C .< 0) .- 1)')[:] .+
+    #     (N₋ + TotalNBases(mesh) - NBases(mesh))
+    # B[(end-N₊+1):end, idxdown] = kron(
+    #     model.T[model.C.>=0, model.C.<0],
+    #     Matrices.Local.Phi[end, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv  ./ η[end],
+    # )
     # Into boundary
+    rght = SparseArrays.spzeros(TotalNBases(mesh).*NPhases(model), N₊)
+    # LinearAlgebra.kron(
+    #     LinearAlgebra.diagm(0 => model.C[model.C.>=0]),
+    #     Matrices.Local.Dw.DwInv * 2.0 ./ Δ(mesh)[end] * Matrices.Local.Phi[end, :] * η[end],
+    # )
     idxup =
         ((1:NBases(mesh)).+TotalNBases(mesh)*(findall(model.C .>= 0) .- 1)')[:] .+
-        (N₋ + TotalNBases(mesh) - NBases(mesh))
-    B[idxup, (end-N₊+1):end] = LinearAlgebra.kron(
+        (TotalNBases(mesh) - NBases(mesh))
+    # B[idxup, (end-N₊+1):end] = 
+    rght[idxup,:] = LinearAlgebra.kron(
         LinearAlgebra.diagm(0 => model.C[model.C.>=0]),
         Matrices.Local.Dw.DwInv * 2.0 ./ Δ(mesh)[end] * Matrices.Local.Phi[end, :] * η[end],
     )
+    
+    B = vcat(top,hcat(lft, B, rght),btm)
 
     BDict = MakeDict(B, model, mesh)
     ## Make QBD index
@@ -604,8 +596,6 @@ Creates the DG approximation to the generator `B`.
 # Arguments
 - `model`: A Model object
 - `mesh`: A Mesh object
-- `probTransform::Bool=true`: an (optional) specification for the lagrange basis
-    to specify whether transform to probability coefficients.
 
 # Output
 - A tuple with fields `:BDict, :B, :QBDidx`
@@ -626,9 +616,9 @@ function MakeB(
     M = SFFM.MakeMatrices(
         model,
         mesh;
-        probTransform= probTransform,
+        probTransform=probTransform,
     )
-    B = SFFM.MakeB(model, mesh, M, probTransform = probTransform)
+    B = SFFM.MakeB(model, mesh, M; probTransform=probTransform)
     println("UPDATE: B object created with keys ", keys(B))
     return B
 end

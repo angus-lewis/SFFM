@@ -25,8 +25,8 @@ mesh = SFFM.DGMesh(model, Nodes, nBases, Basis=Basis)
 
 ## Make matrices
 All = SFFM.MakeAll( model, mesh)
-M = SFFM.MakeMatrices( model, mesh, probTransform=false)
-B = SFFM.MakeB( model, mesh, M, probTransform=false)
+M = SFFM.MakeMatrices( model, mesh)
+B = SFFM.MakeB( model, mesh, M)
 R = SFFM.MakeR( model, mesh)
 
 println("")
