@@ -1,5 +1,5 @@
 module SFFM
-import Jacobi, LinearAlgebra, SparseArrays
+import Jacobi, LinearAlgebra, SparseArrays, LazyArrays
 import Plots, StatsBase, KernelDensity
 
 """
@@ -127,7 +127,7 @@ Abstract type representing a mesh for a numerical scheme.
 abstract type Mesh end 
 
 function MakeDict(
-    B::Union{Array{<:Real,2},SparseArrays.SparseMatrixCSC{<:Real,Int64}},
+    B::AbstractArray{<:Real,2},
     model::Model, 
     mesh::Mesh;
     zero::Bool=true,

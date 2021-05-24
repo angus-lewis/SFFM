@@ -282,7 +282,7 @@ function MakeBlockDiagonalMatrix(
     Blocks::Array{Float64,2},
     Factors::Array,
 )
-    BlockMatrix = kron(SparseArrays.spdiagm(0=>Factors), Blocks) # SparseArrays.spzeros(Float64, TotalNBases(mesh), TotalNBases(mesh))
+    BlockMatrix = LazyArrays.ApplyArray(kron,SparseArrays.spdiagm(0=>Factors), Blocks) # SparseArrays.spzeros(Float64, TotalNBases(mesh), TotalNBases(mesh))
     # for i = 1:NIntervals(mesh)
     #     idx = (1:NBases(mesh)) .+ (i - 1) * NBases(mesh)
     #     BlockMatrix[idx, idx] = Blocks * Factors[i]
@@ -338,8 +338,8 @@ function MakeFluxMatrix(
     
     F = Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}}()
     ncells = NIntervals(mesh)
-    F["+"] = kron( SparseArrays.spdiagm(0=>ones(ncells)), PosDiagBlock) + kron( SparseArrays.spdiagm(1=>η), UpDiagBlock)
-    F["-"] = kron( SparseArrays.spdiagm(0=>ones(ncells)), NegDiagBlock) + kron( SparseArrays.spdiagm(-1=> (1 ./η)), LowDiagBlock)
+    F["+"] = LazyArrays.ApplyArray(kron, SparseArrays.spdiagm(0=>ones(ncells)), PosDiagBlock) + LazyArrays.ApplyArray(kron, SparseArrays.spdiagm(1=>η), UpDiagBlock)
+    F["-"] = LazyArrays.ApplyArray(kron, SparseArrays.spdiagm(0=>ones(ncells)), NegDiagBlock) + LazyArrays.ApplyArray(kron, SparseArrays.spdiagm(-1=> (1 ./η)), LowDiagBlock)
     return (F = F)
 end
 
@@ -430,17 +430,7 @@ function MakeMatrices(
     ## Assemble the DG drift operator
     up = model.C.*(model.C .> 0)
     down = model.C.*(model.C .< 0)
-    Q = kron( SparseArrays.spdiagm(0=>up), (G + F["+"]) * MInv) + kron( SparseArrays.spdiagm(0=>down), (G + F["-"]) * MInv) 
-    # Q = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,NPhases(model))
-    # for i = 1:NPhases(model)
-    #     if model.C[i] > 0
-    #         Q[i] = model.C[i] * (G + F["+"]) * MInv
-    #     elseif model.C[i] < 0
-    #         Q[i] = model.C[i] * (G + F["-"]) * MInv
-    #     else
-    #         Q[i] = SparseArrays.spzeros(size(G,1),size(G,2))
-    #     end
-    # end
+    Q = LazyArrays.ApplyArray(kron, SparseArrays.spdiagm(0=>up), (G + F["+"]) * MInv) + LazyArrays.ApplyArray(kron, SparseArrays.spdiagm(0=>down), (G + F["-"]) * MInv) 
 
     Local = (G = GLocal, M = MLocal, MInv = MInvLocal, V = V, Phi = Phi, Dw = Dw)
     Global = (G = G, M = M, MInv = MInv, F = F, Q = Q)
@@ -486,19 +476,8 @@ function MakeB(
     ## Make B on the interior of the space
     N₊ = sum(model.C .>= 0)
     N₋ = sum(model.C .<= 0)
-    # B = SparseArrays.spzeros(
-    #     Float64,
-    #     NPhases(model) * TotalNBases(mesh) + N₋ + N₊,
-    #     NPhases(model) * TotalNBases(mesh) + N₋ + N₊,
-    # )
     Id = SparseArrays.I(TotalNBases(mesh))
-    # for i = 1:NPhases(model)
-    #     idx = ((i-1)*TotalNBases(mesh)+1:i*TotalNBases(mesh)) .+ N₋
-    #     B[idx, idx] = Matrices.Global.Q[i]
-    # end
-    # B[(N₋+1):(end-N₊), (N₋+1):(end-N₊)] +=
-    #     B[(N₋+1):(end-N₊), (N₋+1):(end-N₊)] + LinearAlgebra.kron(model.T, Id) 
-    B = LinearAlgebra.kron(model.T, Id) + Matrices.Global.Q
+    B = LazyArrays.ApplyArray(kron,model.T, Id) + Matrices.Global.Q
 
     # Boundary behaviour
     if Basis(mesh) == "legendre"
@@ -515,22 +494,13 @@ function MakeB(
     # Lower boundary
     tmp = Matrices.Local.Phi[1, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv ./ η[1]
     top_left = model.T[model.C.<=0, model.C.<=0]
-    top_mid = kron( kron( model.T[model.C.<=0, :].*(model.C.>0)', [1 SparseArrays.spzeros(1,NIntervals(mesh)-1)]),tmp)
+    top_mid = LazyArrays.ApplyArray(kron, LazyArrays.ApplyArray(kron, model.T[model.C.<=0, :].*(model.C.>0)', [1 SparseArrays.spzeros(1,NIntervals(mesh)-1)]),tmp)
     top_right = SparseArrays.spzeros(sum(model.C.<=0), sum(model.C.>=0))
     top = [top_left top_mid top_right]
-    # At boundary
-    # B[1:N₋, 1:N₋] = model.T[model.C.<=0, model.C.<=0]
-    # Out of boundary
-    # idxup = ((1:NBases(mesh)).+TotalNBases(mesh)*(findall(model.C .> 0) .- 1)')[:] .+ N₋
-    # B[1:N₋, idxup] = kron(
-    #     model.T[model.C.<=0, model.C.>0],
-    #     Matrices.Local.Phi[1, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv ./ η[1],
-    # )
     # Into boundary
     lft = SparseArrays.spzeros(TotalNBases(mesh).*NPhases(model), N₋)
     idxdown = ((1:NBases(mesh)).+TotalNBases(mesh)*(findall(model.C .<= 0) .- 1)')[:]
-    # B[idxdown, 1:N₋] 
-    lft[idxdown,:] = LinearAlgebra.kron(
+    lft[idxdown,:] = LazyArrays.ApplyArray(kron,
         LinearAlgebra.diagm(0 => model.C[model.C.<=0]),
         -Matrices.Local.Dw.DwInv * 2.0 ./ Δ(mesh)[1] * Matrices.Local.Phi[1, :] * η[1],
     )
@@ -538,35 +508,22 @@ function MakeB(
     # Upper boundary
     tmp = Matrices.Local.Phi[end, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv  ./ η[end]
     btm_left = SparseArrays.spzeros(sum(model.C.>=0), sum(model.C.<=0))
-    btm_mid = kron( kron(model.T[model.C.>=0, :].*(model.C.<0)',[SparseArrays.spzeros(1,NIntervals(mesh)-1) 1]), tmp)
+    btm_mid = LazyArrays.ApplyArray(kron, LazyArrays.ApplyArray(kron,model.T[model.C.>=0, :].*(model.C.<0)',[SparseArrays.spzeros(1,NIntervals(mesh)-1) 1]), tmp)
     btm_right = model.T[model.C.>=0, model.C.>=0]
     btm = [btm_left btm_mid btm_right]
-    # At boundary
-    # B[(end-N₊+1):end, (end-N₊+1):end] = model.T[model.C.>=0, model.C.>=0]
-    # # Out of boundary
-    # idxdown =
-    #     ((1:NBases(mesh)).+TotalNBases(mesh)*(findall(model.C .< 0) .- 1)')[:] .+
-    #     (N₋ + TotalNBases(mesh) - NBases(mesh))
-    # B[(end-N₊+1):end, idxdown] = kron(
-    #     model.T[model.C.>=0, model.C.<0],
-    #     Matrices.Local.Phi[end, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv  ./ η[end],
-    # )
     # Into boundary
     rght = SparseArrays.spzeros(TotalNBases(mesh).*NPhases(model), N₊)
-    # LinearAlgebra.kron(
-    #     LinearAlgebra.diagm(0 => model.C[model.C.>=0]),
-    #     Matrices.Local.Dw.DwInv * 2.0 ./ Δ(mesh)[end] * Matrices.Local.Phi[end, :] * η[end],
-    # )
+
     idxup =
         ((1:NBases(mesh)).+TotalNBases(mesh)*(findall(model.C .>= 0) .- 1)')[:] .+
         (TotalNBases(mesh) - NBases(mesh))
     # B[idxup, (end-N₊+1):end] = 
-    rght[idxup,:] = LinearAlgebra.kron(
+    rght[idxup,:] = LazyArrays.ApplyArray(kron,
         LinearAlgebra.diagm(0 => model.C[model.C.>=0]),
         Matrices.Local.Dw.DwInv * 2.0 ./ Δ(mesh)[end] * Matrices.Local.Phi[end, :] * η[end],
     )
     
-    B = vcat(top,hcat(lft, B, rght),btm)
+    B = LazyArrays.ApplyArray(vcat,top,LazyArrays.ApplyArray(hcat,lft, B, rght),btm)
 
     BDict = MakeDict(B, model, mesh)
     ## Make QBD index
