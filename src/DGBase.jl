@@ -297,7 +297,8 @@ Constructs the flux matrices for DG
         mesh::DGMesh,
         model::SFFM.Model,
         Phi,
-        Dw,
+        Dw;
+        probTransform::Bool=true,
     )
 
 # Arguments
@@ -315,7 +316,8 @@ Constructs the flux matrices for DG
 function MakeFluxMatrix(
     mesh::DGMesh,
     Phi,
-    Dw,
+    Dw;
+    probTransform::Bool=true,
 )
     ## Create the blocks
     PosDiagBlock = -Dw.DwInv * Phi[end, :] * Phi[end, :]' * Dw.Dw
@@ -325,9 +327,13 @@ function MakeFluxMatrix(
 
     ## Construct global block diagonal matrix
     if Basis(mesh) == "legendre"
-        η = ones(NIntervals(mesh))
+        η = ones(NIntervals(mesh)-1)
     elseif Basis(mesh) == "lagrange"
-        η = Δ(mesh)[2:end] ./ Δ(mesh)[1:end-1]
+        if probTransform
+            η = Δ(mesh)[2:end] ./ Δ(mesh)[1:end-1]
+        else 
+            η = ones(NIntervals(mesh)-1)
+        end
     end
     
     F = Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}}()
@@ -342,7 +348,8 @@ Creates the Local and global mass, stiffness and flux matrices to compute `B`.
 
     MakeMatrices(
         model::SFFM.Model,
-        mesh::DGMesh,
+        mesh::DGMesh;
+        probTransform::Bool=true,
     )
 
 # Arguments
@@ -371,7 +378,8 @@ Creates the Local and global mass, stiffness and flux matrices to compute `B`.
 """
 function MakeMatrices(
     model::SFFM.Model,
-    mesh::DGMesh,
+    mesh::DGMesh;
+    probTransform::Bool=true,
 )
     ## Construct local blocks
     V = vandermonde(NBases(mesh))
@@ -386,11 +394,18 @@ function MakeMatrices(
         MInvLocal = Matrix{Float64}(LinearAlgebra.I(NBases(mesh)))
         Phi = V.V[[1; end], :]
     elseif Basis(mesh) == "lagrange"
-        Dw = (
-            DwInv = LinearAlgebra.diagm(0 => 1.0 ./ V.w),
-            Dw = LinearAlgebra.diagm(0 => V.w),
-        )# function weights so that we can work in probability land as
-        # opposed to density land
+        if probTransform
+            Dw = (
+                DwInv = LinearAlgebra.diagm(0 => 1.0 ./ V.w),
+                Dw = LinearAlgebra.diagm(0 => V.w),
+            )# function weights so that we can work in probability land as
+            # opposed to density land
+        else
+            Dw = (
+                DwInv = LinearAlgebra.I,
+                Dw = LinearAlgebra.I,
+            )
+        end
 
         MLocal = Dw.DwInv * V.inv' * V.inv * Dw.Dw
         GLocal = Dw.DwInv * V.inv' * V.inv * (V.D * V.inv) * Dw.Dw
@@ -410,7 +425,7 @@ function MakeMatrices(
         MInvLocal,
         2.0 ./ Δ(mesh),
     )
-    F = SFFM.MakeFluxMatrix(mesh, Phi, Dw)
+    F = SFFM.MakeFluxMatrix(mesh, Phi, Dw, probTransform = probTransform)
 
     ## Assemble the DG drift operator
     up = model.C.*(model.C .> 0)
@@ -442,7 +457,8 @@ Creates the DG approximation to the generator `B`.
     MakeB(
         model::SFFM.Model,
         mesh::DGMesh,
-        Matrices::NamedTuple,
+        Matrices::NamedTuple;
+        probTransform::Bool=true,
     )
 
 # Arguments
@@ -464,7 +480,8 @@ Creates the DG approximation to the generator `B`.
 function MakeB(
     model::SFFM.Model,
     mesh::DGMesh,
-    Matrices::NamedTuple,
+    Matrices::NamedTuple;
+    probTransform::Bool=true,
 )
     ## Make B on the interior of the space
     N₊ = sum(model.C .>= 0)
@@ -488,7 +505,11 @@ function MakeB(
         η = Δ(mesh)[[1; end]] ./ 2 # this is the inverse of the η=Δ(mesh)/2 bit
         # below there are no η's for the legendre basis
     elseif Basis(mesh) == "lagrange"
-        η = [1; 1]
+        if probTransform
+            η = [1; 1]
+        else
+            η = Δ(mesh)[[1; end]] ./ 2
+        end
     end
     
     # Lower boundary
@@ -562,7 +583,8 @@ Creates the DG approximation to the generator `B`.
 
     MakeB(
         model::SFFM.Model,
-        mesh::DGMesh
+        mesh::DGMesh;
+        probTransform::Bool=true,
     )
 
 # Arguments
@@ -582,13 +604,15 @@ Creates the DG approximation to the generator `B`.
 """
 function MakeB(
     model::SFFM.Model,
-    mesh::DGMesh,
+    mesh::DGMesh;
+    probTransform::Bool=true,
 )
     M = SFFM.MakeMatrices(
         model,
-        mesh,
+        mesh;
+        probTransform=probTransform,
     )
-    B = SFFM.MakeB(model, mesh, M)
+    B = SFFM.MakeB(model, mesh, M; probTransform=probTransform)
     println("UPDATE: B object created with keys ", keys(B))
     return B
 end
