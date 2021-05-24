@@ -63,6 +63,7 @@ let
     c = 0
     styles = [:dashdot,:dash]
     for nBases in 1:2
+        # nBases = 1
         c = c+1
         mesh = SFFM.DGMesh(
             approxModel,

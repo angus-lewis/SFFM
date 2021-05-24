@@ -19,7 +19,7 @@ model = SFFM.Model(T, C, r, Bounds = Bounds)
 
 ## Define mesh
 Nodes = [0;1;1.8]
-nBases = 3
+nBases = 2
 Basis = "lagrange"
 mesh = SFFM.DGMesh(model, Nodes, nBases, Basis=Basis)
 

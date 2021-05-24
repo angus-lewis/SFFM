@@ -514,7 +514,10 @@ function MakeB(
     
     # Lower boundary
     tmp = Matrices.Local.Phi[1, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv ./ η[1]
-    top = [model.T[model.C.<=0, model.C.<=0] kron( kron([1 SparseArrays.spzeros(1,NIntervals(mesh)-1)], model.T[model.C.<=0, :].*(model.C.>0)'),tmp) SparseArrays.spzeros(sum(model.C.<=0), sum(model.C.>=0))]
+    top_left = model.T[model.C.<=0, model.C.<=0]
+    top_mid = kron( kron( model.T[model.C.<=0, :].*(model.C.>0)', [1 SparseArrays.spzeros(1,NIntervals(mesh)-1)]),tmp)
+    top_right = SparseArrays.spzeros(sum(model.C.<=0), sum(model.C.>=0))
+    top = [top_left top_mid top_right]
     # At boundary
     # B[1:N₋, 1:N₋] = model.T[model.C.<=0, model.C.<=0]
     # Out of boundary
@@ -534,7 +537,10 @@ function MakeB(
 
     # Upper boundary
     tmp = Matrices.Local.Phi[end, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv  ./ η[end]
-    btm = [SparseArrays.spzeros(sum(model.C.>=0), sum(model.C.<=0)) kron( kron([SparseArrays.spzeros(1,NIntervals(mesh)-1) 1], model.T[model.C.>=0, :].*(model.C.<0)'), tmp) model.T[model.C.>=0, model.C.>=0]]
+    btm_left = SparseArrays.spzeros(sum(model.C.>=0), sum(model.C.<=0))
+    btm_mid = kron( kron(model.T[model.C.>=0, :].*(model.C.<0)',[SparseArrays.spzeros(1,NIntervals(mesh)-1) 1]), tmp)
+    btm_right = model.T[model.C.>=0, model.C.>=0]
+    btm = [btm_left btm_mid btm_right]
     # At boundary
     # B[(end-N₊+1):end, (end-N₊+1):end] = model.T[model.C.>=0, model.C.>=0]
     # # Out of boundary
