@@ -19,14 +19,14 @@ model = SFFM.Model(T, C, r, Bounds = Bounds)
 
 ## Define mesh
 Nodes = [0;1;1.8]
-nBases = 2
+nBases = 3
 Basis = "lagrange"
 mesh = SFFM.DGMesh(model, Nodes, nBases, Basis=Basis)
 
 ## Make matrices
 All = SFFM.MakeAll( model, mesh)
-M = SFFM.MakeMatrices( model, mesh, probTransform=false)
-B = SFFM.MakeB( model, mesh, M, probTransform=false)
+M = SFFM.MakeMatrices( model, mesh)
+B = SFFM.MakeB( model, mesh, M)
 R = SFFM.MakeR( model, mesh)
 
 println("")
