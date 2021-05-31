@@ -1,5 +1,6 @@
-using JSON, LinearAlgebra, JLD2, BenchmarkTools, GLM
-
+using JSON, LinearAlgebra, JLD2, BenchmarkTools, GLM, Distributed
+println(Threads.nthreads())
+println(nprocs())
 # read the data from json
 tempCMEParams = Dict()
 open("iltcme.json", "r") do f

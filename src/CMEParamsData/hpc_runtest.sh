@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -p test
 #SBATCH -N 1
-#SBATCH -n 2
+#SBATCH -n 4
 #SBATCH --time=0:15:00
 #SBATCH --mem=1GB
 
