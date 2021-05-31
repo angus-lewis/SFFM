@@ -1,8 +1,8 @@
-using JSON, LinearAlgebra, JLD2, StaticArrays, BenchmarkTools
+using JSON, LinearAlgebra, JLD2, BenchmarkTools, GLM
 
 # read the data from json
 tempCMEParams = Dict()
-open("src/CMEParamsData/iltcme.json", "r") do f
+open("iltcme.json", "r") do f
     global tempCMEParams
     tempCMEParams=JSON.parse(f)  # parse and transform data
 end
@@ -97,7 +97,7 @@ k = 1_000
 T=Float64[]
 N=Float64[]
 for n in [3,5,7,9,11,13]#keys(CMEParams)
-    display(n)
+    println(n)
     # display(evals)
 
     t = @benchmark integrateD(
@@ -116,7 +116,7 @@ for n in [3,5,7,9,11,13]#keys(CMEParams)
     #     CMEParams[n]["c"],
     #     CMEParams[n]["omega"],
     # )
-    display(mean(t).time)
+    println(mean(t).time)
     push!(N,n)
     push!(T,mean(t).time)
 end
@@ -125,10 +125,11 @@ T = T.*10^-9
 X = Array{Float64,2}(undef,6,2)
 X[:,1] .= 1
 X[:,2] .= N
-scatter(X,T)
+
 lm1 = lm(X.^2,T)
 newX = [1 19^2; 1 21^2; 1 25^2; 1 30^2; 1 40^2; 1 50.0^2]
 
+println()
 display(hcat( sqrt.(newX[:,2]), predict(lm1,newX)*1_000_000_000/k/60/60/24))
 
 # # numerical approximation of D
@@ -162,11 +163,11 @@ CMEParams[1] = Dict(
   "lognorm" => [],
 )
 
-open("src/CMEParamsData/CMEParams.json","w") do f
+open("CMEParams.json","w") do f
     JSON.print(f, CMEParams)
 end
 
-@save "src/CMEParamsData/CMEParams.jld2" CMEParams
+@save "CMEParams.jld2" CMEParams
 
 # let
 #     CMEKeys = sort(collect(keys(CMEParams)))
