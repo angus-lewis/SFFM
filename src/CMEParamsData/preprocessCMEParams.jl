@@ -136,9 +136,9 @@ end
 # numerical approximation of D
 n = 2*(parse(Int,ARGS[1])+1) + 1 
 if n < 20 
-    k = 1_00#0_000_000
+    k = 1_000_000_000
 else
-    k = 10#0_000_000
+    k = 100_000_000
 end
 # for n in keys(CMEParams)
 println("n=",n)
@@ -154,13 +154,13 @@ D, t = @timed integrateD(
 println("t=",t)
 # end
 
-to_save = Dict("D"=>D, "t"=>t, "k"=>k, "n"=>n)
+vals = Dict("D"=>D, "t"=>t, "k"=>k, "n"=>n)
 
 open("CMEParams_D_"*string(n)*".json","w") do f
-    JSON.print(f, to_save)
+    JSON.print(f, vals)
 end
 
-@save "CMEParams_D_"*string(n)*".jld2" to_save
+@save "CMEParams_D_"*string(n)*".jld2" vals
 
 # let
 #     CMEKeys = sort(collect(keys(CMEParams)))
