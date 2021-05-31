@@ -1,9 +1,10 @@
 #!/bin/bash
 #SBATCH -p test
 #SBATCH -N 1
-#SBATCH -n 4
-#SBATCH --time=0:15:00
-#SBATCH --mem=1GB
+#SBATCH -n 1
+#SBATCH --time=3-0:00:00
+#SBATCH --mem=8GB
+#SBATCH --array=0-2,12
 
 #SBATCH --mail-type=END
 #SBATCH --mail-type=FAIL
@@ -12,6 +13,7 @@
 
 module load Julia/1.6.0
 
-julia -p 4 preprocessCMEParams.jl 
+echo "job_id $SLURM_ARRAY_TASK_ID"
+julia preprocessCMEParams.jl $SLURM_ARRAY_TASK_ID
 
 

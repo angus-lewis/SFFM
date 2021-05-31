@@ -95,81 +95,72 @@ end
 # 50.0  14.3212
 
 # numerical approximation of D
-k = 1_000
-T=Float64[]
-N=Float64[]
-for n in [3,5,7,9,11,13]#keys(CMEParams)
-    println(n)
-    # display(evals)
-
-    t = @benchmark integrateD(
-        k,
-        CMEParams[$n]["n"],
-        Float64.(CMEParams[$n]["a"]),
-        Float64.(CMEParams[$n]["b"]),
-        CMEParams[$n]["c"],
-        CMEParams[$n]["omega"],
-    )
-    # CMEParams[n]["D"], t = @timed integrateD(
-    #     k,
-    #     CMEParams[n]["n"],
-    #     Float64.(CMEParams[n]["a"]),
-    #     Float64.(CMEParams[n]["b"]),
-    #     CMEParams[n]["c"],
-    #     CMEParams[n]["omega"],
-    # )
-    println(mean(t).time)
-    push!(N,n)
-    push!(T,mean(t).time)
-end
-
-T = T.*10^-9
-X = Array{Float64,2}(undef,6,2)
-X[:,1] .= 1
-X[:,2] .= N
-
-lm1 = lm(X.^2,T)
-newX = [1 19^2; 1 21^2; 1 25^2; 1 30^2; 1 40^2; 1 50.0^2]
-
-println()
-display(hcat( sqrt.(newX[:,2]), predict(lm1,newX)*1_000_000_000/k/60/60/24))
-
-# # numerical approximation of D
-# k = 10_000_000
 # T=Float64[]
 # N=Float64[]
-# # for n in keys(CMEParams)
-# n = 2*(ARGS[1]+1) + 1 
-# display(n)
-# # display(evals)
-# CMEParams[n]["D"], t = @timed integrateD(k,CMEParams[n])
-# CMEParams[n]["intDevals"] = k
-# display(t)
-# push!(N,n)
-# push!(T,t)
+# # for n in [3,5,7,9,11,13]#keys(CMEParams)
+# #     println(n)
+# #     # display(evals)
+
+# #     t = @benchmark integrateD(
+# #         k,
+# #         CMEParams[$n]["n"],
+# #         Float64.(CMEParams[$n]["a"]),
+# #         Float64.(CMEParams[$n]["b"]),
+# #         CMEParams[$n]["c"],
+# #         CMEParams[$n]["omega"],
+# #     )
+# #     # CMEParams[n]["D"], t = @timed integrateD(
+# #     #     k,
+# #     #     CMEParams[n]["n"],
+# #     #     Float64.(CMEParams[n]["a"]),
+# #     #     Float64.(CMEParams[n]["b"]),
+# #     #     CMEParams[n]["c"],
+# #     #     CMEParams[n]["omega"],
+# #     # )
+# #     println(mean(t).time)
+# #     push!(N,n)
+# #     push!(T,mean(t).time)
 # # end
 
-# add order 1 (exponential) to params
-CMEParams[1] = Dict(
-  "n"       => 0,
-  "c"       => 1,
-  "b"       => Any[],
-  "mu2"     => 1,
-  "a"       => Any[],
-  "omega"   => 1,
-  "phi"     => [],
-  "mu1"     => 1,
-  "D"       => [1.0],
-  "cv2"     => 1,
-  "optim"   => "full",
-  "lognorm" => [],
-)
+# # T = T.*10^-9
+# # X = Array{Float64,2}(undef,6,2)
+# # X[:,1] .= 1
+# # X[:,2] .= N
 
-open("CMEParams.json","w") do f
-    JSON.print(f, CMEParams)
+# # lm1 = lm(X.^2,T)
+# # newX = [1 19^2; 1 21^2; 1 25^2; 1 30^2; 1 40^2; 1 50.0^2]
+
+# # println()
+# # display(hcat( sqrt.(newX[:,2]), predict(lm1,newX)*1_000_000_000/k/60/60/24))
+
+# numerical approximation of D
+n = 2*(parse(Int,ARGS[1])+1) + 1 
+if n < 20 
+    k = 1_00#0_000_000
+else
+    k = 10#0_000_000
+end
+# for n in keys(CMEParams)
+println("n=",n)
+println("k=",k)
+D, t = @timed integrateD(
+    k,
+    CMEParams[n]["n"],
+    Float64.(CMEParams[n]["a"]),
+    Float64.(CMEParams[n]["b"]),
+    CMEParams[n]["c"],
+    CMEParams[n]["omega"],
+)
+println("t=",t)
+# end
+
+to_save = Dict("D"=>D, "t"=>t, "k"=>k, "n"=>n)
+
+open("CMEParams_D_"*string(n)*".json","w") do f
+    JSON.print(f, to_save)
 end
 
-@save "CMEParams.jld2" CMEParams
+@save "CMEParams_D_"*string(n)*".jld2" to_save
 
 # let
 #     CMEKeys = sort(collect(keys(CMEParams)))
