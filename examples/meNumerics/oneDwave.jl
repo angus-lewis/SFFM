@@ -20,7 +20,7 @@ r = (
 bounds = [0 12; -Inf Inf]
 model = SFFM.Model( T, C, r, Bounds = bounds)
 
-orders = [1;3;5;7;11;13;15;21]
+orders = [1;3;5;7;11;13;15;21;25;27;33;;37;41]
 errors_1 = []
 
 Δtemp = 1/2 # the grid size; must have kΔ = 1 for some k due to discontinuity in r at 1
@@ -213,6 +213,8 @@ q = plot(
     title = "error for t=1.2", 
     legend = :bottomleft
 )
+methodNames = ["DG", "ME", "Erlang", "MEPH", "FV"]
+shapes = [:none, :none, :circle, :none, :none]
 
 for whichOrder in 2:length(orders)
 # order = 3
@@ -227,6 +229,7 @@ for whichOrder in 2:length(orders)
             label = whichOrder == 2 && methodNames[whichMethod],
             colour = whichMethod,
             markershape = shapes[whichMethod],
+            seriestype = :line,
         )
     end
 end

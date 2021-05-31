@@ -16,6 +16,8 @@ nprocs() < 5 && addprocs(5 - nprocs())
 simsOuter_Psi = SharedArray(zeros(NSim, 5))
 simsOuter_1 = SharedArray(zeros(NSim, 5))
 
+t = 10.2
+
 @time @sync @distributed for n = 1:(NSim÷innerNSim)
     IC = (φ = 1 .* ones(Int, innerNSim), X = zeros(innerNSim), Y = zeros(innerNSim))
     simsInner_Psi = SFFM.SimSFFM(
@@ -27,7 +29,7 @@ simsOuter_1 = SharedArray(zeros(NSim, 5))
         [simsInner_Psi.t simsInner_Psi.φ simsInner_Psi.X simsInner_Psi.Y simsInner_Psi.n]
     simsInner_1 = SFFM.SimSFFM(
         model,
-        SFFM.FixedTime(1.2),
+        SFFM.FixedTime(t),
         IC,
     )
     simsOuter_1[1+(n-1)*innerNSim:n*innerNSim, :] =
@@ -50,5 +52,5 @@ sims_1 = (
     n = simsOuter_1[:, 5],
 )
 
-@save pwd()*"/examples/meNumerics/discontinuitiesModelSims.jld2" sims_Psi sims_1 model
+@save pwd()*"/examples/meNumerics/discontinuitiesModelSims_t_"*string(t)*".jld2" sims_Psi sims_1 model
 interrupt()

@@ -2,10 +2,11 @@ using Plots, JLD2
 include(pwd()*"/src/SFFM.jl")
 include(pwd()*"/examples/meNumerics/discontinuitiesModelDef.jl")
 
-@load pwd()*"/examples/meNumerics/discontinuitiesModelSims.jld2" sims_Psi sims_1
+t = 10.2 # 4.2, 1.2, 1
+@load pwd()*"/examples/meNumerics/discontinuitiesModelSims_t_"*string(t)*".jld2" sims_Psi sims_1
 
 ## mesh set up
-orders = [1;3;5]#;7;11]#;13;15;21]
+orders = [1;3;5;7;11;13;15;21]
 errors_1 = []
 errors_Psi = []
 errors_Pi = []
@@ -144,7 +145,7 @@ for order in orders
         x0_FV = SFFM.Dist2Coeffs( model, fvmesh, initdist)
     end
 
-    euler(B,x0) = SFFM.EulerDG( B, 1.2, x0, h = 0.0001) 
+    euler(B,x0) = SFFM.EulerDG( B, t, x0, h = 0.0001) 
     x1_DG = euler(B_DG.B, x0_DG)
     x1_ME = euler(B_ME.B, x0_ME)
     x1_Erlang = euler(B_Erlang.B, x0_Erlang)
@@ -211,7 +212,7 @@ for order in orders
     #     color = 5, label = "ME-PH")
     # SFFM.plot!(p, model, fvmesh, x1_FV, 
     #     color = 7, label = "FV")
-    # p = plot!(title = "approx dist at t=1.2; order = "*string(order), subplot = 1)
+    # p = plot!(title = "approx dist at t=t; order = "*string(order), subplot = 1)
     # display(p)
 
     # the initial condition on Ψ is restricted to + states so find the + states
@@ -402,7 +403,7 @@ display(q)
 q = plot(
     xlabel = "order", 
     ylabel = "log10 error", 
-    title = "error for t=1.2", 
+    title = "error for t="*string(t), 
     legend = :bottomleft
 )
 for whichOrder in 2:length(orders)

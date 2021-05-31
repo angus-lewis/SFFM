@@ -310,5 +310,6 @@ Computes the error between distributions.
 - `d2`: a distribution object as output from `Coeffs2Dist` 
 """
 function starSeminorm(d1::SFFMProbability, d2::SFFMProbability)
-    return sum(abs.(d1.pm-d2.pm)) + sum(abs.(d1.distribution-d2.distribution))
+    e = sum(abs.(d1.pm-d2.pm)) + sum(abs.(d1.distribution-d2.distribution))
+    return e
 end
