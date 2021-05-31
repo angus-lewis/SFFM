@@ -12,6 +12,6 @@
 
 module load Julia/1.6.0
 
-julia preprocessCMEParams.jl 
+julia -p 4 preprocessCMEParams.jl 
 
 

@@ -1,6 +1,7 @@
 using JSON, LinearAlgebra, JLD2, BenchmarkTools, GLM, Distributed
-println(Threads.nthreads())
-println(nprocs())
+println("nthreads ", Threads.nthreads())
+println("nprocs ", nprocs())
+println("nworkers ", nworkers())
 # read the data from json
 tempCMEParams = Dict()
 open("iltcme.json", "r") do f
