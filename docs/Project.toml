@@ -1,0 +1,6 @@
+[deps]
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+SFFM = "76fdf786-03dd-41d0-a0b0-275b955c268a"
+
+[compat]
+Documenter = "~0.24"
