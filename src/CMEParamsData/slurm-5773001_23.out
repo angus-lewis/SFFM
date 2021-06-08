@@ -1,7 +1,0 @@
-job_id 23
-nthreads 1
-nprocs 1
-nworkers 1
-n=49
-k=100000000
-t=77978.419722857

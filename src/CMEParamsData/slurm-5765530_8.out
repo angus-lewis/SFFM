@@ -1,3 +1,0 @@
-job_id 8
-/tmp/slurmd/job5765530/slurm_script: line 17: 236400 Killed                  julia preprocessCMEParams.jl $SLURM_ARRAY_TASK_ID
-slurmstepd: error: Detected 1 oom-kill event(s) in step 5765530.batch cgroup. Some of your processes may have been killed by the cgroup out-of-memory handler.
