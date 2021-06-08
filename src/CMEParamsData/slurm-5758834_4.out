@@ -1,0 +1,31 @@
+job_id 4
+/tmp/slurmd/job5759376/slurm_script: line 17: 245784 Killed                  julia preprocessCMEParams.jl $SLURM_ARRAY_TASK_ID
+slurmstepd: error: Detected 1 oom-kill event(s) in step 5759376.batch cgroup. Some of your processes may have been killed by the cgroup out-of-memory handler.
+#
+#===========================================================================
+#HPC1 Job Utilisation Reporting
+===========================================================================
+Job Name            : hpc_runarray.sh
+Job ID              : 5758834_4
+User                : a1627293
+Account             : mathsci
+Cluster             : hpc1
+Partition           : batch
+Nodes (List)        : 1 (r24-n6)
+Cores               : 2
+GPUs                : 0
+State               : OUT_OF_MEMORY
+Submit              : 2021-05-31T21:54:08
+Start               : 2021-05-31T22:11:02
+End                 : 2021-05-31T22:19:32
+Walltime reserved   : 3-00:00:00
+Walltime elapsed (%):   00:08:30  ( 0.2% * reserved)
+CPU-time elapsed    : 0.28 core-hours
+% CPU used (Total)  : 49.47%    (0.14 core-hours)
+% User CPU (Compute): 47.09%    (0.13 core-hours)
+% System CPU (I/O)  :  2.38%    (0.01 core-hours)
+Mem reserved        : 16G/node
+% Mem used (Max)    : 99.05%    (15.85G/node) 
+Max Disk Write      : 0.00      (r24-n6)
+Max Disk Read       : 30.47M    (r24-n6)
+===========================================================================

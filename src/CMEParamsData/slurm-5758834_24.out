@@ -1,0 +1,15 @@
+job_id 24
+ERROR: LoadError: KeyError: key 51 not found
+Stacktrace:
+ [1] getindex(h::Dict{Any, Any}, key::Int64)
+   @ Base ./dict.jl:482
+ [2] top-level scope
+   @ ./timing.jl:368 [inlined]
+ [3] top-level scope
+   @ /hpcfs/users/a1627293/SFFM/src/CMEParamsData/preprocessCMEParams.jl:0
+in expression starting at /hpcfs/users/a1627293/SFFM/src/CMEParamsData/preprocessCMEParams.jl:146
+nthreads 1
+nprocs 1
+nworkers 1
+n=51
+k=100000000

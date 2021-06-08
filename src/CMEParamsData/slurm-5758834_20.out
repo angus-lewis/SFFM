@@ -1,0 +1,35 @@
+job_id 20
+nthreads 1
+nprocs 1
+nworkers 1
+n=43
+k=100000000
+t=71731.357796729
+#
+#===========================================================================
+#HPC1 Job Utilisation Reporting
+===========================================================================
+Job Name            : hpc_runarray.sh
+Job ID              : 5758834_20
+User                : a1627293
+Account             : mathsci
+Cluster             : hpc1
+Partition           : skylakehm
+Nodes (List)        : 1 (r24-n33)
+Cores               : 2
+GPUs                : 0
+State               : COMPLETED
+Submit              : 2021-05-31T21:54:08
+Start               : 2021-05-31T22:56:20
+End                 : 2021-06-01T18:52:11
+Walltime reserved   : 3-00:00:00
+Walltime elapsed (%):   19:55:51  (27.7% * reserved)
+CPU-time elapsed    : 39.86 core-hours
+% CPU used (Total)  : 49.88%    (19.88 core-hours)
+% User CPU (Compute): 49.86%    (19.88 core-hours)
+% System CPU (I/O)  :  0.01%    (0.01 core-hours)
+Mem reserved        : 16G/node
+% Mem used (Max)    : 83.79%    (13.41G/node) 
+Max Disk Write      : 0.00      (r24-n33)
+Max Disk Read       : 30.47M    (r24-n33)
+===========================================================================
