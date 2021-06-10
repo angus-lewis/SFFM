@@ -2,7 +2,7 @@ using JSON, LinearAlgebra, JLD2
 
 # read the data from json
 tempCMEParams = Dict()
-open("src/CMEParamsData/iltcme.json", "r") do f
+open("src/CMEParamsData/iltcme.json", "r") do f #iltcme.json is from Horvath, Telek, see CMEParams_metadata, or fullData.zip if you have it
     global tempCMEParams
     tempCMEParams=JSON.parse(f)  # parse and transform data
 end
