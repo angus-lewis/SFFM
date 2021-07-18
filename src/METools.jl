@@ -1,10 +1,9 @@
 import JLD2, LinearAlgebra, JSON
 
-erlangDParams = Dict()
+# erlangDParams = Dict()
 JLD2.@load pwd()*"/src/erlangParamsData/erlangDParams.jld2" erlangDParams
 
-JLD2.@load pwd()*"/src/CMEParamsData/CMEParams1.jld2" tempDict
-CMEParams = tempDict
+JLD2.@load pwd()*"/src/CMEParamsData/CMEParams.jld2" CMEParams
 
 """
 ME constructor method
