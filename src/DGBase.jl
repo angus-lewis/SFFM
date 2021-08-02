@@ -539,8 +539,8 @@ function MakeLazyB(
 )
 
     m = local_operators(mesh; probTransform=probTransform, v=v)
-    blocks = (m.LowDiagBlock, (m.G+m.PosDiagBlock)*m.MInv, 
-        (m.G+m.NegDiagBlock)*m.MInv, m.UpDiagBlock)
+    blocks = (m.LowDiagBlock*m.MInv*2, (m.G+m.PosDiagBlock)*m.MInv*2, 
+        (m.G+m.NegDiagBlock)*m.MInv*2, m.UpDiagBlock*m.MInv*2)
 
     boundary_flux = (
         in= (m.Dw.DwInv * m.Phi[1, :]*2)[:], 
