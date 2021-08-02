@@ -95,7 +95,7 @@ Construct the operator `D(s)` from `B, R`.
 
     MakeD(
         mesh::SFFM.Mesh,
-        B::NamedTuple{(:BDict, :B, :QBDidx)},
+        B::Generator,
         R::NamedTuple{(:R, :RDict)},
     )
 
@@ -112,7 +112,7 @@ Construct the operator `D(s)` from `B, R`.
 """
 function MakeD(
     mesh::SFFM.Mesh,
-    B::NamedTuple{(:BDict, :B, :QBDidx)},
+    B::Generator,
     R::NamedTuple{(:R, :RDict)},
     v::Bool = false,
 )
@@ -252,7 +252,7 @@ Returns the DG approximation to the return probabilities ``ξ`` for the process
 NOTE: IMPLEMENTED FOR LAGRANGE BASIS ONLY
 
     MakeXi(
-        B::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
+        B::Generator,
         Ψ::Array;
         probTransform::Bool = true,
         mesh=1,
@@ -267,7 +267,7 @@ NOTE: IMPLEMENTED FOR LAGRANGE BASIS ONLY
 - `ξ::Array{Float64,2}`: a row-vector of first return probabilities
 """
 function MakeXi(
-    B::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
+    B::Generator,
     Ψ::Array{Float64,2};
     mesh::Mesh = DGMesh(),
     model::Model = Model(),
@@ -322,7 +322,7 @@ distribution of a SFFM. See Ouput below
 NOTE: IMPLEMENTED FOR LAGRANGE BASIS ONLY
 
     MakeLimitDistMatrices(
-        B::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
+        B::Generator,
         D::Dict{String,Any},
         R::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
         Ψ::Array{<:Real},
@@ -350,7 +350,7 @@ marginalX, p, K
 
 """
 function MakeLimitDistMatrices(
-    B::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
+    B::Generator,
     D::Dict{String,Any},
     R::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
     Ψ::Array{<:Real},

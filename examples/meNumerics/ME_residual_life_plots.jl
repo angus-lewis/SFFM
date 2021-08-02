@@ -1,6 +1,6 @@
-using Plots
+using Plots, SFFM
 
-include("../../src/SFFM.jl")
+# include("../../src/SFFM.jl")
 
 cme_9 = SFFM.MakeME(SFFM.CMEParams[9])
 

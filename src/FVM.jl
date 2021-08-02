@@ -173,5 +173,5 @@ function MakeB(model::SFFM.Model, mesh::SFFM.FVMesh, order::Int)
 
     BDict = SFFM.MakeDict(B,model,mesh)
 
-    return (BDict = BDict, B = B, QBDidx = QBDidx)
+    return Full_Generator(BDict, B, QBDidx)
 end

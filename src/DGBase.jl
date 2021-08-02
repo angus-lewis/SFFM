@@ -454,6 +454,57 @@ function MakeMatrices(
     return out
 end
 
+function local_operators(
+    mesh::DGMesh;
+    probTransform::Bool=true,
+    v::Bool = false,
+)
+    ## Construct local blocks
+    V = vandermonde(NBases(mesh))
+    if Basis(mesh) == "legendre"
+        Dw = (
+            DwInv = LinearAlgebra.diagm(0 => ones(Float64, NBases(mesh))),
+            Dw = LinearAlgebra.diagm(0 => ones(Float64, NBases(mesh))),
+        ) # function weights are not available for legendre basis as this is
+        # in density land
+        MLocal = Matrix{Float64}(LinearAlgebra.I(NBases(mesh)))
+        GLocal = V.inv * V.D
+        MInvLocal = Matrix{Float64}(LinearAlgebra.I(NBases(mesh)))
+        Phi = V.V[[1; end], :]
+    elseif Basis(mesh) == "lagrange"
+        if probTransform
+            Dw = (
+                DwInv = LinearAlgebra.diagm(0 => 1.0 ./ V.w),
+                Dw = LinearAlgebra.diagm(0 => V.w),
+            )# function weights so that we can work in probability land as
+            # opposed to density land
+        else
+            Dw = (
+                DwInv = LinearAlgebra.I,
+                Dw = LinearAlgebra.I,
+            )
+        end
+
+        MLocal = Dw.DwInv * V.inv' * V.inv * Dw.Dw
+        GLocal = Dw.DwInv * V.inv' * V.inv * (V.D * V.inv) * Dw.Dw
+        MInvLocal = Dw.DwInv * V.V * V.V' * Dw.Dw
+        Phi = (V.inv*V.V)[[1; end], :]
+    end
+
+    PosDiagBlock = -Dw.DwInv * Phi[end, :] * Phi[end, :]' * Dw.Dw
+    NegDiagBlock = -Dw.DwInv * Phi[1, :] * Phi[1, :]' * Dw.Dw
+    UpDiagBlock = Dw.DwInv * Phi[end, :] * Phi[1, :]' * Dw.Dw
+    LowDiagBlock = Dw.DwInv * Phi[1, :] * Phi[end, :]' * Dw.Dw
+
+    out = (
+        G = GLocal, M = MLocal, MInv = MInvLocal, V = V, Phi = Phi, Dw = Dw, 
+        PosDiagBlock = PosDiagBlock, NegDiagBlock = NegDiagBlock,
+        UpDiagBlock = UpDiagBlock, LowDiagBlock = LowDiagBlock,
+        )
+    v && println("UPDATE: Local operators created; ", keys(out))
+    return out 
+end
+
 """
 Creates the DG approximation to the generator `B`.
 
@@ -470,7 +521,7 @@ Creates the DG approximation to the generator `B`.
 - `Matrices`: A Matrices tuple from `MakeMatrices`
 
 # Output
-- A tuple with fields `:BDict, :B, :QBDidx`
+- A Generator with fields `:BDict, :B, :QBDidx`
     - `:BDict::Dict{String,Array{Float64,2}}`: a dictionary storing Bᵢⱼˡᵐ with
         keys string(i,j,ℓ,m), and values Bᵢⱼˡᵐ, i.e. `B.BDict["12+-"]` = B₁₂⁺⁻
     - `:B::SparseArrays.SparseMatrixCSC{Float64,Int64}`:
@@ -480,6 +531,32 @@ Creates the DG approximation to the generator `B`.
         integers such such that `:B[QBDidx,QBDidx]` puts all the blocks relating
         to cell `k` next to each other
 """
+function MakeLazyB(
+    model::SFFM.Model,
+    mesh::DGMesh,
+    probTransform::Bool=true,
+    v::Bool = false,
+)
+
+    m = local_operators(mesh; probTransform=probTransform, v=v)
+    blocks = (m.LowDiagBlock, (m.G+m.PosDiagBlock)*m.MInv, 
+        (m.G+m.NegDiagBlock)*m.MInv, m.UpDiagBlock)
+
+    boundary_flux = (
+        in= (m.Dw.DwInv * m.Phi[1, :]*2)[:], 
+        out = (m.Phi[1, :]' * m.Dw.Dw * m.MInv)[:],
+    )
+
+    T = model.T
+    C = model.C
+    delta = Δ(mesh)
+    D = LinearAlgebra.I(SFFM.NBases(mesh))
+    pmidx = falses(size(T))
+
+    out = SFFM.LazyB(blocks,boundary_flux,T,C,delta,D,pmidx)
+    v && println("UPDATE: LazyB object created with keys ", keys(out))
+    return out
+end
 function MakeB(
     model::SFFM.Model,
     mesh::DGMesh,
@@ -583,7 +660,7 @@ function MakeB(
     QBDidx[1:N₋] = 1:N₋
     QBDidx[(end-N₊+1):end] = (NPhases(model) * TotalNBases(mesh) + N₋) .+ (1:N₊)
 
-    out = (BDict = BDict, B = B, QBDidx = QBDidx)
+    out = Full_Generator(BDict, B, QBDidx)
     v && println("UPDATE: B object created with keys ", keys(out))
     return out
 end
@@ -650,14 +727,14 @@ approxiamte ``f(y)``.
 - `f(y)::Array`: a row-vector approximation to ``f(y)``
 """
 function EulerDG(
-    D::Union{Array{<:Real,2},SparseArrays.SparseMatrixCSC{Float64,Int64}},
+    D::Union{Array{<:Real,2},SparseArrays.SparseMatrixCSC{Float64,Int64},SFFM.LazyB},
     y::Real,
     x0::Array{<:Real};
     h::Float64 = 0.0001,
 )
     x = x0
     for t = h:h:y
-        dx = h * x * D
+        dx = h * (x * D)
         x = x + dx
     end
     return x

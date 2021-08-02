@@ -1,5 +1,5 @@
-include("../../src/SFFM.jl")
-using LinearAlgebra, Plots, JLD2, GLM
+# include("../../src/SFFM.jl")
+using LinearAlgebra, Plots, JLD2, GLM, SFFM
 
 ## define the model(s)
 include("exampleModelDef.jl")
@@ -95,7 +95,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
 
         # compute the marginal via FRAP approx
         me = SFFM.MakeME(SFFM.CMEParams[nBases], mean = SFFM.Δ(mesh)[1])
-        B = SFFM.MakeBFRAP( approxModel, mesh, me)
+        B = SFFM.MakeB( approxModel, mesh, me)
         R = SFFM.MakeR( approxModel, dgmesh, approxType = "interpolation")
         D = SFFM.MakeD( mesh, B, R)
         Ψme = SFFM.PsiFun(D)
@@ -124,7 +124,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         approxSpecfv[d, n] = (Δtemp, nBases, SFFM.TotalNBases(mesh) * SFFM.NPhases(approxModel))
 
         # compute the marginal via FRAP approx
-        B = SFFM.MakeBFV(approxModel, mesh, nBases)
+        B = SFFM.MakeB(approxModel, mesh, nBases)
         R = SFFM.MakeR( approxModel, mesh, approxType = "interpolation")
         D = SFFM.MakeD( mesh, B, R)
         Ψfv = SFFM.PsiFun(D)

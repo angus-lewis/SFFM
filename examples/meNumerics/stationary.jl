@@ -1,10 +1,10 @@
-include("../../src/SFFM.jl")
-using LinearAlgebra, Plots, StatsBase
+# include("../../src/SFFM.jl")
+using LinearAlgebra, Plots, StatsBase, SFFM
 
 ## define the model(s)
 include("exampleModelDef.jl")
 
-include("../../src/SFFM.jl")
+# include("../../src/SFFM.jl")
 using LinearAlgebra, Plots, JLD2, GLM
 
 ## define the model(s)
@@ -97,7 +97,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
 
         # compute the marginal via FRAP approx
         me = SFFM.MakeME(SFFM.CMEParams[nBases], mean = SFFM.Δ(mesh)[1])
-        B = SFFM.MakeBFRAP( approxModel, mesh, me)
+        B = SFFM.MakeB( approxModel, mesh, me)
 
         b = [1 zeros(1,size(B.B,1)-1)]
         B.B[:,1] .= 1
@@ -131,7 +131,7 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         approxSpecfv[d, n] = (Δtemp, nBases, SFFM.TotalNBases(mesh) * SFFM.NPhases(approxModel))
 
         # compute the marginal via FRAP approx
-        B = SFFM.MakeBFV(approxModel, mesh, 3)
+        B = SFFM.MakeB(approxModel, mesh, 3)
 
         b = [1 zeros(1,size(B.B,1)-1)]
         B.B[:,1] .= 1

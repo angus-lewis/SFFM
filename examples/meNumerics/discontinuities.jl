@@ -10,10 +10,10 @@ orders = [1;3;5;7;11;13;15;21]
 errors_1 = []
 errors_Psi = []
 errors_Pi = []
-Δtemp = 1/2 # the grid size; must have kΔ = 1 for some k due to discontinuity in r at 1
+Δtemp = 1#1/2 # the grid size; must have kΔ = 1 for some k due to discontinuity in r at 1
 nodes = collect(0:Δtemp:bounds[1,2])
-for order in orders
-# order = 5
+# for order in orders
+order = 3
     println("order = "*string(order))
     dgmesh = SFFM.DGMesh(
         model, 
@@ -65,15 +65,15 @@ for order in orders
     B_DG = SFFM.MakeB(model, dgmesh)
     #ME
     me = SFFM.MakeME(SFFM.CMEParams[order], mean = Δtemp)
-    B_ME = SFFM.MakeBFRAP(model, frapmesh, me)
+    B_ME = SFFM.MakeB(model, frapmesh, me)
     # Erlang (this is the erlang which is equivalent to DG)
     erlang = SFFM.MakeErlang(order, mean = Δtemp)
-    B_Erlang = SFFM.MakeBFRAP(model, frapmesh, erlang)
+    B_Erlang = SFFM.MakeB(model, frapmesh, erlang)
     # meph (this is the erlang treated as an ME)
     meph = SFFM.ME(erlang.a, erlang.S, erlang.s; D = SFFM.erlangDParams[string(order)])
-    B_MEPH = SFFM.MakeBFRAP(model, frapmesh, meph)
+    B_MEPH = SFFM.MakeB(model, frapmesh, meph)
     # FVM
-    B_FV = SFFM.MakeBFV(model, fvmesh, 3)
+    B_FV = SFFM.MakeB(model, fvmesh, 3)
     
     # construct initial condition
     point = 0+eps()
@@ -354,72 +354,75 @@ for order in orders
     #     color = 7, label = "FV") 
     # p = plot!(title = "approx Ψ; order = "*string(order), subplot = 1)
     # display(p)
-end
+# end
 
-simmesh = SFFM.FVMesh(
-    model, 
-    collect(model.Bounds[1,1]:0.1:model.Bounds[1,2]), 
-)
+# simmesh = SFFM.FVMesh(
+#     model, 
+#     collect(model.Bounds[1,1]:0.1:model.Bounds[1,2]), 
+# )
 
-simdensity_Psi = SFFM.Sims2Dist(
-    model, 
-    simmesh, 
-    sims_Psi, 
-    SFFM.SFFMProbability,
-)
-q = SFFM.plot(model, simmesh, simdensity_Psi)
-display(q)
+# simdensity_Psi = SFFM.Sims2Dist(
+#     model, 
+#     simmesh, 
+#     sims_Psi, 
+#     SFFM.SFFMProbability,
+# )
+# q = SFFM.plot(model, simmesh, simdensity_Psi)
+# display(q)
 
-q = plot(xlabel = "order", ylabel = "log10 error", title = "error for Psi")
-methodNames = ["DG";"ME";"Er";"Er as ME"; "FV"]
-shapes = [:circle, :utriangle, :x, :+, :square]
-for whichOrder in 2:length(orders)
-# order = 3
-    for whichMethod in 1:length(methodNames)
-        plot!(
-            q, 
-            [orders[whichOrder-1];orders[whichOrder]], 
-            [
-                log10(errors_Psi[whichOrder-1][whichMethod]);
-                log10(errors_Psi[whichOrder][whichMethod])
-            ], 
-            label = whichOrder == 2 && methodNames[whichMethod],
-            colour = whichMethod,
-            markershape = shapes[whichMethod],
-        )
-    end
-end
-display(q)
+# q = plot(xlabel = "order", ylabel = "log10 error", title = "error for Psi")
+# methodNames = ["DG";"ME";"Er";"Er as ME"; "FV"]
+# shapes = [:circle, :utriangle, :x, :+, :square]
+# for whichOrder in 2:length(orders)
+# # order = 3
+#     for whichMethod in 1:length(methodNames)
+#         plot!(
+#             q, 
+#             [orders[whichOrder-1];orders[whichOrder]], 
+#             [
+#                 log10(errors_Psi[whichOrder-1][whichMethod]);
+#                 log10(errors_Psi[whichOrder][whichMethod])
+#             ], 
+#             label = whichOrder == 2 && methodNames[whichMethod],
+#             colour = whichMethod,
+#             markershape = shapes[whichMethod],
+#         )
+#     end
+# end
+# display(q)
 
-simdensity_1 = SFFM.Sims2Dist(
-    model, 
-    simmesh, 
-    sims_1, 
-    SFFM.SFFMProbability,
-)
-q = SFFM.plot(model, simmesh, simdensity_1)
-display(q)
+# simdensity_1 = SFFM.Sims2Dist(
+#     model, 
+#     simmesh, 
+#     sims_1, 
+#     SFFM.SFFMProbability,
+# )
+# q = SFFM.plot(model, simmesh, simdensity_1)
+# display(q)
 
-q = plot(
-    xlabel = "order", 
-    ylabel = "log10 error", 
-    title = "error for t="*string(t), 
-    legend = :bottomleft
-)
-for whichOrder in 2:length(orders)
-# order = 3
-    for whichMethod in 1:length(methodNames)
-        plot!(
-            q, 
-            [orders[whichOrder-1];orders[whichOrder]], 
-            [
-                log10(errors_1[whichOrder-1][whichMethod]);
-                log10(errors_1[whichOrder][whichMethod])
-            ], 
-            label = whichOrder == 2 && methodNames[whichMethod],
-            colour = whichMethod,
-            markershape = shapes[whichMethod],
-        )
-    end
-end
-display(q)
+# q = plot(
+#     xlabel = "order", 
+#     ylabel = "log10 error", 
+#     title = "error for t="*string(t), 
+#     legend = :bottomleft
+# )
+# for whichOrder in 2:length(orders)
+# # order = 3
+#     for whichMethod in 1:length(methodNames)
+#         plot!(
+#             q, 
+#             [orders[whichOrder-1];orders[whichOrder]], 
+#             [
+#                 log10(errors_1[whichOrder-1][whichMethod]);
+#                 log10(errors_1[whichOrder][whichMethod])
+#             ], 
+#             label = whichOrder == 2 && methodNames[whichMethod],
+#             colour = whichMethod,
+#             markershape = shapes[whichMethod],
+#         )
+#     end
+# end
+# display(q)
+
+lzB = SFFM.MakeLazyB(model,dgmesh)
+1

@@ -1,5 +1,5 @@
-include(pwd()*"/src/SFFM.jl")
-using Plots 
+# include(pwd()*"/src/SFFM.jl")
+using Plots, SFFM
 
 ## define a model
 T = [0.0]
@@ -62,15 +62,15 @@ for order in orders
     B_DG = SFFM.MakeB(model, dgmesh)
     #ME
     me = SFFM.MakeME(SFFM.CMEParams[order], mean = Δtemp)
-    B_ME = SFFM.MakeBFRAP(model, frapmesh, me)
+    B_ME = SFFM.MakeB(model, frapmesh, me)
     # Erlang (this is the erlang which is equivalent to DG)
     erlang = SFFM.MakeErlang(order, mean = Δtemp)
-    B_Erlang = SFFM.MakeBFRAP(model, frapmesh, erlang)
+    B_Erlang = SFFM.MakeB(model, frapmesh, erlang)
     # meph (this is the erlang treated as an ME)
     meph = SFFM.ME(erlang.a, erlang.S, erlang.s; D = SFFM.erlangDParams[string(order)])
-    B_MEPH = SFFM.MakeBFRAP(model, frapmesh, meph)
+    B_MEPH = SFFM.MakeB(model, frapmesh, meph)
     # FVM
-    B_FV = SFFM.MakeBFV(model, fvmesh, 3)
+    B_FV = SFFM.MakeB(model, fvmesh, 3)
 
     point = 0+eps()
     pointIdx = convert(Int,ceil(point/Δtemp))

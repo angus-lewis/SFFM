@@ -1,368 +1,349 @@
-## Workspace
-# push!(LOAD_PATH,"/Users/a1627293/Documents/SFFM")
-include("./SFFM.jl")
-using LinearAlgebra, SFFM
+using SFFM
 
-T = [-1.0 1.0; 1.0 -1.0]
-C = [1.0;-2.0]
+## define a model
+T = [0.0]
+C = [1]
 
-CM = diagm(0=>C)
-A = CM*exp(CM^-1*T)*CM^-1
-display(A)
-x = -A[1,2]/A[2,2]
-display([1 x]*CM*exp(CM^-1*T*1)*CM^-1*abs.(CM))
+rfun(x) = x.*0
+Rfun(x) = r(x)
 
-r = (r = function (x); [1.0.+0.01*x 1.0.+0.01*x].*ones(size(x)); end,
-        R = function (x); [1*x.+0.01.*x.^2.0./2 1*x.+0.01.*x.^2.0./2]; end) # [1*(x.<=2.0).-2.0*(x.>1.0) -2.0*(x.<=2.0).+(x.>2.0)] # [1.0 -2.0].*ones(size(x))#
-
-model = SFFM.Model(T=T,C=C,r=r,Bounds=[-1 1; -Inf Inf])
-
-Nodes = collect(0.0:1:5.0)
-MaxIters = 100
-Fil = Dict{String,BitArray{1}}("1+" => Bool[1, 1, 0, 0, 0],
-                                "10" => Bool[0, 0, 0, 0, 0],
-                                "20" => Bool[0, 0, 0, 0, 0],
-                                "2+" => Bool[1, 1, 1, 1, 1],
-                                "2-" => Bool[0, 0, 0, 0, 0],
-                                "1-" => Bool[0, 0, 1, 1, 1])
-# Fil = Dict{String,BitArray{1}}("1+" => Bool[1, 1, 0, 0, 0],
-#                                 "10" => Bool[0, 0, 0, 0, 0],
-#                                 "20" => Bool[0, 0, 0, 0, 0],
-#                                 "2+" => Bool[0, 0, 1, 1, 1],
-#                                 "2-" => Bool[1, 1, 0, 0, 0],
-#                                 "1-" => Bool[0, 0, 1, 1, 1])
-#Dict{String,BitArray{1}}("1+" => r(mesh.CellNodes[:])[2:NBases:end,1].>0, #trues(length(Nodes)-1),# 0],
-#                                "10" => r(mesh.CellNodes[:])[2:NBases:end,1].==0,
-#                                "2+" => r(mesh.CellNodes[:])[2:NBases:end,2].>0,
-#                                "20" => r(mesh.CellNodes[:])[2:NBases:end,2].==0, #falses(length(Nodes)-1),#, 1],
-#                                "2-" => r(mesh.CellNodes[:])[2:NBases:end,2].<0, #trues(length(Nodes)-1),#, 0],
-#                                "1-" => r(mesh.CellNodes[:])[2:NBases:end,1].<0) #falses(length(Nodes)-1) )#, 1])
-NBases = 2
-
-mesh = SFFM.MakeMesh(model=model,Nodes=Nodes,NBases=NBases,Fil=Fil)
-Matrices = SFFM.MakeMatrices(model=model,mesh=mesh,Basis="legendre")
-MatricesR = SFFM.MakeMatricesR(model=model,mesh=mesh)
-B = SFFM.MakeB(model=model,mesh=mesh,Matrices=Matrices)
-R = SFFM.MakeR(model=model,mesh=mesh)
-D = SFFM.MakeD(model=model,mesh=mesh,R=R,B=B)
-DR = SFFM.MakeDR(Matrices=Matrices,MatricesR=MatricesR,model=model,mesh=mesh,R=R,B=B)
-# [D["++"]() D["+-"](); D["-+"]() D["--"]()]
-display(D["++"](s=0))
-display(DR.D(0))
-display(sum(abs.(D["++"](s=0)-DR.D(0))))
-display(D["++"](s=0)-DR.D(0))
-
-Ψlegendre = SFFM.PsiFun(D=D,s=1)
-display(Ψlegendre)
-SFFM.MyPrint(Ψlegendre*repeat([1;zeros(NBases-1)],sum(Fil["-"])))
-
-VinvtΨlegendreVinv = kron(I(sum(Fil["+"])),Matrices.Local.V.inv')*Ψlegendre*kron(I(sum(Fil["-"])),Matrices.Local.V.inv)
-SFFM.MyPrint(sum(VinvtΨlegendreVinv,dims=2))
-
-EvalD = Dict{String,Array{Float64}}("+-" => D["+-"](s=0))
-Dimensions = size(EvalD["+-"])
-for ℓ in ["++","--","-+"]
-    EvalD[ℓ] = D[ℓ](s=0)
-end
-A = EvalD["++"]  #+ Ψ*EvalD["-+"]
-B = EvalD["--"]*kron(I(sum(Fil["-"])),Matrices.Local.M)  #+ EvalD["-+"]*Ψ
-C = EvalD["+-"]*kron(I(sum(Fil["-"])),Matrices.Local.M)  # + Ψlegendre*EvalD["-+"]*Ψlegendre
-Psi = zeros(Float64,Dimensions)
-OldPsi = Psi
-for n = 1:MaxIters
-    Psi = LinearAlgebra.sylvester(A,B,C)
-    if maximum(abs.(OldPsi - Psi)) < 0
-        flag = 0
-        exitflag = string("Reached err tolerance in ",n,
-            " iterations with error ",
-            string(maximum(abs.(OldPsi - Psi))))
-        break
-    elseif any(isnan.(Psi))
-        flag = 0
-        exitflag = string("Produced NaNs at iteration ",n)
-        break
-    end
-    OldPsi .= Psi
-    A .= EvalD["++"] + Psi*EvalD["-+"]
-    B .= (EvalD["--"] + EvalD["-+"]*Psi)*kron(I(sum(Fil["-"])),Matrices.Local.M)
-    C .= (EvalD["+-"] - Psi*EvalD["-+"]*Psi)*kron(I(sum(Fil["-"])),Matrices.Local.M)
-end
-display(Psi) #
-
-## lagrange
-Matrices = SFFM.MakeMatrices(model=model,mesh=mesh,Basis="lagrange")
-B = SFFM.MakeB(model=model,mesh=mesh,Matrices=Matrices)
-R = SFFM.MakeR(model=model,mesh=mesh)
-D = SFFM.MakeD(model=model,mesh=mesh,R=R,B=B)
-
-Ψlagrange = SFFM.PsiFun(D=D,MaxIters=MaxIters,s=0)
-
-## legendre
-Ψt = kron(I(sum(Fil["+"])),
-        Matrices.Local.V.inv')*Ψlegendre*kron(
-                                    I(sum(Fil["-"])),Matrices.Local.V.V')
-display(Ψt)
-display(Ψlegendre)
-display(Ψlagrange)
-display(Ψt-Ψlagrange)
-
-display(sum(Ψt,dims=2))
-display(Ψlagrange*repeat(sum(Matrices.Local.M,dims=2),sum(Fil["-"])))
-display(sum(VinvtΨlegendreVinv,dims=2))
-
-##
-for NBases in 1:4
-    mesh = SFFM.MakeMesh(model=model,Nodes=Nodes,NBases=NBases,Fil=Fil)
-    Matrices = SFFM.MakeMatrices(model=model,mesh=mesh,Basis="legendre")
-    B = SFFM.MakeB(model=model,mesh=mesh,Matrices=Matrices)
-    R = SFFM.MakeR(model=model,mesh=mesh)
-    D = SFFM.MakeD(model=model,mesh=mesh,R=R,B=B)
-    #display(D["--"]()[(NBases+1):(2*NBases),(NBases+1):(2*NBases)])
-    Ψ = SFFM.PsiFun(D=D,MaxIters=MaxIters)
-    display(Ψ[1:NBases,1:NBases])
-end
-
-##
-T = [-1 0 1 ;
-     2 -2 0 ;
-     1 1 -2 ];
-C = diagm(0=>[3, -1, -2])
-M = 1
-A = C*exp(C^-1*T*M)*C^-1
-a = [0]*C[diag(C).>0,diag(C).>0]^-1
-b = [0 1]*abs.(C[diag(C).<0,diag(C).<0]^-1)
-r =  ( b-a*A[diag(C).>0, diag(C).<0] )/A[diag(C).<0,diag(C).<0]
-display([a r]*C*exp(C^-1*T*M)*C^-1*abs.(C))
-display([a r]*C*exp(C^-1*T*0)*C^-1*abs.(C))
-top = sum(([a r]*C*exp(C^-1*T*M)*C^-1*abs.(C))[diag(C).>0])
-bottom = sum(([a r]*C*exp(C^-1*T*0)*C^-1*abs.(C))[diag(C).<0])
-q = -sum(T,dims=2)
-
-let s = 0
-    for t in 0.0:0.0001:M
-        temp = sum([a r]*C*exp(C^-1*T*t)*C^-1*q)
-        s = s + 0.0001*temp
-        if temp<-1e-8
-            display(temp)
-            display(t)
-        end
-    end
-    display(top+bottom)
-    display(s)
-    display(top+bottom+s)
-end
-
-
-##
-include("./SFFM.jl")
-using Plots, LinearAlgebra, KernelDensity, StatsBase
-
-## Define the model
-T = [-2.0 1.0 1.0; 1.0 -2.0 1.0; 1.0 1.0 -2.0]
-C = [1.0; -1.0; 0.0]
 r = (
     r = function (x)
-        [ones(size(x)) ones(size(x)) ones(size(x))]
-    end, # r = function (x); [1.0.+0.01*x 1.0.+0.01*x 1*ones(size(x))]; end,
+        rfun(x)
+    end,
     R = function (x)
-        [x x x]
-    end, # R = function (x); [1*x.+0.01.*x.^2.0./2 1*x.+0.01.*x.^2.0./2 1*x]; end
-) # [1*(x.<=2.0).-2.0*(x.>1.0) -2.0*(x.<=2.0).+(x.>2.0)] # [1.0 -2.0].*ones(size(x))#
-Bounds = [-1 1; -Inf Inf]
-model = SFFM.Model(T = T, C = C, r = r, Bounds = Bounds)
-
-# in out Y-level
-y = 1
-
-## Simulate the model
-NSim = 20000
-# IC = (φ = ones(Int, NSim), X = zeros(NSim), Y = zeros(NSim))
-# IC = (φ = 2 .*ones(Int, NSim), X = -10*ones(NSim), Y = zeros(NSim))
-IC = (
-    φ = sum(rand(NSim) .< [1 / 3 2 / 3 1], dims = 2),
-    X = (Bounds[1,2]-Bounds[1,1]) .* rand(NSim) .- -Bounds[1,1],
-    Y = zeros(NSim),
-)
-sims =
-    SFFM.SimSFFM(model = model, StoppingTime = SFFM.InOutYLevel(y = y), InitCondition = IC)
-
-## Define the mesh
-Δ = 0.1
-Nodes = collect(Bounds[1, 1]:Δ:Bounds[1, 2])
-Fil = Dict{String,BitArray{1}}(
-    "1+" => trues(length(Nodes) - 1),
-    "2+" => trues(length(Nodes) - 1),
-    "3+" => trues(length(Nodes) - 1),
-    "p2+" => trues(1),
-    "q1+" => trues(1),
-    "p3+" => trues(1),
-    "q3+" => trues(1),
-)
-NBases = 6
-mesh = SFFM.MakeMesh(model = model, Nodes = Nodes, NBases = NBases, Fil = Fil)
-
-## Construct all DG operators
-All = SFFM.MakeAll(model = model, mesh = mesh, Basis = "legendre")
-Matrices = All.Matrices
-MatricesR = All.MatricesR
-B = All.B
-R = All.R
-D = All.D
-DR = All.DR
-MyD = SFFM.MakeMyD(model = model, mesh = mesh, MatricesR = MatricesR, B = B)
-
-## initial condition
-# x0 = Matrix(
-#     [
-#         zeros(sum(model.C.<=0)) # LHS point mass
-#         zeros(mesh.NBases * mesh.NIntervals * 1 ÷ 2) # phase 1
-#         1 # phase 1
-#         zeros(NBases - 1) # phase 1
-#         zeros(mesh.NBases * mesh.NIntervals * 1 ÷ 2 - NBases) # phase 1
-#         zeros(mesh.TotalNBases * 2) # phases 2 and 3
-#         zeros(sum(model.C.>=0)) # RHS point mass
-#     ]',
-# )
-x0 = Matrix(
-    [
-        zeros(sum(model.C .<= 0)) # LHS point mass
-        repeat([1.0; zeros(Float64, NBases-1)], model.NPhases * mesh.NIntervals, 1) ./
-        (model.NPhases * mesh.NIntervals)
-        zeros(sum(model.C .>= 0)) # RHS point mass
-    ]',
-)
-
-## DG approximations to exp(Dy)
-yvalsR =
-    SFFM.EulerDG(D = DR.DDict["++"](s = 0), y = y, x0 = x0, h = 0.0001)[[
-        1:sum(model.C .<= 0)
-        sum(model.C .<= 0).+1:1:end.-sum(model.C .>= 0)
-        end.-sum(model.C .>= 0).+1:end
-    ]]
-yvalsR = [yvalsR[1:2]' sum(reshape(yvalsR[3:end-2],NBases,length(yvalsR[3:end-2])÷NBases),dims=1) yvalsR[end-1:end]']
-yvals =
-    SFFM.EulerDG(D = D["++"](s = 0), y = y, x0 = x0, h = 0.0001)[[
-        1:sum(model.C .<= 0)
-        sum(model.C .<= 0).+1:1:end.-sum(model.C .>= 0)
-        end.-sum(model.C .>= 0).+1:end
-    ]]
-yvals = [yvals[1:2]' sum(reshape(yvals[3:end-2],NBases,length(yvals[3:end-2])÷NBases),dims=1) yvals[end-1:end]']
-MyDyvals =
-    SFFM.EulerDG(D = MyD.D(s = 0), y = y, x0 = x0, h = 0.0001)[[
-        1:sum(model.C .<= 0)
-        sum(model.C .<= 0).+1:1:end.-sum(model.C .>= 0)
-        end.-sum(model.C .>= 0).+1:end
-    ]]
-MyDyvals = [MyDyvals[1:2]' sum(reshape(MyDyvals[3:end-2],NBases,length(MyDyvals[3:end-2])÷NBases),dims=1) MyDyvals[end-1:end]']
-## analysis and plots
-
-# plot solutions
-p = plot(legend = false, layout = (3, 1))
-Y = zeros((length(Nodes) - 1), model.NPhases)
-YR = zeros((length(Nodes) - 1), model.NPhases)
-MyY = zeros((length(Nodes) - 1), model.NPhases)
-let cum = 0
-    for i = 1:model.NPhases
-        idx = findall(.!Fil[string(i)*"0"]) .- cum .+ (i - 1) * mesh.NIntervals .+
-            sum(model.C .<= 0)
-        cum = cum + sum(Fil[string(i)*"0"])*NBases
-        p = plot!(
-            (
-                mesh.CellNodes[1, .!Fil[string(i)*"0"]][:] +
-                mesh.CellNodes[end, .!Fil[string(i)*"0"]][:]
-            ) / 2,
-            yvals[idx],
-            label = "φ=" * string(i) * " - D",
-            subplot = i,
-        )
-        Y[:, i] = yvals[idx]
-        # p = plot!(
-        #     (
-        #         mesh.CellNodes[1, .!Fil[string(i)*"0"]][:] +
-        #         mesh.CellNodes[end, .!Fil[string(i)*"0"]][:]
-        #     ) / 2,
-        #     yvalsR[idx],
-        #     label = "φ=" * string(i) * " - DR",
-        #     subplot = i,
-        # )
-        # YR[:, i] = yvalsR[idx]
-        p = plot!(
-            (
-                mesh.CellNodes[1, .!Fil[string(i)*"0"]][:] +
-                mesh.CellNodes[end, .!Fil[string(i)*"0"]][:]
-            ) / 2,
-            MyDyvals[idx],
-            label = "φ=" * string(i) * " - MyD",
-            subplot = i,
-        )
-        MyY[:, i] = MyDyvals[idx]
+        Rfun(x)
     end
-end
-p = plot!(subplot = 1, legend = :topright)
-pmdata = [
-    [Nodes[1] * ones(sum(model.C .<= 0)); Nodes[end] * ones(sum(model.C .>= 0))]'
-    yvals[[.!mesh.Fil["p0"]; falses(model.NPhases * mesh.NIntervals); .!mesh.Fil["q0"]]]'
-    yvalsR[[.!mesh.Fil["p0"]; falses(model.NPhases * mesh.NIntervals); .!mesh.Fil["q0"]]]'
-    MyDyvals[[.!mesh.Fil["p0"]; falses(model.NPhases * mesh.NIntervals); .!mesh.Fil["q0"]]]'
-    [(sum(repeat(sims.X,1,model.NPhases).*(sims.φ.==[1 2 3]).==Nodes[1],dims=1)./NSim)[model.C.<=0];
-    (sum(repeat(sims.X,1,model.NPhases).*(sims.φ.==[1 2 3]).==Nodes[end],dims=1)./NSim)[model.C.>=0]]'
-]
-SFFM.MyPrint([".";"pm";"pmR";"pmMyD";"sim"])
-SFFM.MyPrint(pmdata)
-
-display(p)
-
-# plot sims
-H = zeros(length(Nodes) - 1, model.NPhases)
-for whichφ = 1:model.NPhases
-    #pltvals = kde(sims.X[sims.φ.==whichφ])
-    #p = histogram!(sims.X[sims.φ.==whichφ],bins=Nodes,normalize=:probability,alpha=0.2)
-    # plot!(
-    #     range(
-    #         minimum(sims.X[sims.φ.==whichφ]),
-    #         maximum(sims.X[sims.φ.==whichφ]),length=100
-    #     ),
-    #     z->pdf(pltvals,z)*sum(sims.φ.==whichφ)/length(sims.φ),
-    #     label = "φ="*string(i)*" - sim"
-    # )
-    h = fit(
-        Histogram,
-        sims.X[(sims.φ.==whichφ) .& (sims.X.!=Nodes[1]) .& (sims.X.!=Nodes[end])],
-        Nodes,
-    )
-    h = h.weights ./ NSim
-    H[:, whichφ] = h
-    #p = plot!(
-    #    Nodes[1:end-1] + diff(Nodes) / 2,
-    #    h,
-    #    label = "hist" * string(whichφ),
-    #)
-    p = bar!(
-        (Nodes[1:end-1] + Nodes[2:end]) / 2,
-        h,
-        alpha = 0.2,
-        bar_width = mesh.Δ,
-        label = "sims",
-        subplot = whichφ,
-    )
-end
-display(p)
-
-# display errors
-err = H - Y
-errR = H - YR
-MyDerr = H - MyY
-plot(
-    Nodes[1:end-1] + diff(Nodes) / 2,
-    err,
-    label = "err",
-    legend = :topleft,
-    layout = (3, 1),
 )
-plot!(Nodes[1:end-1] + diff(Nodes) / 2, errR, label = "errR")
-plot!(Nodes[1:end-1] + diff(Nodes) / 2, MyDerr, label = "MyDerr")
-display(sum(abs.(err) ))
-display(sum(abs.(errR)))
-display(sum(abs.(MyDerr)))
-display(abs.(err))
-display(abs.(errR))
+
+bounds = [0 12; -Inf Inf]
+model = SFFM.Model( T, C, r, Bounds = bounds)
+
+orders = [1;3;5;7;11;13;15;21;25;27;33;;37;41]
+errors_1 = []
+
+Δtemp = 1/2 # the grid size; must have kΔ = 1 for some k due to discontinuity in r at 1
+nodes = collect(0:Δtemp:bounds[1,2])
+
+order = 3
+println("order = "*string(order))
+dgmesh = SFFM.DGMesh(
+    model, 
+    nodes, 
+    order,
+    Basis = "lagrange",
+)
+frapmesh = SFFM.FRAPMesh(
+    model, 
+    nodes, 
+    order,
+)
+fvmesh = SFFM.FVMesh(
+    model, 
+    collect(0:Δtemp/order:bounds[1,2]), 
+)
+simmesh = SFFM.FVMesh(
+    model, 
+    nodes, 
+)
+
+trueprobs = zeros(Float64,1,SFFM.NIntervals(frapmesh),SFFM.NPhases(model))
+truepos = convert(Int,ceil((1.2+eps())/Δtemp))
+trueprobs[truepos] = 1
+groundtruth = SFFM.SFFMProbability(
+    [0],
+    trueprobs,
+    SFFM.CellNodes(frapmesh),
+)
+
+# DG
+B_DG = SFFM.MakeB(model, dgmesh)
+#ME
+me = SFFM.MakeME(SFFM.CMEParams[order], mean = Δtemp)
+B_ME = SFFM.MakeB(model, frapmesh, me)
+# Erlang (this is the erlang which is equivalent to DG)
+erlang = SFFM.MakeErlang(order, mean = Δtemp)
+B_Erlang = SFFM.MakeB(model, frapmesh, erlang)
+# meph (this is the erlang treated as an ME)
+meph = SFFM.ME(erlang.a, erlang.S, erlang.s; D = SFFM.erlangDParams[string(order)])
+B_MEPH = SFFM.MakeB(model, frapmesh, meph)
+# FVM
+B_FV = SFFM.MakeB(model, fvmesh, 3)
+
+point = 0+eps()
+pointIdx = convert(Int,ceil(point/Δtemp))
+begin
+    V = SFFM.vandermonde(order)
+    theNodes = SFFM.CellNodes(dgmesh)[:,pointIdx]
+    basisValues = zeros(length(theNodes))
+    for n in 1:length(theNodes)
+        basisValues[n] = prod(point.-theNodes[[1:n-1;n+1:end]])./prod(theNodes[n].-theNodes[[1:n-1;n+1:end]])
+    end
+    initpm = [
+        zeros(sum(model.C.<=0)) # LHS point mass
+        zeros(sum(model.C.>=0)) # RHS point mass
+    ]
+    initprobs = zeros(Float64,SFFM.NBases(dgmesh),SFFM.NIntervals(dgmesh),SFFM.NPhases(model))
+    initprobs[:,pointIdx,1] = basisValues'*V.V*V.V'.*2/Δtemp
+    initdist = SFFM.SFFMDensity(
+        initpm,
+        initprobs,
+        SFFM.CellNodes(dgmesh),
+    ) # convert to a distribution object so we can apply Dist2Coeffs
+    # convert to Coeffs α in the DG context
+    x0_DG = SFFM.Dist2Coeffs(model, dgmesh, initdist)
+end
+begin
+    initpm = [
+        zeros(sum(model.C.<=0)) # LHS point mass
+        zeros(sum(model.C.>=0)) # RHS point mass
+    ]
+    initprobs = zeros(Float64,SFFM.NBases(frapmesh),SFFM.NIntervals(frapmesh),SFFM.NPhases(model))
+    initprobs[:,pointIdx,1] = me.a
+    initdist = SFFM.SFFMDensity(
+        initpm,
+        initprobs,
+        SFFM.CellNodes(frapmesh),
+    ) # convert to a distribution object so we can apply Dist2Coeffs
+    # convert to Coeffs α in the DG context
+    x0_ME = SFFM.Dist2Coeffs( model, frapmesh, initdist)
+end
+begin
+    initpm = [
+        zeros(sum(model.C.<=0)) # LHS point mass
+        zeros(sum(model.C.>=0)) # RHS point mass
+    ]
+    initprobs = zeros(Float64,SFFM.NBases(frapmesh),SFFM.NIntervals(frapmesh),SFFM.NPhases(model))
+    initprobs[1,pointIdx,1] = 1
+    initdist = SFFM.SFFMDensity(
+        initpm,
+        initprobs,
+        SFFM.CellNodes(frapmesh),
+    ) # convert to a distribution object so we can apply Dist2Coeffs
+    # convert to Coeffs α in the DG context
+    x0_Erlang = SFFM.Dist2Coeffs( model, frapmesh, initdist)
+end
+begin
+    initpm = [
+        zeros(sum(model.C.<=0)) # LHS point mass
+        zeros(sum(model.C.>=0)) # RHS point mass
+    ]
+    initprobs = zeros(Float64,SFFM.NBases(fvmesh),SFFM.NIntervals(fvmesh),SFFM.NPhases(model))
+    initprobs[1,pointIdx,1] = 1
+    initdist = SFFM.SFFMDensity(
+        initpm,
+        initprobs,
+        SFFM.CellNodes(fvmesh),
+    ) # convert to a distribution object so we can apply Dist2Coeffs
+    # convert to Coeffs α in the DG context
+    x0_FV = SFFM.Dist2Coeffs( model, fvmesh, initdist)
+end
+
+euler(B,x0) = SFFM.EulerDG( B, 1.2, x0, h = 0.0001) 
+x1_DG = euler(B_DG.B, x0_DG)
+x1_ME = euler(B_ME.B, x0_ME)
+x1_Erlang = euler(B_Erlang.B, x0_Erlang)
+x1_MEPH = euler(B_MEPH.B, x0_Erlang)
+x1_FV = euler(B_FV.B, x0_FV)
+
+x1_DG = SFFM.Coeffs2Dist(
+    model,
+    dgmesh,
+    x1_DG,
+    SFFM.SFFMProbability,
+)
+x1_ME = SFFM.Coeffs2Dist(
+    model,
+    frapmesh,
+    x1_ME,
+    SFFM.SFFMProbability,
+)
+x1_Erlang = SFFM.Coeffs2Dist(
+    model,
+    frapmesh,
+    x1_Erlang,
+    SFFM.SFFMProbability,
+)
+x1_MEPH = SFFM.Coeffs2Dist(
+    model,
+    frapmesh,
+    x1_MEPH,
+    SFFM.SFFMProbability,
+)
+
+x1_FV = SFFM.Coeffs2Dist(
+    model,
+    frapmesh,
+    x1_FV,
+    SFFM.SFFMProbability,
+)
+
+errVec_1 = (
+    SFFM.starSeminorm(x1_DG, groundtruth),
+    SFFM.starSeminorm(x1_ME, groundtruth),
+    SFFM.starSeminorm(x1_Erlang, groundtruth),
+    SFFM.starSeminorm(x1_MEPH, groundtruth),
+    SFFM.starSeminorm(x1_FV, groundtruth),
+)
+# p = SFFM.plot(model, frapmesh, x1_ME,
+#     color = 1, label = "DG")
+# display(p)
+
+# p = SFFM.plot(model, dgmesh, x1_DG,
+#     color = 1, label = "DG", alpha = 0.25)
+# p = SFFM.plot!(p, model, frapmesh, x1_ME, 
+#     color = 2, label = "ME", alpha = 0.25)
+# # SFFM.plot!(p, model, frapmesh, x1_Erlang, 
+# #     color = 3, label = "Erlang", alpha = 0.25)
+# # SFFM.plot!(p, model, frapmesh, x1_MEPH, 
+# #     color = 5, label = "ME-PH", alpha = 0.25)
+# SFFM.plot!(p, model, frapmesh, x1_FV, 
+#     color = 7, label = "FV", alpha = 0.25)
+# p = plot!(title = "approx dist at t=1.2; order = "*string(order), subplot = 1)
+# display(p)
+
+# push!(errors_1, errVec_1)
+
+function vmult(u,v)
+    s_1 = length(u)
+    s_2 = length(v)
+    if s_1 != s_2 
+        throw(DomainError("Dimension mismatch"))
+    end
+    w = 0
+    for i in 1:s_1
+        w += u[i]*v[i]
+    end
+    return w
+end
+
+function mmult(A,B)
+    s_1 = size(A,1)
+    s_2 = size(A,2)
+    s_3 = size(B,1)
+    s_4 = size(B,2)
+    if s_2 != s_3 
+        throw(DomainError("Dimension mismatch"))
+    end
+    M = zeros(s_1,s_4)
+    for i in 1:s_1
+        for j in 1:s_4
+            w = vmult(A[i,:],B[:,j])
+            M[i,j] = w
+        end
+    end
+    return M
+end
+
+function vmmult(u,A)
+    s_1 = length(u)
+    s_2 = size(A,1)
+    s_3 = size(A,2)
+    if s_1 != s_2 
+        throw(DomainError("Dimension mismatch"))
+    end
+    v = zeros(1,s_3)
+    for j in 1:s_3
+        temp = 0 
+        for i in 1:s_1
+            temp += u[i]*A[i,j]
+        end
+        v[j] = temp
+    end
+    return v
+end
+
+
+
+
+# blocks = (left, middle, right)
+# blocks = (down, stay, up)
+s1 = rand(2:3)
+s2 = rand(2:3)
+s3 = rand(2:3)
+blocks = (rand(s1,s1), rand(s1,s1), rand(s1,s1))
+T = rand(s2,s2)
+size_T = size(T,1)
+C = rand(-2:2,s2)
+signChangeIndex = zeros(Bool,size_T,size_T)
+    for i in 1:size_T, j in 1:size_T
+        if ((sign(C[i])!=0) && (sign(C[j])!=0))
+            signChangeIndex[i,j] = (sign(C[i])!=sign(C[j]))
+        elseif (sign(C[i])==0)
+            signChangeIndex[i,j] = sign(C[j])>0
+        elseif (sign(C[j])==0)
+            signChangeIndex[i,j] = sign(C[i])>0            
+        end
+    end
+size_blocks = size(blocks[1],1)
+D = rand(s1,s1)
+delta = cumsum(1:s3)
+size_delta = length(delta)
+u = rand(size_T*size_blocks*size_delta)#zeros(size_T*size_blocks*size_delta)# collect(1:(size_T*size_blocks*size_delta))
+# u[1] = 1
+size_u = length(u)
+v = zeros(1,size_u)
+for i in 1:size_T
+    for j in 1:size_T
+        if i == j
+            for k in 1:size_delta
+                k_idx = (i-1)*size_blocks*size_delta .+ (k-1)*size_blocks .+ (1:size_blocks)
+                for ℓ in 1:size_delta
+                    ℓ_idx = (i-1)*size_blocks*size_delta .+ (ℓ-1)*size_blocks .+ (1:size_blocks)
+                    if k == ℓ+1
+                        v[k_idx] += (u[ℓ_idx]'*blocks[3])'
+                    elseif k == ℓ
+                        v[k_idx] += (u[ℓ_idx]'*(blocks[2] + T[i,j]*I))'
+                    elseif k == ℓ-1
+                        v[k_idx] += (u[ℓ_idx]'*blocks[1])'
+                    end
+                end
+            end
+        elseif signChangeIndex[i,j]
+            for k in 1:size_delta
+                for ℓ in 1:size_delta
+                    if k == ℓ
+                        i_idx = (i-1)*size_blocks*size_delta .+ (k-1)*size_blocks .+ (1:size_blocks)
+                        j_idx = (j-1)*size_blocks*size_delta .+ (k-1)*size_blocks .+ (1:size_blocks)
+                        v[j_idx] += (u[i_idx]'*(T[i,j]*D))'
+                    end
+                end
+            end
+        else
+            i_idx = (i-1)*size_blocks*size_delta .+ (1:size_blocks*size_delta)
+            j_idx = (j-1)*size_blocks*size_delta .+ (1:size_blocks*size_delta)
+            v[j_idx] += (u[i_idx]'*T[i,j])'
+        end
+    end
+end    
+
+full = zeros(size_u,size_u)
+for i in 1:size_T
+    for j in 1:size_T
+        if i == j
+            for k in 1:size_delta
+                k_idx = (i-1)*size_blocks*size_delta .+ (k-1)*size_blocks .+ (1:size_blocks)
+                for ℓ in 1:size_delta
+                    ℓ_idx = (i-1)*size_blocks*size_delta .+ (ℓ-1)*size_blocks .+ (1:size_blocks)
+                    if k == ℓ+1
+                        full[ℓ_idx,k_idx] = (blocks[3])
+                    elseif k == ℓ
+                        full[ℓ_idx,k_idx] = (blocks[2])
+                    elseif k == ℓ-1
+                        full[ℓ_idx,k_idx]  = (blocks[1])
+                    end
+                end
+            end
+        end
+    end
+end  
+Dtemp = kron(T.*signChangeIndex,kron(I(size_delta),D)) + kron(T.*.!signChangeIndex,kron(I(size_delta),I(size_blocks)))
+full = Dtemp + full
+sum(abs.(u'*full-v))
+
+
+
+
+
+
+

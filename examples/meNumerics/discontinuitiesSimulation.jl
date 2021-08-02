@@ -1,5 +1,5 @@
-include(pwd()*"/src/SFFM.jl")
-using LinearAlgebra, Plots, JLD2
+# include(pwd()*"/src/SFFM.jl")
+using LinearAlgebra, Plots, JLD2, SFFM
 #
 # ## define the model(s)
 include(pwd()*"/examples/meNumerics/discontinuitiesModelDef.jl")

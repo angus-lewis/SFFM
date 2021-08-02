@@ -1,4 +1,5 @@
 module SFFM
+import Base.*, Base.size
 import Jacobi, LinearAlgebra, SparseArrays
 import Plots, StatsBase, KernelDensity
 
@@ -127,6 +128,8 @@ Abstract type representing a mesh for a numerical scheme.
 """
 abstract type Mesh end 
 
+include("METools.jl")
+
 function MakeB(
     model::SFFM.Model,
     mesh::Mesh;
@@ -138,7 +141,7 @@ end
 function MakeB(model::SFFM.Model, mesh::SFFM.Mesh, order::Int)
     throw(DomainError("Unknown mesh type"))
 end
-function MakeB(model::Model, mesh::FRAPMesh, me::ME)
+function MakeB(model::Model, mesh::Mesh, me::ME)
     throw(DomainError("Unknown mesh type"))
 end
 
@@ -240,10 +243,166 @@ function MakeDict(
     return BDict
 end
 
+abstract type Generator end 
+
+issquare(A::AbstractArray{<:Any,2}) = size(A,1)==size(A,2)
+
+struct LazyB <: AbstractArray{Real,2}
+    blocks::Tuple{Array{Float64,2},Array{Float64,2},Array{Float64,2},Array{Float64,2}}
+    boundary_flux::NamedTuple{(:in, :out),Tuple{Array{Float64,1},Array{Float64,1}}}
+    T::Array{<:Real,2}
+    C::Array{<:Real,1}
+    Δ::Array{<:Real,1}
+    D::Union{Array{Float64,2},LinearAlgebra.Diagonal{Bool,Array{Bool,1}}}
+    pmidx::Union{Array{Bool,2},BitArray{2}}
+    function LazyB(
+        blocks::Tuple{Array{Float64,2},Array{Float64,2},Array{Float64,2},Array{Float64,2}},
+        boundary_flux::NamedTuple{(:in, :out),Tuple{Array{Float64,1},Array{Float64,1}}},
+        T::Array{<:Real,2},
+        C::Array{<:Real,1},
+        Δ::Array{<:Real,1},
+        D::Union{Array{Float64,2},LinearAlgebra.Diagonal{Bool,Array{Bool,1}}},
+        pmidx::Union{Array{Bool,2},BitArray{2}},
+    )
+        s = size(blocks[1])
+        for b in 1:4
+            !issquare(blocks[1]) && throw(DomainError("blocks must be square"))
+            !(s == size(blocks[b])) && throw(DomainError("blocks must be the same size"))
+        end
+        !issquare(T) && throw(DomainError("T must be square"))
+        !issquare(D) && throw(DomainError("D must be square"))
+        !(s == size(D)) && throw(DomainError("blocks must be the same size as D"))
+        !issquare(pmidx) && throw(DomainError("pmidx must be square"))
+        !(size(T) == size(pmidx)) && throw(DomainError("pmidx must be the same size as T"))
+        !(length(C) == size(T,1)) && throw(DomainError("C must be the same length as T"))
+        
+        return new(blocks,boundary_flux,T,C,Δ,D,pmidx)
+    end
+    # size_blocks::Int64
+    # size_T::Int64
+end
+function LazyB(
+    blocks::Tuple{Array{Float64,2},Array{Float64,2},Array{Float64,2}},
+    boundary_flux::NamedTuple{(:in, :out),Tuple{Array{Float64,1},Array{Float64,1}}},
+    T::Array{<:Real,2},
+    C::Array{<:Real,1},
+    Δ::Array{<:Real,1},
+    D::Union{Array{Float64,2},LinearAlgebra.Diagonal{Bool,Array{Bool,1}}},
+    pmidx::Union{Array{Bool,2},BitArray{2}},
+)
+    blocks = (blocks[1],blocks[2],blocks[2],blocks[3])
+    return LazyB(
+        blocks,
+        boundary_flux,
+        T,
+        C,
+        Δ,
+        D,
+        pmidx,
+    )
+end
+
+function size(B::LazyB)
+    sz = size(B.T,1)*size(B.blocks[1],1)*length(B.Δ) + sum(B.C.<=0) + sum(B.C.>=0)
+    return (sz,sz)
+end
+
+function *(u::Array{<:Real,2}, B::LazyB)
+    sz_u_1 = size(u,1)
+    sz_u_2 = size(u,2)
+    sz_B_1 = size(B,1)
+    sz_B_2 = size(B,2)
+    !(sz_u_2 == sz_B_1) && throw(DomainError("Dimension mismatch, u*B, length(u) must be size(B,1)"))
+    N₋ = sum(B.C.<=0)
+    N₊ = sum(B.C.>=0)
+    v = zeros(sz_u_1,sz_B_2)
+    size_delta = length(B.Δ)
+    size_blocks = size(B.blocks[1],1)
+    size_T = size(B.T,1)
+    for row in 1:sz_u_1
+        # v[row,]
+        # boundaries
+        # at lower
+        v[row,1:N₋] += u[row,1:N₋]'*B.T[B.C.<=0,B.C.<=0]
+        # in to lower 
+        idxdown = N₋ .+ ((1:size_blocks).+size_blocks*size_delta*(findall(B.C .<= 0) .- 1)')[:]
+        v[row,1:N₋] += u[row,idxdown]'*LinearAlgebra.kron(
+            LinearAlgebra.diagm(0 => abs.(B.C[B.C.<=0])),
+            B.boundary_flux.in/B.Δ[1],
+        )
+        # out of lower 
+        idxup = N₋ .+ (size_blocks*size_delta*(findall(B.C .> 0).-1)' .+ (1:size_blocks))[:]
+        v[row,idxup] = u[row,1:N₋]'*kron(B.T[B.C.<=0,B.C.>0],B.boundary_flux.out')
+
+        # at upper
+        v[row,end-N₊+1:end] += u[row,end-N₊+1:end]'*B.T[B.C.>=0,B.C.>=0]
+        # in to upper
+        idxup = N₋ .+ ((1:size_blocks).+size_blocks*size_delta*(findall(B.C .>= 0) .- 1)')[:] .+
+            (size_blocks*size_delta - size_blocks)
+        v[row,end-N₊+1:end] += u[row,idxup]'*LinearAlgebra.kron(
+            LinearAlgebra.diagm(0 => B.C[B.C.>=0]),
+            B.boundary_flux.in/B.Δ[end],
+        )
+        # out of upper 
+        idxdown = N₋ .+ (size_blocks*size_delta*(findall(B.C .< 0).-1)' .+ (1:size_blocks))[:] .+
+            (size_blocks*size_delta - size_blocks)
+        v[row,idxdown] = u[row,1:N₋]'*kron(B.T[B.C.<=0,B.C.>0],B.boundary_flux.out')
+
+        # innards
+        for i in 1:size_T, j in 1:size_T
+            if i == j 
+                # mult on diagonal
+                for k in 1:size_delta
+                    k_idx = (i-1)*size_blocks*size_delta .+ (k-1)*size_blocks .+ (1:size_blocks) .+ N₋
+                    for ℓ in 1:size_delta
+                        if (k == ℓ+1) && (B.C[i] > 0)
+                            ℓ_idx = k_idx .- size_blocks 
+                            v[row,k_idx] += B.C[i]*(u[row,ℓ_idx]'*B.blocks[4])'/B.Δ[ℓ]
+                        elseif k == ℓ
+                            v[row,k_idx] += (u[row,k_idx]'*(abs(B.C[i])*B.blocks[2 + (B.C[i].<0)]/B.Δ[ℓ] + B.T[i,j]*LinearAlgebra.I))'
+                        elseif (k == ℓ-1) && (B.C[i] < 0)
+                            ℓ_idx = k_idx .+ size_blocks 
+                            v[row,k_idx] += abs(B.C[i])*(u[row,ℓ_idx]'*B.blocks[1])'/B.Δ[ℓ]
+                        end
+                    end
+                end
+            elseif B.pmidx[i,j]
+                # changes from S₊ to S₋ etc.
+                for k in 1:size_delta
+                    for ℓ in 1:size_delta
+                        if k == ℓ
+                            i_idx = (i-1)*size_blocks*size_delta .+ (k-1)*size_blocks .+ (1:size_blocks) .+ N₋
+                            j_idx = (j-1)*size_blocks*size_delta .+ (k-1)*size_blocks .+ (1:size_blocks) .+ N₋
+                            v[row,j_idx] += (u[row,i_idx]'*(B.T[i,j]*B.D))'
+                        end
+                    end
+                end
+            else
+                i_idx = (i-1)*size_blocks*size_delta .+ (1:size_blocks*size_delta) .+ N₋
+                j_idx = (j-1)*size_blocks*size_delta .+ (1:size_blocks*size_delta) .+ N₋
+                v[row,j_idx] += (u[row,i_idx]'*B.T[i,j])'
+            end
+        end
+    end
+    return v
+end
+
+struct Lazy_Generator <: Generator 
+    BDict::Dict{String,AbstractArray{Float64,2}}
+    B::LazyB
+    QBDidx::Array{Int64,1}
+end
+
+struct Full_Generator <: Generator 
+    BDict::Dict{String,AbstractArray{Float64,2}}
+    B::Union{AbstractArray{Float64,Int64},SparseArrays.SparseMatrixCSC{Float64,Int64}}
+    QBDidx::Array{Int64,1}
+end
+
+
 include("DGBase.jl")
 include("Operators.jl")
 include("FVM.jl")
-include("METools.jl")
 include("FRAPApproximation.jl")
 include("Distributions.jl")
 include("SimulateSFFM.jl")

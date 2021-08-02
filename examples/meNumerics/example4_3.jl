@@ -1,5 +1,5 @@
-include("../../src/SFFM.jl")
-using LinearAlgebra, Plots
+# include("../../src/SFFM.jl")
+using LinearAlgebra, Plots, SFFM
 
 ## define the model(s)
 include("exampleModelDef.jl")
@@ -66,7 +66,7 @@ let
 
         # construct FRAP matrices
         me = SFFM.MakeME(SFFM.CMEParams[nBases], mean = SFFM.Δ(mesh)[1])
-        B = SFFM.MakeBFRAP( approxModel, frapmesh, me)
+        B = SFFM.MakeB( approxModel, frapmesh, me)
         D = SFFM.MakeD( mesh, B, All.R)
         Ψme = SFFM.PsiFun( D)
 
