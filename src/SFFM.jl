@@ -40,34 +40,34 @@ struct Model
     C::Array{<:Real,1}
     r::NamedTuple{(:r, :R, :a)}
     Bounds::Array{<:Real}
-
-    function Model(
-        T::Array{<:Real},
-        C::Array{<:Real,1},
-        r::NamedTuple{(:r, :R)};
-        Bounds::Array{<:Real,2} = [-Inf Inf; -Inf Inf],
-        v::Bool = false,
-    )
-        a(x) = abs.(r.r(x))
-        r = (r = r.r, R = r.R, a = a)
-    
-        v && println("UPDATE: Model object created with fields ", fieldnames(SFFM.Model))
-        return new(
-            T,
-            C,
-            r,
-            Bounds,
-        )
-    end
-    function Model()
-        new(
-            [0],
-            [0],
-            (r=0, R=0, a=0),
-            [0],
-        )
-    end
 end 
+# Convenience constructors
+function Model(
+    T::Array{<:Real},
+    C::Array{<:Real,1},
+    r::NamedTuple{(:r, :R)};
+    Bounds::Array{<:Real,2} = [-Inf Inf; -Inf Inf],
+    v::Bool = false,
+)
+    a(x) = abs.(r.r(x))
+    r = (r = r.r, R = r.R, a = a)
+
+    v && println("UPDATE: Model object created with fields ", fieldnames(SFFM.Model))
+    return Model(
+        T,
+        C,
+        r,
+        Bounds,
+    )
+end
+function Model()
+    Model(
+        [0],
+        [0],
+        (r=0, R=0, a=0),
+        [0],
+    )
+end
 
 """
 
@@ -126,6 +126,21 @@ end
 Abstract type representing a mesh for a numerical scheme. 
 """
 abstract type Mesh end 
+
+function MakeB(
+    model::SFFM.Model,
+    mesh::Mesh;
+    probTransform::Bool=true,
+    v::Bool = false,
+)
+    throw(DomainError("Unknown mesh type"))
+end
+function MakeB(model::SFFM.Model, mesh::SFFM.Mesh, order::Int)
+    throw(DomainError("Unknown mesh type"))
+end
+function MakeB(model::Model, mesh::FRAPMesh, me::ME)
+    throw(DomainError("Unknown mesh type"))
+end
 
 function MakeDict(
     B::Union{Array{<:Real,2},SparseArrays.SparseMatrixCSC{<:Real,Int64}},

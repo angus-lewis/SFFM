@@ -2,35 +2,36 @@ struct FRAPMesh <: Mesh
     Nodes::Array{Float64,1}
     NBases::Int
     Fil::Dict{String,BitArray{1}}
-    function FRAPMesh(
-        model::SFFM.Model,
-        Nodes::Array{<:Real,1},
-        NBases::Int;
-        Fil::Dict{String,BitArray{1}}=Dict{String,BitArray{1}}(),
-        v::Bool = false,
-    )
-
-        ## Construct the sets Fᵐ = ⋃ᵢ Fᵢᵐ, global index for sets of type m
-        if isempty(Fil)
-            Fil = MakeFil(model, Nodes)
-        end
-
-        mesh = new(
-            Nodes,
-            NBases,
-            Fil,
-        )
-        v && println("UPDATE: DGMesh object created with fields ", fieldnames(SFFM.DGMesh))
-        return mesh
-    end
-    function FRAPMesh()
-        new(
-            Array{Float64,1}(undef,0),
-            0,
-            Dict{String,BitArray{1}}(),
-        )
-    end
 end 
+# Convenience constructors
+function FRAPMesh(
+    model::SFFM.Model,
+    Nodes::Array{<:Real,1},
+    NBases::Int;
+    Fil::Dict{String,BitArray{1}}=Dict{String,BitArray{1}}(),
+    v::Bool = false,
+)
+
+    ## Construct the sets Fᵐ = ⋃ᵢ Fᵢᵐ, global index for sets of type m
+    if isempty(Fil)
+        Fil = MakeFil(model, Nodes)
+    end
+
+    mesh = FRAPMesh(
+        Nodes,
+        NBases,
+        Fil,
+    )
+    v && println("UPDATE: DGMesh object created with fields ", fieldnames(SFFM.DGMesh))
+    return mesh
+end
+function FRAPMesh()
+    FRAPMesh(
+        Array{Float64,1}(undef,0),
+        0,
+        Dict{String,BitArray{1}}(),
+    )
+end
 
 """
 
@@ -57,7 +58,7 @@ Constant ""
 """
 Basis(mesh::FRAPMesh) = ""
 
-function MakeBFRAP(model::Model, mesh::FRAPMesh, me::ME)
+function MakeB(model::Model, mesh::FRAPMesh, me::ME)
     N₊ = sum(model.C .>= 0)
     N₋ = sum(model.C .<= 0)
 
@@ -153,4 +154,9 @@ function MakeBFRAP(model::Model, mesh::FRAPMesh, me::ME)
     BDict = MakeDict(B, model, mesh)
 
     return (BDict=BDict, B=B, QBDidx=QBDidx)
+end
+
+function MakeB(model::Model, mesh::FRAPMesh, order::Int)
+    me = SFFM.MakeME(SFFM.CMEParams[order], mean = mesh.Δ[1])
+    return MakeB(model, mesh, me)
 end

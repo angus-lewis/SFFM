@@ -48,32 +48,33 @@ struct DGMesh <: Mesh
     NBases::Int
     Fil::Dict{String,BitArray{1}}
     Basis::String
-    function DGMesh(
-        model::SFFM.Model,
-        Nodes::Array{<:Real,1},
-        NBases::Int;
-        Fil::Dict{String,BitArray{1}}=Dict{String,BitArray{1}}(),
-        Basis::String = "lagrange",
-        v::Bool = false,
-    )
-        if isempty(Fil)
-            Fil = MakeFil(model, Nodes)
-        end
-
-        mesh = new(Nodes, NBases, Fil, Basis)
-
-        v && println("UPDATE: DGMesh object created with fields ", fieldnames(SFFM.DGMesh))
-        return mesh
-    end
-    function DGMesh()
-        new(
-            [0.0],
-            0,
-            Dict{String,BitArray{1}}(),
-            "",
-        )
-    end
 end 
+# Convenience constructors
+function DGMesh(
+    model::SFFM.Model,
+    Nodes::Array{<:Real,1},
+    NBases::Int;
+    Fil::Dict{String,BitArray{1}}=Dict{String,BitArray{1}}(),
+    Basis::String = "lagrange",
+    v::Bool = false,
+)
+    if isempty(Fil)
+        Fil = MakeFil(model, Nodes)
+    end
+
+    mesh = DGMesh(Nodes, NBases, Fil, Basis)
+
+    v && println("UPDATE: DGMesh object created with fields ", fieldnames(SFFM.DGMesh))
+    return mesh
+end
+function DGMesh()
+    DGMesh(
+        [0.0],
+        0,
+        Dict{String,BitArray{1}}(),
+        "",
+    )
+end
 
 """
 

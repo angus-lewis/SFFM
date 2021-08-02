@@ -15,19 +15,19 @@ Constructor for a mesh for a finite volume scheme.
 struct FVMesh <: SFFM.Mesh 
     Nodes::Array{Float64,1}
     Fil::Dict{String,BitArray{1}}
-    function FVMesh(
-        model::SFFM.Model,
-        Nodes::Array{Float64,1};
-        Fil::Dict{String,BitArray{1}}=Dict{String,BitArray{1}}(),
-    ) 
-        ## Construct the sets Fᵐ = ⋃ᵢ Fᵢᵐ, global index for sets of type m
-        if isempty(Fil)
-            Fil = MakeFil(model, Nodes)
-        end
-
-        new(Nodes, Fil)
-    end
 end 
+function FVMesh(
+    model::SFFM.Model,
+    Nodes::Array{Float64,1};
+    Fil::Dict{String,BitArray{1}}=Dict{String,BitArray{1}}(),
+) 
+    ## Construct the sets Fᵐ = ⋃ᵢ Fᵢᵐ, global index for sets of type m
+    if isempty(Fil)
+        Fil = MakeFil(model, Nodes)
+    end
+
+    return FVMesh(Nodes, Fil)
+end
 
 
 """
@@ -91,7 +91,7 @@ function MakeFVFlux(mesh::SFFM.Mesh, order::Int)
     return F
 end
 
-function MakeBFV(model::SFFM.Model, mesh::SFFM.Mesh, order::Int)
+function MakeB(model::SFFM.Model, mesh::SFFM.FVMesh, order::Int)
     N₊ = sum(model.C .>= 0)
     N₋ = sum(model.C .<= 0)
 
