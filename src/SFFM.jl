@@ -1,5 +1,5 @@
 module SFFM
-import Base.*, Base.size
+import Base.*, Base.size, Base.show
 import Jacobi, LinearAlgebra, SparseArrays
 import Plots, StatsBase, KernelDensity
 
@@ -247,9 +247,9 @@ abstract type Generator end
 
 issquare(A::AbstractArray{<:Any,2}) = size(A,1)==size(A,2)
 
-struct LazyB <: AbstractArray{Real,2}
+struct LazyB 
     blocks::Tuple{Array{Float64,2},Array{Float64,2},Array{Float64,2},Array{Float64,2}}
-    boundary_flux::NamedTuple{(:in, :out),Tuple{Array{Float64,1},Array{Float64,1}}}
+    boundary_flux::NamedTuple{(:upper,:lower),Tuple{NamedTuple{(:in,:out),Tuple{Vector{Float64},Vector{Float64}}},NamedTuple{(:in,:out),Tuple{Vector{Float64},Vector{Float64}}}}}
     T::Array{<:Real,2}
     C::Array{<:Real,1}
     Δ::Array{<:Real,1}
@@ -257,7 +257,7 @@ struct LazyB <: AbstractArray{Real,2}
     pmidx::Union{Array{Bool,2},BitArray{2}}
     function LazyB(
         blocks::Tuple{Array{Float64,2},Array{Float64,2},Array{Float64,2},Array{Float64,2}},
-        boundary_flux::NamedTuple{(:in, :out),Tuple{Array{Float64,1},Array{Float64,1}}},
+        boundary_flux::NamedTuple{(:upper,:lower),Tuple{NamedTuple{(:in,:out),Tuple{Vector{Float64},Vector{Float64}}},NamedTuple{(:in,:out),Tuple{Vector{Float64},Vector{Float64}}}}},
         T::Array{<:Real,2},
         C::Array{<:Real,1},
         Δ::Array{<:Real,1},
@@ -291,6 +291,7 @@ function LazyB(
     pmidx::Union{Array{Bool,2},BitArray{2}},
 )
     blocks = (blocks[1],blocks[2],blocks[2],blocks[3])
+    boundary_flux = (upper = boundary_flux, lower = boundary_flux)
     return LazyB(
         blocks,
         boundary_flux,
@@ -306,6 +307,12 @@ function size(B::LazyB)
     sz = size(B.T,1)*size(B.blocks[1],1)*length(B.Δ) + sum(B.C.<=0) + sum(B.C.>=0)
     return (sz,sz)
 end
+size(B::LazyB, n::Int) = size(B)[n]
+
+function show(io::IO, B::LazyB)
+    print(io, SparseArrays.SparseMatrixCSC(Matrix(LinearAlgebra.I(size(B,1)))*B))
+end
+show(B::LazyB) = show(stdout, B)
 
 function *(u::Array{<:Real,2}, B::LazyB)
     sz_u_1 = size(u,1)
@@ -328,25 +335,25 @@ function *(u::Array{<:Real,2}, B::LazyB)
         idxdown = N₋ .+ ((1:size_blocks).+size_blocks*size_delta*(findall(B.C .<= 0) .- 1)')[:]
         v[row,1:N₋] += u[row,idxdown]'*LinearAlgebra.kron(
             LinearAlgebra.diagm(0 => abs.(B.C[B.C.<=0])),
-            B.boundary_flux.in/B.Δ[1],
+            B.boundary_flux.lower.in/B.Δ[1],
         )
         # out of lower 
         idxup = N₋ .+ (size_blocks*size_delta*(findall(B.C .> 0).-1)' .+ (1:size_blocks))[:]
-        v[row,idxup] = u[row,1:N₋]'*kron(B.T[B.C.<=0,B.C.>0],B.boundary_flux.out')
+        v[row,idxup] = u[row,1:N₋]'*kron(B.T[B.C.<=0,B.C.>0],B.boundary_flux.lower.out')
 
         # at upper
         v[row,end-N₊+1:end] += u[row,end-N₊+1:end]'*B.T[B.C.>=0,B.C.>=0]
         # in to upper
-        idxup = N₋ .+ ((1:size_blocks).+size_blocks*size_delta*(findall(B.C .>= 0) .- 1)')[:] .+
+        idxup = N₋ .+ ((1:size_blocks).+size_blocks*size_delta*(findall(B.C .> 0) .- 1)')[:] .+
             (size_blocks*size_delta - size_blocks)
         v[row,end-N₊+1:end] += u[row,idxup]'*LinearAlgebra.kron(
-            LinearAlgebra.diagm(0 => B.C[B.C.>=0]),
-            B.boundary_flux.in/B.Δ[end],
+            LinearAlgebra.diagm(0 => B.C[B.C.>0]),
+            B.boundary_flux.upper.in/B.Δ[end],
         )
         # out of upper 
         idxdown = N₋ .+ (size_blocks*size_delta*(findall(B.C .< 0).-1)' .+ (1:size_blocks))[:] .+
             (size_blocks*size_delta - size_blocks)
-        v[row,idxdown] = u[row,1:N₋]'*kron(B.T[B.C.<=0,B.C.>0],B.boundary_flux.out')
+        v[row,idxdown] = u[row,end-N₊+1:end]'*kron(B.T[B.C.>=0,B.C.<0],B.boundary_flux.upper.out')
 
         # innards
         for i in 1:size_T, j in 1:size_T

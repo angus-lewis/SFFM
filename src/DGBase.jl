@@ -454,7 +454,7 @@ function MakeMatrices(
     return out
 end
 
-function local_operators(
+function local_dg_operators(
     mesh::DGMesh;
     probTransform::Bool=true,
     v::Bool = false,
@@ -492,7 +492,7 @@ function local_operators(
     end
 
     PosDiagBlock = -Dw.DwInv * Phi[end, :] * Phi[end, :]' * Dw.Dw
-    NegDiagBlock = -Dw.DwInv * Phi[1, :] * Phi[1, :]' * Dw.Dw
+    NegDiagBlock = Dw.DwInv * Phi[1, :] * Phi[1, :]' * Dw.Dw
     UpDiagBlock = Dw.DwInv * Phi[end, :] * Phi[1, :]' * Dw.Dw
     LowDiagBlock = Dw.DwInv * Phi[1, :] * Phi[end, :]' * Dw.Dw
 
@@ -538,13 +538,15 @@ function MakeLazyB(
     v::Bool = false,
 )
 
-    m = local_operators(mesh; probTransform=probTransform, v=v)
+    m = local_dg_operators(mesh; probTransform=probTransform, v=v)
     blocks = (m.LowDiagBlock*m.MInv*2, (m.G+m.PosDiagBlock)*m.MInv*2, 
-        (m.G+m.NegDiagBlock)*m.MInv*2, m.UpDiagBlock*m.MInv*2)
+        -(m.G+m.NegDiagBlock)*m.MInv*2, m.UpDiagBlock*m.MInv*2)
 
     boundary_flux = (
-        in= (m.Dw.DwInv * m.Phi[1, :]*2)[:], 
-        out = (m.Phi[1, :]' * m.Dw.Dw * m.MInv)[:],
+        upper = (in = (m.Dw.DwInv * m.Phi[end, :]*2)[:], 
+                out = (m.Phi[end, :]' * m.Dw.Dw * m.MInv)[:]),
+        lower = (in = (m.Dw.DwInv * m.Phi[1, :]*2)[:], 
+                out = (m.Phi[1, :]' * m.Dw.Dw * m.MInv)[:])
     )
 
     T = model.T
