@@ -1,5 +1,5 @@
 module SFFM
-import Base.*, Base.size, Base.show
+import Base.*, Base.size, Base.show, Base.getindex
 import Jacobi, LinearAlgebra, SparseArrays
 import Plots, StatsBase, KernelDensity
 
@@ -42,7 +42,6 @@ struct Model
     r::NamedTuple{(:r, :R, :a)}
     Bounds::Array{<:Real}
 end 
-# Convenience constructors
 function Model(
     T::Array{<:Real},
     C::Array{<:Real,1},
@@ -247,7 +246,7 @@ abstract type Generator end
 
 issquare(A::AbstractArray{<:Any,2}) = size(A,1)==size(A,2)
 
-struct LazyB 
+struct LazyB  <: AbstractArray{Real,2}
     blocks::Tuple{Array{Float64,2},Array{Float64,2},Array{Float64,2},Array{Float64,2}}
     boundary_flux::NamedTuple{(:upper,:lower),Tuple{NamedTuple{(:in,:out),Tuple{Vector{Float64},Vector{Float64}}},NamedTuple{(:in,:out),Tuple{Vector{Float64},Vector{Float64}}}}}
     T::Array{<:Real,2}
@@ -303,18 +302,13 @@ function LazyB(
     )
 end
 
-function size(B::LazyB)
+function size(B::SFFM.LazyB)
     sz = size(B.T,1)*size(B.blocks[1],1)*length(B.Δ) + sum(B.C.<=0) + sum(B.C.>=0)
     return (sz,sz)
 end
-size(B::LazyB, n::Int) = size(B)[n]
+size(B::SFFM.LazyB, n::Int) = size(B)[n]
 
-function show(io::IO, B::LazyB)
-    print(io, SparseArrays.SparseMatrixCSC(Matrix(LinearAlgebra.I(size(B,1)))*B))
-end
-show(B::LazyB) = show(stdout, B)
-
-function *(u::Array{<:Real,2}, B::LazyB)
+function *(u::AbstractArray{<:Real,2}, B::LazyB)
     sz_u_1 = size(u,1)
     sz_u_2 = size(u,2)
     sz_B_1 = size(B,1)
@@ -392,6 +386,128 @@ function *(u::Array{<:Real,2}, B::LazyB)
         end
     end
     return v
+end
+
+function show(io::IO, mime::MIME"text/plain", B::SFFM.LazyB)
+    if VERSION >= v"1.6"
+        show(io, mime, SparseArrays.SparseMatrixCSC(Matrix(LinearAlgebra.I(size(B,1)))*B))
+    else
+        show(io, mime, Matrix(SparseArrays.SparseMatrixCSC(Matrix(LinearAlgebra.I(size(B,1)))*B)))
+    end
+end
+show(B::SFFM.LazyB) = show(stdout, B)
+
+function getindex(B::SFFM.LazyB,row::Int,col::Int)
+    checkbounds(B,row,col)
+
+    sz_B_1 = size(B,1)
+
+    N₋ = sum(B.C.<=0)
+    N₊ = sum(B.C.>=0)
+
+    v = 0.0
+
+    size_delta = length(B.Δ)
+    size_blocks = size(B.blocks[1],1)
+
+    if (row ∈ 1:N₋) && (col ∈ 1:N₋)
+        v += B.T[B.C.<=0,B.C.<=0][row,col]
+    elseif (row ∉ 1:N₋) && (row ∉ (sz_B_1 .+ 1) .- (1:N₊)) && (col ∈ 1:N₋) # in to lower 
+        idxdown = N₋ .+ ((1:size_blocks).+size_blocks*size_delta*(findall(B.C .<= 0) .- 1)')[:]
+        idx = findfirst(x -> x==row, idxdown)
+        if (nothing!=idx) 
+            v += LinearAlgebra.kron(
+                LinearAlgebra.diagm(0 => abs.(B.C[B.C.<=0])),
+                B.boundary_flux.lower.in/B.Δ[1],
+            )[idx,col]
+        end
+    elseif (row ∈ 1:N₋) && (col ∉ 1:N₋) && (col ∉ sz_B_1 .+ 1 .- (1:N₊)) # out of lower 
+        idxup = N₋ .+ (size_blocks*size_delta*(findall(B.C .> 0).-1)' .+ (1:size_blocks))[:]
+        idx = findfirst(x -> x==col,idxup)
+        (nothing!=idx) && (v += kron(B.T[B.C.<=0,B.C.>0],B.boundary_flux.lower.out')[row,idx])
+    elseif (row ∈ (sz_B_1 .+ 1) .- (1:N₊)) && (col ∈ (sz_B_1 .+ 1) .- (1:N₊)) # at upper
+        v += B.T[B.C.>=0,B.C.>=0][row-sz_B_1+N₊, col-sz_B_1+N₊]
+    elseif (row ∉ (sz_B_1 .+ 1) .- (1:N₊)) && (col ∈ (sz_B_1 .+ 1) .- (1:N₊)) # in to upper
+        idxup = N₋ .+ ((1:size_blocks).+size_blocks*size_delta*(findall(B.C .> 0) .- 1)')[:] .+
+            (size_blocks*size_delta - size_blocks)
+        idx = findfirst(x -> x==row, idxup)
+        if (nothing!=idx)
+            v += LinearAlgebra.kron(
+                LinearAlgebra.diagm(0 => B.C[B.C.>0]),
+                B.boundary_flux.upper.in/B.Δ[end],
+            )[idx, col-sz_B_1+N₊]
+        end
+    elseif (row ∈ sz_B_1 .+ 1 .- (1:N₊)) && (col ∉ sz_B_1 .+ 1 .- (1:N₊)) # out of upper 
+        idxdown = N₋ .+ (size_blocks*size_delta*(findall(B.C .< 0).-1)' .+ (1:size_blocks))[:] .+
+            (size_blocks*size_delta - size_blocks)
+        idx = findfirst(x -> x==col, idxdown)
+        (nothing!=idx) && (v += kron(B.T[B.C.>=0,B.C.<0],B.boundary_flux.upper.out')[row-sz_B_1+N₊, idx])
+    else
+        # innards
+        # find if (T⊗I)[row,col] != 0
+        row_shift = row-N₋
+        col_shift = col-N₋
+        if mod(row_shift,size_delta*size_blocks) == mod(col_shift,size_delta*size_blocks) 
+            i = (row_shift-1)÷(size_delta*size_blocks) + 1 
+            j = (col_shift-1)÷(size_delta*size_blocks) + 1
+            v += B.T[i,j]
+        end
+        # for i in 1:size_T, j in 1:size_T
+        # phase block
+        i = (row_shift-1)÷(size_delta*size_blocks) + 1
+        j = (col_shift-1)÷(size_delta*size_blocks) + 1
+        if i == j 
+            # on diagonal
+            # find block position [b_r,b_c] in the remaining tridiagonal matrix
+            b_r = (row_shift-1 - (i-1)*(size_delta*size_blocks))÷size_blocks + 1
+            b_c = (col_shift-1 - (j-1)*(size_delta*size_blocks))÷size_blocks + 1
+            if (b_c == b_r+1) && (B.C[i] > 0) && (b_r+1 <= size_delta)
+                # find position [r,c] in remaining block 
+                r = row_shift - (i-1)*(size_delta*size_blocks) - (b_r-1)*size_blocks
+                c = col_shift - (j-1)*(size_delta*size_blocks) - (b_c-1)*size_blocks
+                v += B.C[i]*B.blocks[4][r,c]/B.Δ[r]
+            elseif b_c == b_r
+                r = row_shift - (i-1)*(size_delta*size_blocks) - (b_r-1)*size_blocks
+                c = col_shift - (j-1)*(size_delta*size_blocks) - (b_c-1)*size_blocks
+                v += abs(B.C[i])*B.blocks[2 + (B.C[i].<0)][r,c]/B.Δ[r] 
+            elseif (b_c == b_r-1) && (B.C[i] < 0) && (b_r-1 > 0)
+                r = row_shift - (i-1)*(size_delta*size_blocks) - (b_r-1)*size_blocks
+                c = col_shift - (j-1)*(size_delta*size_blocks) - (b_c-1)*size_blocks
+                v += abs(B.C[i])*B.blocks[1][r,c]/B.Δ[r]
+            end
+        elseif B.pmidx[i,j]
+            # changes from S₊ to S₋ etc.
+            # find block position [b_r,b_c] in the remaining tridiagonal matrix
+            b_r = (row_shift-1 - (i-1)*(size_delta*size_blocks))÷size_blocks + 1
+            b_c = (col_shift-1 - (j-1)*(size_delta*size_blocks))÷size_blocks + 1
+            if b_r == b_c
+                r = row_shift - (i-1)*(size_delta*size_blocks) - (b_r-1)*size_blocks
+                c = col_shift - (j-1)*(size_delta*size_blocks) - (b_c-1)*size_blocks
+                v += B.T[i,j]*B.D[r,c]
+            end
+        end
+    end
+    return v
+end
+
+# function getindex_correct(B::SFFM.LazyB,row::Int,col::Int)
+#     checkbounds(B,row,col)
+
+#     ei = zeros(1,size(B,1))
+#     ei[row] = 1
+#     return (ei*B)[col]
+# end
+
+function getindex(B::SFFM.LazyB,ij::Int)
+    checkbounds(B,ij)
+    # ij = (j-1)*size(B,1) + i 
+    # solve for i and j
+    j = ij÷size(B,1) + 1 # ÷ is integer arithmetic
+
+    i = mod(ij,size(B,1))
+    (i == 0) && (i=size(B,1))
+
+    return getindex(B,i,j)
 end
 
 struct Lazy_Generator <: Generator 

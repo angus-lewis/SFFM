@@ -10,7 +10,7 @@ orders = [1;3;5;7;11;13;15;21]
 errors_1 = []
 errors_Psi = []
 errors_Pi = []
-Δtemp = 1/2 # the grid size; must have kΔ = 1 for some k due to discontinuity in r at 1
+Δtemp = 2 # the grid size; must have kΔ = 1 for some k due to discontinuity in r at 1
 nodes = collect(0:Δtemp:bounds[1,2])
 # for order in orders
 order = 3
@@ -425,4 +425,7 @@ order = 3
 # display(q)
 
 lzB = SFFM.MakeLazyB(model,dgmesh)
-1
+
+lzB 
+
+sum(abs.(lzB-B_DG.B))
