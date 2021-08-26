@@ -10,7 +10,7 @@ orders = [1;3;5;7;11;13;15;21]
 errors_1 = []
 errors_Psi = []
 errors_Pi = []
-Δtemp = 2 # the grid size; must have kΔ = 1 for some k due to discontinuity in r at 1
+Δtemp = 0.5 # the grid size; must have kΔ = 1 for some k due to discontinuity in r at 1
 nodes = collect(0:Δtemp:bounds[1,2])
 # for order in orders
 order = 3
@@ -18,7 +18,7 @@ order = 3
     dgmesh = SFFM.DGMesh(
         model, 
         nodes, 
-        order,
+        order;
         Basis = "lagrange",
     )
     frapmesh = SFFM.FRAPMesh(
@@ -29,10 +29,12 @@ order = 3
     fvmesh = SFFM.FVMesh(
         model, 
         collect(0:Δtemp/order:bounds[1,2]), 
+        order
     )
     simmesh = SFFM.FVMesh(
         model, 
         nodes, 
+        1,
     )
 
     # simulated distributions 
@@ -62,18 +64,18 @@ order = 3
     )
 
     # DG
-    B_DG = SFFM.MakeB(model, dgmesh)
+    B_DG = SFFM.MakeFullGenerator(model, dgmesh)
     #ME
-    me = SFFM.MakeME(SFFM.CMEParams[order], mean = Δtemp)
-    B_ME = SFFM.MakeB(model, frapmesh, me)
+    me = SFFM.MakeME(SFFM.CMEParams[order], mean = 1)
+    B_ME = SFFM.MakeFullGenerator(model, frapmesh)
     # Erlang (this is the erlang which is equivalent to DG)
-    erlang = SFFM.MakeErlang(order, mean = Δtemp)
-    B_Erlang = SFFM.MakeB(model, frapmesh, erlang)
+    erlang = SFFM.MakeErlang(order, mean = 1)
+    B_Erlang = SFFM.MakeFullGenerator(model, frapmesh, erlang)
     # meph (this is the erlang treated as an ME)
     meph = SFFM.ME(erlang.a, erlang.S, erlang.s; D = SFFM.erlangDParams[string(order)])
-    B_MEPH = SFFM.MakeB(model, frapmesh, meph)
+    B_MEPH = SFFM.MakeFullGenerator(model, frapmesh, meph)
     # FVM
-    B_FV = SFFM.MakeB(model, fvmesh, 3)
+    B_FV = SFFM.MakeFullGenerator(model, fvmesh)
     
     # construct initial condition
     point = 0+eps()
@@ -146,11 +148,11 @@ order = 3
     end
 
     euler(B,x0) = SFFM.EulerDG( B, t, x0, h = 0.0001) 
-    x1_DG = euler(B_DG.B, x0_DG)
-    x1_ME = euler(B_ME.B, x0_ME)
-    x1_Erlang = euler(B_Erlang.B, x0_Erlang)
-    x1_MEPH = euler(B_MEPH.B, x0_Erlang)
-    x1_FV = euler(B_FV.B, x0_FV)
+    x1_DG = euler(B_DG, x0_DG)
+    x1_ME = euler(B_ME, x0_ME)
+    x1_Erlang = euler(B_Erlang, x0_Erlang)
+    x1_MEPH = euler(B_MEPH, x0_Erlang)
+    x1_FV = euler(B_FV, x0_FV)
 
     x1_DG = SFFM.Coeffs2Dist(
         model,
@@ -200,31 +202,31 @@ order = 3
     )
     push!(errors_1, errVec_1)
 
-    # p = SFFM.plot(model, dgmesh, x1_DG,
-    #     color = 1, label = "DG")
-    # p = SFFM.plot!(p, model, frapmesh, x1_ME, 
-    #     color = 2, label = "ME")
-    # SFFM.plot!(p, model, frapmesh, x1_Erlang, 
-    #     color = 3, label = "Erlang")
-    # SFFM.plot!(p, model, frapmesh, simprobs_1, 
-    #     color = 4, label = "Sim")
-    # SFFM.plot!(p, model, frapmesh, x1_MEPH, 
-    #     color = 5, label = "ME-PH")
-    # SFFM.plot!(p, model, fvmesh, x1_FV, 
-    #     color = 7, label = "FV")
-    # p = plot!(title = "approx dist at t=t; order = "*string(order), subplot = 1)
-    # display(p)
+    p = SFFM.plot(model, dgmesh, x1_DG,
+        color = 1, label = "DG")
+    p = SFFM.plot!(p, model, frapmesh, x1_ME, 
+        color = 2, label = "ME")
+    SFFM.plot!(p, model, frapmesh, x1_Erlang, 
+        color = 3, label = "Erlang")
+    SFFM.plot!(p, model, frapmesh, simprobs_1, 
+        color = 4, label = "Sim")
+    SFFM.plot!(p, model, frapmesh, x1_MEPH, 
+        color = 5, label = "ME-PH")
+    SFFM.plot!(p, model, fvmesh, x1_FV, 
+        color = 7, label = "FV")
+    p = plot!(title = "approx dist at t=t; order = "*string(order), subplot = 1)
+    display(p)
 
     # the initial condition on Ψ is restricted to + states so find the + states
     plusIdx = [
-        dgmesh.Fil["p+"];
-        repeat(dgmesh.Fil["+"]', SFFM.NBases(dgmesh), 1)[:];
-        dgmesh.Fil["q+"];
+        dgmesh.Fil["p+",:];
+        repeat(dgmesh.Fil["+",:]', SFFM.NBases(dgmesh), 1)[:];
+        dgmesh.Fil["q+",:];
     ]
     plusIdxFV = [
-        fvmesh.Fil["p+"];
-        repeat(fvmesh.Fil["+"]', SFFM.NBases(fvmesh), 1)[:];
-        fvmesh.Fil["q+"];
+        fvmesh.Fil["p+",:];
+        repeat(fvmesh.Fil["+",:]', SFFM.NBases(fvmesh), 1)[:];
+        fvmesh.Fil["q+",:];
     ]
     # get the elements of x0_DG in + states only
     x0_Psi_DG = x0_DG[plusIdx]'
@@ -254,14 +256,14 @@ order = 3
     w_FV = x0_Psi_FV*Ψ_FV
 
     minusIdx = [
-        dgmesh.Fil["p-"];
-        repeat(dgmesh.Fil["-"]', SFFM.NBases(dgmesh), 1)[:];
-        dgmesh.Fil["q-"];
+        dgmesh.Fil["p-",:];
+        repeat(dgmesh.Fil["-",:]', SFFM.NBases(dgmesh), 1)[:];
+        dgmesh.Fil["q-",:];
     ]
     minusIdxFV = [
-        fvmesh.Fil["p-"];
-        repeat(fvmesh.Fil["-"]', SFFM.NBases(fvmesh), 1)[:];
-        fvmesh.Fil["q-"];
+        fvmesh.Fil["p-",:];
+        repeat(fvmesh.Fil["-",:]', SFFM.NBases(fvmesh), 1)[:];
+        fvmesh.Fil["q-",:];
     ]
     z_DG = zeros(
         Float64,
@@ -424,8 +426,13 @@ order = 3
 # end
 # display(q)
 
-lzB = SFFM.MakeLazyB(model,dgmesh)
+lzB = SFFM.MakeLazyGenerator(model,dgmesh)
 
 lzB 
 
-sum(abs.(lzB-B_DG.B))
+sum(abs.(lzB-B_DG))
+
+# using BenchmarkTools
+
+# @btime  SFFM.EulerDG( lzB, t, x0_DG, h = 0.0001) 
+

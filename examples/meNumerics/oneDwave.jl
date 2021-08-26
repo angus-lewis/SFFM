@@ -42,10 +42,12 @@ for order in orders
     )
     fvmesh = SFFM.FVMesh(
         model, 
+        order,
         collect(0:Δtemp/order:bounds[1,2]), 
     )
     simmesh = SFFM.FVMesh(
         model, 
+        1,
         nodes, 
     )
 
@@ -59,18 +61,18 @@ for order in orders
     )
 
     # DG
-    B_DG = SFFM.MakeB(model, dgmesh)
+    B_DG = SFFM.MakeFullGenerator(model, dgmesh)
     #ME
-    me = SFFM.MakeME(SFFM.CMEParams[order], mean = Δtemp)
-    B_ME = SFFM.MakeB(model, frapmesh, me)
+    # me = SFFM.MakeME(SFFM.CMEParams[order], mean = Δtemp)
+    B_ME = SFFM.MakeFullGenerator(model, frapmesh)
     # Erlang (this is the erlang which is equivalent to DG)
-    erlang = SFFM.MakeErlang(order, mean = Δtemp)
-    B_Erlang = SFFM.MakeB(model, frapmesh, erlang)
+    erlang = SFFM.MakeErlang(order, mean = 1)
+    B_Erlang = SFFM.MakeFullGenerator(model, frapmesh, erlang)
     # meph (this is the erlang treated as an ME)
     meph = SFFM.ME(erlang.a, erlang.S, erlang.s; D = SFFM.erlangDParams[string(order)])
-    B_MEPH = SFFM.MakeB(model, frapmesh, meph)
+    B_MEPH = SFFM.MakeFullGenerator(model, frapmesh, meph)
     # FVM
-    B_FV = SFFM.MakeB(model, fvmesh, 3)
+    B_FV = SFFM.MakeFullGenerator(model, fvmesh)
 
     point = 0+eps()
     pointIdx = convert(Int,ceil(point/Δtemp))

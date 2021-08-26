@@ -43,10 +43,10 @@ let
         Ψ = SFFM.PsiFun( All.D)
 
         # the distribution of X when Y first returns to 0
-        ξ = SFFM.MakeXi( All.B.BDict, Ψ)
+        ξ = SFFM.MakeXi( All.B, Ψ)
 
         marginalX, p, K = SFFM.MakeLimitDistMatrices(
-            All.B.BDict,
+            All.B,
             All.D,
             All.R.RDict,
             Ψ,

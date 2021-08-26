@@ -348,4 +348,4 @@ sum(abs.(u'*full-v))
 
 
 
-1
+using StaticArrays 

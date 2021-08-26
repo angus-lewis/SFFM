@@ -1,12 +1,26 @@
 #DONE Create Model constructors to replace functions/tuples
 #DONE Create Mesh constructors to replace functions/tuples
-Efficient implementation of DGAdv
-Implement DGBase lagrange without probability transform
+#Efficient implementation of DGAdv (deprecated)
 #DONE Implement Dist2Coeffs for lagrange without probability transform
 #DONE Document DGAdv code
-Compare DGAdv and Base
+#Compare DGAdv (deprecated) and Base
 #GoodEnough Clean up SFFMDGpi code normalisation conditions, document
+#Lazy B, D for euler scheme.
+
+Rework file system (maily numerical schemes)
+    + SFM models
+    + SFFM models
+    + sim
+    + structures 
+    + numerical methods
+        + DG
+        + FVM
+        + FRAP
+    + METools
+    + Plots
+    + Operators
+Implement DGBase lagrange without probability transform
 Add examples to all documentations
-Lazy B, D for euler scheme. 
-
-
+deprecate probTransform
+implement tests
+implement extensible distributions, initial distributions, and plot(distribution)

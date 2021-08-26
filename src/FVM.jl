@@ -1,32 +1,35 @@
+# yuck. there were less fucks given making this
 """
 
     FVMesh(
         model::SFFM.Model,
         Nodes::Array{Float64,1};
-        Fil::Dict{String,BitArray{1}}=Dict{String,BitArray{1}}(),
+        Fil::IndexDict=IndexDict(),
     ) 
 
 Constructor for a mesh for a finite volume scheme. 
     Inputs: 
      - `model::Model` a Model object
      - `Nodes::Array{Float64,1}` a vector specifying the cell edges
-     - `Fil::Dict` an optional dictionary allocating the cells to the sets Fᵢᵐ
+     - `Fil::IndexDict` an optional dictionary allocating the cells to the sets Fᵢᵐ
 """
 struct FVMesh <: SFFM.Mesh 
     Nodes::Array{Float64,1}
-    Fil::Dict{String,BitArray{1}}
+    order::Int
+    Fil::IndexDict
 end 
 function FVMesh(
     model::SFFM.Model,
-    Nodes::Array{Float64,1};
-    Fil::Dict{String,BitArray{1}}=Dict{String,BitArray{1}}(),
+    Nodes::Array{Float64,1},
+    order::Int;
+    Fil::IndexDict=IndexDict(),
 ) 
     ## Construct the sets Fᵐ = ⋃ᵢ Fᵢᵐ, global index for sets of type m
     if isempty(Fil)
         Fil = MakeFil(model, Nodes)
     end
 
-    return FVMesh(Nodes, Fil)
+    return FVMesh(Nodes, order, Fil)
 end
 
 
@@ -37,7 +40,7 @@ end
 Constant 1
 """
 NBases(mesh::FVMesh) = 1
-
+Order(mesh::FVMesh) = mesh.order
 
 """
 
@@ -54,6 +57,8 @@ CellNodes(mesh::FVMesh) = Array(((mesh.Nodes[1:end-1] + mesh.Nodes[2:end]) / 2 )
 Constant ""
 """
 Basis(mesh::FVMesh) = ""
+
+TotalNBases(mesh::FVMesh) = NIntervals(mesh)
 
 function interp(nodes, evalPt)
     order = length(nodes)
@@ -91,10 +96,10 @@ function MakeFVFlux(mesh::SFFM.Mesh, order::Int)
     return F
 end
 
-function MakeB(model::SFFM.Model, mesh::SFFM.FVMesh, order::Int)
+function MakeFullGenerator(model::SFFM.Model, mesh::SFFM.FVMesh; v::Bool=false)
     N₊ = sum(model.C .>= 0)
     N₋ = sum(model.C .<= 0)
-
+    order = Order(mesh)
     F = SFFM.MakeFVFlux(mesh, order)
 
     B = SparseArrays.spzeros(
@@ -107,15 +112,8 @@ function MakeB(model::SFFM.Model, mesh::SFFM.FVMesh, order::Int)
             SparseArrays.I(NIntervals(mesh))
         )
 
-         ## Make QBD index
-    c = N₋
-    QBDidx = zeros(Int, NPhases(model) * NIntervals(mesh) + N₊ + N₋)
-    for k = 1:NIntervals(mesh), i = 1:NPhases(model)
-        c += 1
-        QBDidx[c] = (i - 1) * NIntervals(mesh) + k + N₋
-    end
-    QBDidx[1:N₋] = 1:N₋
-    QBDidx[(end-N₊+1):end] = (NPhases(model) * NIntervals(mesh) + N₋) .+ (1:N₊)
+    ## Make QBD index
+    QBDidx = MakeQBDidx(model,mesh)
     
     # Boundary conditions
     T₋₋ = model.T[model.C.<=0,model.C.<=0]
@@ -172,6 +170,7 @@ function MakeB(model::SFFM.Model, mesh::SFFM.FVMesh, order::Int)
     end
 
     BDict = SFFM.MakeDict(B,model,mesh)
-
-    return Full_Generator(BDict, B, QBDidx)
+    out = FullGenerator(BDict, B, mesh.Fil)
+    v && println("FullGenerator created with keys ", keys(out))
+    return out
 end

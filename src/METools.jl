@@ -25,17 +25,17 @@ Inputs:
 """
 struct ME 
     a::Union{Array{<:Real,1},Array{<:Real,2}}
-    S::Union{Array{<:Real,1},Array{<:Real,2}}
+    S::Array{<:Real,2}
     s::Union{Array{<:Real,1},Array{<:Real,2}}
-    D::Union{Array{<:Real,1},Array{<:Real,2}}
+    D::Array{<:Real,2}
     function ME(
         a::Union{Array{<:Real,1},Array{<:Real,2}},
-        S::Union{Array{<:Real,1},Array{<:Real,2}},
+        S::Array{<:Real,2},
         s::Union{Array{<:Real,1},Array{<:Real,2}};
-        D::Union{Array{<:Real,1},Array{<:Real,2}}=[0],
+        D::Array{<:Real,2}=zeros(1,1),
     )
     
-        if D==[0]
+        if D==zeros(1,1)
             D = Array{Float64}(LinearAlgebra.I(size(S,1)))
         end
         s1 = size(a,1)
@@ -46,6 +46,8 @@ struct ME
         s6 = size(s,2)
         s7 = size(D,1)
         s8 = size(D,2)
+        checksquare(D,"D")
+        checksquare(S,"S")
         test = (s1!=1) || (s6!=1) || any(([s2;s3;s4;s7;s8].-s5).!=0)
         if test
             error("Dimensions of ME representation not consistent")

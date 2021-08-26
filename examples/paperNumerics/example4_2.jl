@@ -1,5 +1,5 @@
-# include("../../src/SFFM.jl")
-using LinearAlgebra, Plots, JLD2, StatsBase, SFFM
+include("../../src/SFFM.jl")
+using LinearAlgebra, Plots, JLD2, StatsBase#, SFFM
 
 ## define the model(s)
 include("exampleModelDef.jl")
@@ -87,7 +87,8 @@ let
             zeros(sum(approxModel.C.>=0)) # RHS point mass
         ]
         initprobs = zeros(Float64,SFFM.NBases(mesh),SFFM.NIntervals(mesh),SFFM.NPhases(approxModel))
-        initprobs[:,convert(Int,ceil(5/Δtemp)),3] = basisValues'*All.Matrices.Local.V.V*All.Matrices.Local.V.V'.*2/Δtemp
+        V=SFFM.vandermonde(NBases(mesh))
+        initprobs[:,convert(Int,ceil(5/Δtemp)),3] = basisValues'*V.V*V.V'.*2/Δtemp
         initdist = SFFM.SFFMDensity(
             initpm,
             initprobs,
@@ -97,9 +98,9 @@ let
         x0 = SFFM.Dist2Coeffs( approxModel, mesh, initdist)
         # the initial condition on Ψ is restricted to + states so find the + states
         plusIdx = [
-            mesh.Fil["p+"];
-            repeat(mesh.Fil["+"]', SFFM.NBases(mesh), 1)[:];
-            mesh.Fil["q+"];
+            mesh.Fil["p+",:];
+            repeat(mesh.Fil["+",:]', SFFM.NBases(mesh), 1)[:];
+            mesh.Fil["q+",:];
         ]
         # get the elements of x0 in + states only
         x0 = x0[plusIdx]'
@@ -110,9 +111,9 @@ let
         w = x0*Ψ
         # this can occur in - states only, so find the - states
         minusIdx = [
-            mesh.Fil["p-"];
-            repeat(mesh.Fil["-"]', SFFM.NBases(mesh), 1)[:];
-            mesh.Fil["q-"];
+            mesh.Fil["p-",:];
+            repeat(mesh.Fil["-",:]', SFFM.NBases(mesh), 1)[:];
+            mesh.Fil["q-",:];
         ]
         # then map to the whole state space for plotting
         z = zeros(
