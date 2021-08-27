@@ -1,3 +1,29 @@
+# import Base: getindex, size, *
+
+struct SFMDistribution <: AbstractArray{Float64,2}
+    coeffs::Array{Float64,2}
+    model::SFFM.Model
+    mesh::SFFM.Mesh
+    Fil::SFFM.IndexDict
+    function SFMDistribution(
+        coeffs::Array{Float64,2}, 
+        model::SFFM.Model,
+        mesh::SFFM.Mesh,
+        Fil::SFFM.IndexDict=SFFM.MakeFil(model,mesh.Nodes),
+        )
+        return (size(coeffs,1)==1) ? new(coeffs,model,mesh,Fil) : throw(DimensionMismatch("coeffs must be a row-vector"))
+    end
+end
+
+size(d::SFMDistribution) = size(d.coeffs)
+getindex(d::SFMDistribution,i::Int,j::Int) = d.coeffs[i,j]
+# getindex(d::SFMDistribution,i::Int) = d.coeffs[i]
+setindex!(d::SFMDistribution,x,i::Int,j::Int) = throw(DomainError("value to insert must be Float64"))
+setindex!(d::SFMDistribution,x::Float64,i::Int,j::Int) = (d.coeffs[i,j]=x)
+*(u::SFMDistribution,B::AbstractArray{Float64,2}) = *(u.coeffs,B)
+*(B::AbstractArray{Float64,2},u::SFMDistribution) = 
+    (size(B,2)==1) ? *(B*u.coeffs) : throw(DimensionMismatch("u is a row-vector and B has more than 1 column"))
+
 abstract type SFFMDistribution end
 
 """

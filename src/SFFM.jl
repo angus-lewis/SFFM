@@ -1,5 +1,5 @@
 module SFFM
-import Base: *, size, show, getindex, +, -
+import Base: *, size, show, getindex, +, -, setindex!
 import Jacobi, LinearAlgebra, SparseArrays
 import Plots, StatsBase, KernelDensity
 

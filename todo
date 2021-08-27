@@ -23,7 +23,7 @@
         + SFFM_Operators, operators and functions to approximate SFFMs
         + Plots, plot distributions
 
-1) deprecate probTransform/Implement DGBase lagrange without probability transform
+#DONE 1) deprecate probTransform/Implement DGBase lagrange without probability transform
 
 Add examples to all documentations
 
