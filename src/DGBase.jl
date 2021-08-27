@@ -191,203 +191,8 @@ function vandermonde(nBases::Int)
     return (V = V, inv = inv(V), D = DV, w = w)
 end
 
-# """
-# Constructs a block diagonal matrix from blocks
-
-#     MakeBlockDiagonalMatrix(
-#         mesh::DGMesh,
-#         Blocks::Array{Float64,2},
-#         Factors::Array,
-#     )
-
-# # Aguments
-# - `mesh`: A Mesh object
-# - `Blocks::Array{Float64,2}`: a `NBases(mesh)×NBases(mesh)` block to put along the
-#         diagonal
-# - `Factors::Array{<:Real,1}`: a `NIntervals(mesh)×1` vector of factors which multiply blocks
-
-# # Output
-# - `BlockMatrix::Array{Float64,2}`: `TotalNBases(mesh)×TotalNBases(mesh)` the
-#         block matrix
-# """
-# function MakeBlockDiagonalMatrix(
-#     mesh::DGMesh,
-#     Blocks::Array{Float64,2},
-#     Factors::Array,
-# )
-#     BlockMatrix = kron(SparseArrays.spdiagm(0=>Factors), Blocks) # SparseArrays.spzeros(Float64, TotalNBases(mesh), TotalNBases(mesh))
-#     # for i = 1:NIntervals(mesh)
-#     #     idx = (1:NBases(mesh)) .+ (i - 1) * NBases(mesh)
-#     #     BlockMatrix[idx, idx] = Blocks * Factors[i]
-#     # end
-#     return (BlockMatrix = BlockMatrix)
-# end
-
-# """
-# Constructs the flux matrices for DG
-
-#     MakeFluxMatrix(
-#         mesh::DGMesh,
-#         model::SFFM.Model,
-#         Phi,
-#         Dw;
-#         probTransform::Bool=true,
-#     )
-
-# # Arguments
-# - `mesh`: a Mesh object
-# - `Phi::Array{Float64,2}`: where `Phi[1,:]` and `Phi[1,:]` are the basis
-#     function evaluated at the left-hand and right-hand edge of a cell,
-#     respectively
-# - `Dw::Array{Float64,2}`: a diagonal matrix function weights
-
-# # Output
-# - `F::Dict{String, SparseArrays.SparseMatrixCSC{Float64,Int64},1}`: a dictionary
-#     with keys `"+"` and `"-"` and values which are `TotalNBases×TotalNBases`
-#     flux matrices for `model.C[i]>0` and `model.C[i]<0`, respectively.
-# """
-# function MakeFluxMatrix(
-#     mesh::DGMesh,
-#     Phi,
-#     Dw;
-#     probTransform::Bool=true,
-# )
-#     ## Create the blocks
-#     PosDiagBlock = -Dw.DwInv * Phi[end, :] * Phi[end, :]' * Dw.Dw
-#     NegDiagBlock = Dw.DwInv * Phi[1, :] * Phi[1, :]' * Dw.Dw
-#     UpDiagBlock = Dw.DwInv * Phi[end, :] * Phi[1, :]' * Dw.Dw
-#     LowDiagBlock = -Dw.DwInv * Phi[1, :] * Phi[end, :]' * Dw.Dw
-
-#     ## Construct global block diagonal matrix
-#     if Basis(mesh) == "legendre"
-#         η = ones(NIntervals(mesh)-1)
-#     elseif Basis(mesh) == "lagrange"
-#         if probTransform
-#             η = Δ(mesh)[2:end] ./ Δ(mesh)[1:end-1]
-#         else 
-#             η = ones(NIntervals(mesh)-1)
-#         end
-#     end
-    
-#     F = Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}}()
-#     ncells = NIntervals(mesh)
-#     F["+"] = kron( SparseArrays.spdiagm(0=>ones(ncells)), PosDiagBlock) + kron( SparseArrays.spdiagm(1=>η), UpDiagBlock)
-#     F["-"] = kron( SparseArrays.spdiagm(0=>ones(ncells)), NegDiagBlock) + kron( SparseArrays.spdiagm(-1=> (1 ./η)), LowDiagBlock)
-#     return (F = F)
-# end
-
-# """
-# Creates the Local and global mass, stiffness and flux matrices to compute `B`.
-
-#     MakeMatrices(
-#         model::SFFM.Model,
-#         mesh::DGMesh;
-#         probTransform::Bool=true,
-#     )
-
-# # Arguments
-# - `model`: A Model object
-# - `mesh`: A Mesh object
-
-# # Output
-# - A tuple of tuples
-#     - `:Global`: a tuple with fields
-#       - `:G::SparseArrays.SparseMatrixCSC{Float64,Int64}`:
-#         `TotalNBases×TotalNBases`, global stiffness matrix
-#       - `:M::SparseArrays.SparseMatrixCSC{Float64,Int64}`:
-#         `TotalNBases×TotalNBases`, global mass matrix
-#       - `:MInv::SparseArrays.SparseMatrixCSC{Float64,Int64}`: the inverse of
-#         `Global.M`
-#       - `:F::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}}`:
-#             `TotalNBases×TotalNBases` global flux matrix
-#       - `:Q::Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}`:
-#             a `NPhases` length array containing `TotalNBases×TotalNBases`
-#             dimensional global DG drift operator
-#     - `:Local`: a tuple with fields
-#       - `:G::Array{Float64,2}`: `NBases×NBases` Local stiffness matrix
-#       - `:M::Array{Float64,2}`: `NBases×NBases` Local mass matrix
-#       - `:MInv::Array{Float64,2}`: the inverse of `Local.M`
-#       - `:V::NamedTuple`: as output from SFFM.vandermonde
-# """
-# function MakeMatrices(
-#     model::SFFM.Model,
-#     mesh::DGMesh;
-#     probTransform::Bool=true,
-#     v::Bool = false,
-# )
-#     ## Construct local blocks
-#     V = vandermonde(NBases(mesh))
-#     if Basis(mesh) == "legendre"
-#         Dw = (
-#             DwInv = LinearAlgebra.diagm(0 => ones(Float64, NBases(mesh))),
-#             Dw = LinearAlgebra.diagm(0 => ones(Float64, NBases(mesh))),
-#         ) # function weights are not available for legendre basis as this is
-#         # in density land
-#         MLocal = Matrix{Float64}(LinearAlgebra.I(NBases(mesh)))
-#         GLocal = V.inv * V.D
-#         MInvLocal = Matrix{Float64}(LinearAlgebra.I(NBases(mesh)))
-#         Phi = V.V[[1; end], :]
-#     elseif Basis(mesh) == "lagrange"
-#         if probTransform
-#             Dw = (
-#                 DwInv = LinearAlgebra.diagm(0 => 1.0 ./ V.w),
-#                 Dw = LinearAlgebra.diagm(0 => V.w),
-#             )# function weights so that we can work in probability land as
-#             # opposed to density land
-#         else
-#             Dw = (
-#                 DwInv = LinearAlgebra.I,
-#                 Dw = LinearAlgebra.I,
-#             )
-#         end
-
-#         MLocal = Dw.DwInv * V.inv' * V.inv * Dw.Dw
-#         GLocal = Dw.DwInv * V.inv' * V.inv * (V.D * V.inv) * Dw.Dw
-#         MInvLocal = Dw.DwInv * V.V * V.V' * Dw.Dw
-#         Phi = (V.inv*V.V)[[1; end], :]
-#     end
-
-#     ## Assemble into global block diagonal matrices
-#     G = SFFM.MakeBlockDiagonalMatrix(
-#         mesh,
-#         GLocal,
-#         ones(NIntervals(mesh)),
-#     )
-#     M = SFFM.MakeBlockDiagonalMatrix(mesh, MLocal, Δ(mesh) * 0.5)
-#     MInv = SFFM.MakeBlockDiagonalMatrix(
-#         mesh,
-#         MInvLocal,
-#         2.0 ./ Δ(mesh),
-#     )
-#     F = SFFM.MakeFluxMatrix(mesh, Phi, Dw, probTransform = probTransform)
-
-#     ## Assemble the DG drift operator
-#     up = model.C.*(model.C .> 0)
-#     down = model.C.*(model.C .< 0)
-#     Q = kron( SparseArrays.spdiagm(0=>up), (G + F["+"]) * MInv) + kron( SparseArrays.spdiagm(0=>down), (G + F["-"]) * MInv) 
-#     # Q = Array{SparseArrays.SparseMatrixCSC{Float64,Int64},1}(undef,NPhases(model))
-#     # for i = 1:NPhases(model)
-#     #     if model.C[i] > 0
-#     #         Q[i] = model.C[i] * (G + F["+"]) * MInv
-#     #     elseif model.C[i] < 0
-#     #         Q[i] = model.C[i] * (G + F["-"]) * MInv
-#     #     else
-#     #         Q[i] = SparseArrays.spzeros(size(G,1),size(G,2))
-#     #     end
-#     # end
-
-#     Local = (G = GLocal, M = MLocal, MInv = MInvLocal, V = V, Phi = Phi, Dw = Dw)
-#     Global = (G = G, M = M, MInv = MInv, F = F, Q = Q)
-#     out = (Local = Local, Global = Global)
-#     v && println("UPDATE: Matrices object created with keys ", keys(out))
-#     v && println("UPDATE:    Matrices[:",keys(out)[1],"] object created with keys ", keys(out[1]))
-#     v && println("UPDATE:    Matrices[:",keys(out)[2],"] object created with keys ", keys(out[2]))
-#     return out
-# end
-
 function local_dg_operators(
     mesh::DGMesh;
-    probTransform::Bool=true,
     v::Bool = false,
 )
     ## Construct local blocks
@@ -403,18 +208,11 @@ function local_dg_operators(
         MInvLocal = Matrix{Float64}(LinearAlgebra.I(NBases(mesh)))
         Phi = V.V[[1; end], :]
     elseif Basis(mesh) == "lagrange"
-        if probTransform
-            Dw = (
-                DwInv = LinearAlgebra.diagm(0 => 1.0 ./ V.w),
-                Dw = LinearAlgebra.diagm(0 => V.w),
-            )# function weights so that we can work in probability land as
-            # opposed to density land
-        else
-            Dw = (
-                DwInv = LinearAlgebra.I,
-                Dw = LinearAlgebra.I,
-            )
-        end
+        Dw = (
+            DwInv = LinearAlgebra.diagm(0 => 1.0 ./ V.w),
+            Dw = LinearAlgebra.diagm(0 => V.w),
+        )# function weights so that we can work in probability land as
+        # opposed to density land
 
         MLocal = Dw.DwInv * V.inv' * V.inv * Dw.Dw
         GLocal = Dw.DwInv * V.inv' * V.inv * (V.D * V.inv) * Dw.Dw
@@ -439,11 +237,10 @@ end
 """
 Creates the DG approximation to the generator `B`.
 
-    MakeB(
+    MakeLazyGenerator(
         model::SFFM.Model,
         mesh::DGMesh,
         Matrices::NamedTuple;
-        probTransform::Bool=true,
     )
 
 # Arguments
@@ -465,11 +262,10 @@ Creates the DG approximation to the generator `B`.
 function MakeLazyGenerator(
     model::SFFM.Model,
     mesh::DGMesh;
-    probTransform::Bool=true,
     v::Bool = false,
 )
 
-    m = local_dg_operators(mesh; probTransform=probTransform, v=v)
+    m = local_dg_operators(mesh; v=v)
     blocks = (m.LowDiagBlock*m.MInv*2, (m.G+m.PosDiagBlock)*m.MInv*2, 
         -(m.G+m.NegDiagBlock)*m.MInv*2, m.UpDiagBlock*m.MInv*2)
 
@@ -490,144 +286,6 @@ function MakeLazyGenerator(
     v && println("UPDATE: LazyGenerator object created with keys ", keys(out))
     return out
 end
-# function MakeB(
-#     model::SFFM.Model,
-#     mesh::DGMesh,
-#     Matrices::NamedTuple;
-#     probTransform::Bool=true,
-#     v::Bool = false,
-# )
-#     ## Make B on the interior of the space
-#     N₊ = sum(model.C .>= 0)
-#     N₋ = sum(model.C .<= 0)
-#     # B = SparseArrays.spzeros(
-#     #     Float64,
-#     #     NPhases(model) * TotalNBases(mesh) + N₋ + N₊,
-#     #     NPhases(model) * TotalNBases(mesh) + N₋ + N₊,
-#     # )
-#     Id = SparseArrays.I(TotalNBases(mesh))
-#     # for i = 1:NPhases(model)
-#     #     idx = ((i-1)*TotalNBases(mesh)+1:i*TotalNBases(mesh)) .+ N₋
-#     #     B[idx, idx] = Matrices.Global.Q[i]
-#     # end
-#     # B[(N₋+1):(end-N₊), (N₋+1):(end-N₊)] +=
-#     #     B[(N₋+1):(end-N₊), (N₋+1):(end-N₊)] + LinearAlgebra.kron(model.T, Id) 
-#     B = LinearAlgebra.kron(model.T, Id) + Matrices.Global.Q
-
-#     # Boundary behaviour
-#     if Basis(mesh) == "legendre"
-#         η = Δ(mesh)[[1; end]] ./ 2 # this is the inverse of the η=Δ(mesh)/2 bit
-#         # below there are no η's for the legendre basis
-#     elseif Basis(mesh) == "lagrange"
-#         if probTransform
-#             η = [1; 1]
-#         else
-#             η = Δ(mesh)[[1; end]] ./ 2
-#         end
-#     end
-    
-#     # Lower boundary
-#     tmp = Matrices.Local.Phi[1, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv ./ η[1]
-#     top_left = model.T[model.C.<=0, model.C.<=0]
-#     top_mid = kron( kron( model.T[model.C.<=0, :].*(model.C.>0)', [1 SparseArrays.spzeros(1,NIntervals(mesh)-1)]),tmp)
-#     top_right = SparseArrays.spzeros(sum(model.C.<=0), sum(model.C.>=0))
-#     top = [top_left top_mid top_right]
-#     # At boundary
-#     # B[1:N₋, 1:N₋] = model.T[model.C.<=0, model.C.<=0]
-#     # Out of boundary
-#     # idxup = ((1:NBases(mesh)).+TotalNBases(mesh)*(findall(model.C .> 0) .- 1)')[:] .+ N₋
-#     # B[1:N₋, idxup] = kron(
-#     #     model.T[model.C.<=0, model.C.>0],
-#     #     Matrices.Local.Phi[1, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv ./ η[1],
-#     # )
-#     # Into boundary
-#     lft = SparseArrays.spzeros(TotalNBases(mesh).*NPhases(model), N₋)
-#     idxdown = ((1:NBases(mesh)).+TotalNBases(mesh)*(findall(model.C .<= 0) .- 1)')[:]
-#     # B[idxdown, 1:N₋] 
-#     lft[idxdown,:] = LinearAlgebra.kron(
-#         LinearAlgebra.diagm(0 => model.C[model.C.<=0]),
-#         -Matrices.Local.Dw.DwInv * 2.0 ./ Δ(mesh)[1] * Matrices.Local.Phi[1, :] * η[1],
-#     )
-
-#     # Upper boundary
-#     tmp = Matrices.Local.Phi[end, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv  ./ η[end]
-#     btm_left = SparseArrays.spzeros(sum(model.C.>=0), sum(model.C.<=0))
-#     btm_mid = kron( kron(model.T[model.C.>=0, :].*(model.C.<0)',[SparseArrays.spzeros(1,NIntervals(mesh)-1) 1]), tmp)
-#     btm_right = model.T[model.C.>=0, model.C.>=0]
-#     btm = [btm_left btm_mid btm_right]
-#     # At boundary
-#     # B[(end-N₊+1):end, (end-N₊+1):end] = model.T[model.C.>=0, model.C.>=0]
-#     # # Out of boundary
-#     # idxdown =
-#     #     ((1:NBases(mesh)).+TotalNBases(mesh)*(findall(model.C .< 0) .- 1)')[:] .+
-#     #     (N₋ + TotalNBases(mesh) - NBases(mesh))
-#     # B[(end-N₊+1):end, idxdown] = kron(
-#     #     model.T[model.C.>=0, model.C.<0],
-#     #     Matrices.Local.Phi[end, :]' * Matrices.Local.Dw.Dw * Matrices.Local.MInv  ./ η[end],
-#     # )
-#     # Into boundary
-#     rght = SparseArrays.spzeros(TotalNBases(mesh).*NPhases(model), N₊)
-#     # LinearAlgebra.kron(
-#     #     LinearAlgebra.diagm(0 => model.C[model.C.>=0]),
-#     #     Matrices.Local.Dw.DwInv * 2.0 ./ Δ(mesh)[end] * Matrices.Local.Phi[end, :] * η[end],
-#     # )
-#     idxup =
-#         ((1:NBases(mesh)).+TotalNBases(mesh)*(findall(model.C .>= 0) .- 1)')[:] .+
-#         (TotalNBases(mesh) - NBases(mesh))
-#     # B[idxup, (end-N₊+1):end] = 
-#     rght[idxup,:] = LinearAlgebra.kron(
-#         LinearAlgebra.diagm(0 => model.C[model.C.>=0]),
-#         Matrices.Local.Dw.DwInv * 2.0 ./ Δ(mesh)[end] * Matrices.Local.Phi[end, :] * η[end],
-#     )
-    
-#     B = vcat(top,hcat(lft, B, rght),btm)
-
-#     BDict = MakeDict(B, model, mesh)
-
-#     out = FullGenerator(BDict, B)
-#     v && println("UPDATE: B object created with keys ", keys(out))
-#     return out
-# end
-
-# """
-# Creates the DG approximation to the generator `B`.
-
-#     MakeB(
-#         model::SFFM.Model,
-#         mesh::DGMesh;
-#         probTransform::Bool=true,
-#     )
-
-# # Arguments
-# - `model`: A Model object
-# - `mesh`: A Mesh object
-
-# # Output
-# - A tuple with fields `:BDict, :B, :QBDidx`
-#     - `:BDict::Dict{String,Array{Float64,2}}`: a dictionary storing Bᵢⱼˡᵐ with
-#         keys string(i,j,ℓ,m), and values Bᵢⱼˡᵐ, i.e. `B.BDict["12+-"]` = B₁₂⁺⁻
-#     - `:B::SparseArrays.SparseMatrixCSC{Float64,Int64}`:
-#         `NPhases(model)*TotalNBases(mesh)×NPhases(model)*TotalNBases(mesh)`, the
-#         global approximation to `B`
-#     - `:QBDidx::Array{Int64,1}`: `NPhases(model)*TotalNBases(mesh)×1` vector of
-#         integers such such that `:B[QBDidx,QBDidx]` puts all the blocks relating
-#         to cell `k` next to each other
-# """
-# function MakeB(
-#     model::SFFM.Model,
-#     mesh::DGMesh;
-#     probTransform::Bool=true,
-#     v::Bool = false,
-# )
-#     M = SFFM.MakeMatrices(
-#         model,
-#         mesh;
-#         probTransform=probTransform,
-#     )
-#     B = SFFM.MakeB(model, mesh, M; probTransform=probTransform)
-#     v && println("UPDATE: B object created with keys ", keys(B))
-#     return B
-# end
 
 """
 Uses Eulers method to integrate the matrix DE ``f'(x) = f(x)D`` to

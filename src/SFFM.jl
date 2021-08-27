@@ -129,21 +129,6 @@ abstract type Mesh end
 
 include("METools.jl")
 
-function MakeB(
-    model::SFFM.Model,
-    mesh::Mesh;
-    probTransform::Bool=true,
-    v::Bool = false,
-)
-    throw(DomainError("Unknown mesh type"))
-end
-function MakeB(model::SFFM.Model, mesh::SFFM.Mesh, order::Int)
-    throw(DomainError("Unknown mesh type"))
-end
-function MakeB(model::Model, mesh::Mesh, me::ME)
-    throw(DomainError("Unknown mesh type"))
-end
-
 const PlusMinusIndex = Union{String,Tuple{String,String}}
 
 const PhaseIndex = Union{Tuple{Union{Int64,Colon},Union{Int64,Colon}},Int64,Colon}
@@ -915,7 +900,7 @@ Construct all the DG operators.
 - a tuple with keys
     - `Matrices`: see `MakeMatrices`
     - `MatricesR`: see `MakeMatricesR`
-    - `B`: see `MakeB`
+    - `B`: see `MakeFullGenerator`
     - `D`: see `MakeD`
     - `DR`: see `MakeDR`
 """

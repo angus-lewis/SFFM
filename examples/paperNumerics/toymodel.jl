@@ -32,7 +32,8 @@ R = SFFM.MakeR( model, mesh)
 
 println("")
 println("The operator B looks like: ")
-display(Matrix(B.B[B.QBDidx,B.QBDidx]))
+QBDidx = SFFM.MakeQBDidx(model, mesh)
+display(Matrix(B.B[QBDidx,QBDidx]))
 
 println("")
 println("The subarrays of B look like this:")
@@ -87,8 +88,8 @@ println("")
 println("for 22--")
 display(Matrix(B[("-","-"),(2,2)]))
 
-plusIdx = B.QBDidx[[mesh.Fil["p+",:];repeat(mesh.Fil["+",:]',2)[:];mesh.Fil["q+",:]]]
-minusIdx = B.QBDidx[[mesh.Fil["p-",:];repeat(mesh.Fil["-",:]',2)[:];mesh.Fil["q-",:]]]
+plusIdx = QBDidx[[mesh.Fil["p+",:];repeat(mesh.Fil["+",:]',2)[:];mesh.Fil["q+",:]]]
+minusIdx = QBDidx[[mesh.Fil["p-",:];repeat(mesh.Fil["-",:]',2)[:];mesh.Fil["q-",:]]]
 println("")
 println("for ++")
 display(Matrix(B.B)[plusIdx,plusIdx])

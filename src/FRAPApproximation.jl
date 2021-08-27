@@ -64,8 +64,6 @@ function MakeLazyGenerator(
     me::ME;
     v::Bool=false,
 )
-
-    # m = local_dg_operators(mesh; probTransform=probTransform, v=v)
     blocks = (me.s*me.a, me.S, me.s*me.a)
 
     boundary_flux = (in = me.s[:], out = me.a[:])

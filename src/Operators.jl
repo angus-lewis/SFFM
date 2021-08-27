@@ -47,7 +47,6 @@ end
         model::SFFM.Model,
         mesh::DGMesh;
         approxType::String = "projection",
-        probTransform::Bool = true,
     )
 
 # Arguments
@@ -55,8 +54,6 @@ end
 - `Mmesh`: a Mesh object
 - `approxType::String`: (optional) either "interpolation" or
     "projection" (default).
-- `probTransform::Bool=true`: an (optional) specification for the lagrange basis
-    to specify whether transform to probability coefficients.
 
 # Output
 - a tuple with keys
@@ -72,7 +69,6 @@ function MakeR(
     model::SFFM.Model,
     mesh::Mesh;
     approxType::String = "projection",
-    probTransform::Bool = true,
     v::Bool = false,
 )
     V = SFFM.vandermonde(NBases(mesh))
@@ -112,11 +108,7 @@ function MakeR(
                 # representation. The second term V.V*V.V' is Minv. The last term
                 # LinearAlgebra.diagm(V.w)is a result of the conversion to probability
                 # / integral representation.
-                if probTransform
-                    temp = LinearAlgebra.diagm(EvalR[NBases(mesh)*(n-1).+(1:NBases(mesh))])*V.V*V.V'*LinearAlgebra.diagm(V.w)
-                elseif !probTransform
-                    temp = LinearAlgebra.diagm(V.w)*LinearAlgebra.diagm(EvalR[NBases(mesh)*(n-1).+(1:NBases(mesh))])*V.V*V.V'
-                end
+                temp = LinearAlgebra.diagm(EvalR[NBases(mesh)*(n-1).+(1:NBases(mesh))])*V.V*V.V'*LinearAlgebra.diagm(V.w)
             end
         elseif Basis(mesh) == ""
             temp = LinearAlgebra.diagm(EvalR[NBases(mesh)*(n-1).+(1:NBases(mesh))])
@@ -338,7 +330,6 @@ NOTE: IMPLEMENTED FOR LAGRANGE BASIS ONLY
     MakeXi(
         B::Generator,
         Ψ::Array;
-        probTransform::Bool = true,
         mesh=1,
         model=1,
     )
@@ -355,7 +346,6 @@ function MakeXi(
     Ψ::Array{Float64,2};
     mesh::Mesh = DGMesh(),
     model::Model = Model(),
-    probTransform::Bool = true,
 )
     # BBullet = [B["--"] B["-0"]; B["0-"] B["00"]]
     # invB = inv(Matrix(Bbullet))
@@ -374,26 +364,8 @@ function MakeXi(
     A = -(invBmm*B[("-","+"),(:,:)]*Ψ + invBm0*B[("0","+"),(:,:)]*Ψ + LinearAlgebra.I)
     b = zeros(1,size(B[("-","-"),(:,:)],1))
 
-    if probTransform
-        A[:,1] .= 1.0 # normalisation conditions
-        b[1] = 1.0 # normalisation conditions
-    elseif !probTransform
-        idx₋ = [mesh.Fil["p-",:]; mesh.Fil["-",:]; mesh.Fil["q-",:]]
-        if NBases(mesh)>1
-            w =
-                2.0 ./ (
-                    NBases(mesh) *
-                    (NBases(mesh) - 1) *
-                    Jacobi.legendre.(Jacobi.zglj(NBases(mesh), 0, 0), NBases(mesh) - 1) .^ 2
-                )
-        else
-            w = [2]
-        end
-        A[:,1] = [ones(sum(mesh.Fil["p-",:]));
-        repeat(w, sum(mesh.Fil["-",:])).*repeat(repeat(Δ(mesh)./2,NPhases(model),1)[mesh.Fil["-",:]]', NBases(mesh), 1)[:];
-        ones(sum(mesh.Fil["q-",:]))]# normalisation conditions
-        b[1] = 1.0 # normalisation conditions
-    end
+    A[:,1] .= 1.0 # normalisation conditions
+    b[1] = 1.0 # normalisation conditions
 
     ξ = b/A
 
@@ -413,7 +385,6 @@ NOTE: IMPLEMENTED FOR LAGRANGE BASIS ONLY
         ξ::Array{<:Real},
         mesh::Mesh,
         model::Model;
-        probTransform::Bool = true,
     )
 
 # Arguments
@@ -439,9 +410,7 @@ function MakeLimitDistMatrices(
     R::Dict{Tuple{String,Union{Int,Colon}},SparseArrays.SparseMatrixCSC{Float64,Int64}},
     Ψ::Array{<:Real},
     ξ::Array{<:Real},
-    mesh::SFFM.Mesh,
-    model::Model;
-    probTransform::Bool = true,
+    mesh::SFFM.Mesh;
 )
     B00inv = inv(Matrix(B[("0","0"),(:,:)]))
     invBmm = inv(B[("-","-"),(:,:)] - B[("-","0"),(:,:)]*B00inv*B[("0","-"),(:,:)])
@@ -463,27 +432,7 @@ function MakeLimitDistMatrices(
     αintegralPibullet = ((αp * BBulletPlus) / -K) * [R["+",:] Ψ*R["-",:]]
     αintegralPi0 = -αintegralPibullet * [B[("+","0"),(:,:)]; B[("-","0"),(:,:)]] * B00inv
 
-    if probTransform
-        α = sum(αintegralPibullet) + sum(αintegralPi0) + sum(αp)
-    elseif !probTransform
-        if NBases(mesh)>1
-            w = 2.0 ./ (
-                    NBases(mesh) *
-                    (NBases(mesh) - 1) *
-                    Jacobi.legendre.(Jacobi.zglj(NBases(mesh), 0, 0), NBases(mesh) - 1) .^ 2
-                )
-        else
-            w = [2]
-        end
-        idx₊ = mesh.Fil["+",:]
-        idx₋ = mesh.Fil["-",:]
-        idx₀ = mesh.Fil["0",:]
-        a₋ = [ones(sum(mesh.Fil["p-",:])); repeat(w, sum(mesh.Fil["-",:])).*(repeat(repeat(Δ(mesh)./2,NPhases(model),1)[idx₋]', NBases(mesh), 1)[:]); ones(sum(mesh.Fil["q-",:]))]
-        a₊ = [ones(sum(mesh.Fil["p+",:])); repeat(w, sum(mesh.Fil["+",:])).*(repeat(repeat(Δ(mesh)./2,NPhases(model),1)[idx₊]', NBases(mesh), 1)[:]); ones(sum(mesh.Fil["q+",:]))]
-        a₀ = [ones(sum(mesh.Fil["p0",:])); repeat(w, sum(mesh.Fil["0",:])).*(repeat(repeat(Δ(mesh)./2,NPhases(model),1)[idx₀]', NBases(mesh), 1)[:]); ones(sum(mesh.Fil["q0",:]))]
-
-        α = (αintegralPibullet*[a₊; a₋]) + (αintegralPi0*a₀) + (αp*[a₋;a₀])
-    end
+    α = sum(αintegralPibullet) + sum(αintegralPi0) + sum(αp)
 
     p = αp ./ α
     integralPibullet = αintegralPibullet ./ α

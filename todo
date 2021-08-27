@@ -58,3 +58,6 @@ implement tests
         blah
     end
 
+5) update R object to be an abstract array and define getindex(R,String,String), i.e. R["+"]
+
+6) make SFFMModel object simpler, i.e. wtf is going on with r = (r,R)??
