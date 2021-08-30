@@ -24,12 +24,12 @@ Inputs:
  Throws an error if the dimensions are inconsistent.
 """
 struct ME 
-    a::Union{Array{<:Real,1},Array{<:Real,2}}
+    a::Array{<:Real,2}
     S::Array{<:Real,2}
     s::Union{Array{<:Real,1},Array{<:Real,2}}
     D::Array{<:Real,2}
     function ME(
-        a::Union{Array{<:Real,1},Array{<:Real,2}},
+        a::Array{<:Real,2},
         S::Array{<:Real,2},
         s::Union{Array{<:Real,1},Array{<:Real,2}};
         D::Array{<:Real,2}=zeros(1,1),
@@ -58,17 +58,40 @@ struct ME
 end
 
 pdf(me::SFFM.ME) = x->(me.a*exp(me.S*x)*me.s)[1]
-cdf(me::SFFM.ME) = x->1-sum(me.a*exp(me.S*x))
-pdf(me::SFFM.ME, x::Real) = pdf(me::SFFM.ME)(x)
-cdf(me::SFFM.ME, x::Real) = cdf(me::SFFM.ME)(x)
-pdf(me::SFFM.ME, x::Array{<:Real,1}) = pdf(me::SFFM.ME).(x)
-cdf(me::SFFM.ME, x::Array{<:Real,1}) = cdf(me::SFFM.ME).(x)
+pdf(a::Array{<:Real,2}, me::SFFM.ME) = 
+    (length(a)==size(me.S,1)) ? (x->(a*exp(me.S*x)*me.s)[1]) : throw(
+        DomainError("a and me.S must have compatible size"))
+
+pdf(me::SFFM.ME, x::Real) = pdf(me)(x)
+pdf(a::Array{<:Real,2}, me::SFFM.ME, x::Real) = pdf(a,me)(x)
+
+pdf(me::SFFM.ME, x::Array{<:Real}) = pdf(me).(x)
+pdf(a::Array{<:Real,2}, me::SFFM.ME, x::Array{<:Real}) = pdf(a,me).(x)
+
+ccdf(me::SFFM.ME) = x->sum(me.a*exp(me.S*x))
+ccdf(a::Array{<:Real,2}, me::SFFM.ME) = (length(a)==size(me.S,1)) ? (x->sum(a*exp(me.S*x))) : throw(
+    DomainError("a and me.S must have compatible size"))
+
+ccdf(me::SFFM.ME, x::Real) = ccdf(me)(x)
+ccdf(a::Array{<:Real,2}, me::SFFM.ME, x::Real) = ccdf(a,me)(x)
+
+ccdf(me::SFFM.ME, x::Array{<:Real}) = ccdf(me).(x)
+ccdf(a::Array{<:Real,2}, me::SFFM.ME, x::Array{<:Real}) = ccdf(a,me).(x)
+
+cdf(me::SFFM.ME) = x->1-ccdf(me,x)
+cdf(a::Array{<:Real,2}, me::SFFM.ME) = x->1-ccdf(a,me,x)
+
+cdf(me::SFFM.ME, x::Real) = cdf(me)(x)
+cdf(a::Array{<:Real,2}, me::SFFM.ME, x::Real) = cdf(a,me)(x)
+
+cdf(me::SFFM.ME, x::Array{<:Real}) = cdf(me).(x)
+cdf(a::Array{<:Real,2}, me::SFFM.ME, x::Array{<:Real}) = cdf(a,me).(x)
 
 
 """
 
 """
-function MakeME(params; mean = 1)
+function MakeME(params; mean::Real = 1)
     N = 2*params["n"]+1
     α = zeros(1,N)
     α[1] = params["c"]
@@ -93,7 +116,7 @@ function MakeME(params; mean = 1)
     return SFFM.ME(α,Q,q;D=params["D"])
 end
 
-function MakeErlang(order; mean = 1)
+function MakeErlang(order; mean::Real = 1)
     α = zeros(1,order) # inital distribution
     α[1] = 1
     λ = order/mean

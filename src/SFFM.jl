@@ -3,6 +3,8 @@ import Base: *, size, show, getindex, +, -, setindex!
 import Jacobi, LinearAlgebra, SparseArrays
 import Plots, StatsBase, KernelDensity
 
+abstract type AbstractModel end
+
 """
 Construct a SFFM model object.
 
@@ -36,7 +38,7 @@ Construct a SFFM model object.
     - `Bounds`: as input
 )
 """
-struct Model 
+struct Model <: AbstractModel
     T::Array{<:Real}
     C::Array{<:Real,1}
     r::NamedTuple{(:r, :R, :a)}
@@ -60,13 +62,72 @@ function Model(
         Bounds,
     )
 end
-function Model()
-    Model(
-        [0],
-        [0],
-        (r=0, R=0, a=0),
-        [0],
-    )
+Model() = Model([0],[0],(r=0, R=0, a=0),[0])
+
+struct AugmentedModel <: AbstractModel
+    T::Array{<:Real}
+    C::Array{<:Real,1}
+    r::NamedTuple{(:r, :R, :a)}
+    Bounds::Array{<:Real}
+end
+
+function _duplicate_zero_states(T::Array{<:Real,2},C::Array{<:Real,1}, r::NamedTuple{(:r, :R)})
+    n_0 = sum(C.==0)
+    
+    # assign rates for the augmented model
+    C_aug = Array{Float64,1}(undef,length(C)+n_0)
+    c_zero = 0
+    plus_idx = falses(length(C_aug)) # zero states associated with +
+    neg_idx = falses(length(C_aug)) # zero states associated with -
+    for i in 1:length(C)
+        C_aug[i+c_zero] = C[i]
+        if C[i] == 0
+            C_aug[i+c_zero+1] = C[i]
+            plus_idx[i+c_zero] = true
+            neg_idx[i+c_zero+1] = true
+            c_zero += 1
+        end
+    end
+
+    # assign second fluid rates
+    function r_aug_inner(x)
+        out = zeros(length(C_aug))
+        out[(C_aug.!=0).|(plus_idx)] = r.r(x)
+        out[neg_idx] = r.r(x)[C.==0]
+        return out
+    end
+    function R_aug(x)
+        out = zeros(length(C_aug))
+        out[(C_aug.!=0).|(plus_idx)] = r.R(x)
+        out[neg_idx] = r.R(x)[C.==0]
+        return out
+    end
+    r_aug = (r = r_aug_inner, R = R_aug)
+
+    # assign augmented generator
+    c_zero = 0
+    T_aug = zeros(length(C_aug),length(C_aug))
+    for i in 1:length(C)
+        if C[i] == 0
+            # duplicate 
+            T_aug[i+c_zero,(C_aug.!=0).|(plus_idx)] = T[i,:]
+            T_aug[i+c_zero+1,(C_aug.!=0).|(neg_idx)] = T[i,:]
+            c_zero += 1
+        elseif C[i] < 0
+            T_aug[i+c_zero,(C_aug.!=0).|(neg_idx)] = T[i,:]
+        elseif C[i] > 0 
+            T_aug[i+c_zero,(C_aug.!=0).|(plus_idx)] = T[i,:]
+        end
+    end
+    return T_aug, C_aug, r_aug
+end
+
+function AugmentedModel(model::Model)
+    if (any(model.C.==0))
+        T_aug, C_aug = _duplicate_zero_states(model.T,model.C)
+    else # no zero states, no augmentation needed
+       return model 
+    end
 end
 
 """
@@ -76,6 +137,8 @@ end
 the number of states in the state space
 """
 NPhases(model::Model) = length(model.C)
+
+phases(model::Model) = 1:NPhases(model)
 
 """
 
@@ -870,7 +933,7 @@ function MakeQBDidx(model::Model,mesh::Mesh)
     return QBDidx
 end
 
-
+include("polynomials.jl")
 include("DGBase.jl")
 include("Operators.jl")
 include("FVM.jl")
