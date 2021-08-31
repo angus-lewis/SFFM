@@ -1,5 +1,5 @@
-include("../../src/SFFM.jl")
-using LinearAlgebra, Plots, JLD2, GLM
+# include("../../src/SFFM.jl")
+using LinearAlgebra, Plots, JLD2, GLM, SFFM
 
 ## define the model(s)
 include("exampleModelDef.jl")
@@ -64,10 +64,10 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         Ψ = SFFM.PsiFun( All.D)
 
         # the distribution of X when Y first returns to 0
-        ξ = SFFM.MakeXi( All.B.BDict, Ψ)
+        ξ = SFFM.MakeXi( All.B, Ψ)
 
         marginalX, p, K = SFFM.MakeLimitDistMatrices(
-            All.B.BDict,
+            All.B,
             All.D,
             All.R.RDict,
             Ψ,
@@ -94,17 +94,17 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         approxSpecme[d, n] = (Δtemp, nBases, SFFM.TotalNBases(mesh) * SFFM.NPhases(approxModel))
 
         # compute the marginal via FRAP approx
-        me = SFFM.MakeME(SFFM.CMEParams[nBases], mean = SFFM.Δ(mesh)[1])
-        B = SFFM.MakeBFRAP( approxModel, mesh, me)
+        # me = SFFM.MakeME(SFFM.CMEParams[nBases], mean = SFFM.Δ(mesh)[1])
+        B = SFFM.MakeFullGenerator( approxModel, mesh)
         R = SFFM.MakeR( approxModel, dgmesh, approxType = "interpolation")
         D = SFFM.MakeD( mesh, B, R)
         Ψme = SFFM.PsiFun(D)
 
         # the distribution of X when Y first returns to 0
-        ξme = SFFM.MakeXi( B.BDict, Ψme)
+        ξme = SFFM.MakeXi( B, Ψme)
 
         marginalXme, pme, Kme = SFFM.MakeLimitDistMatrices(
-            B.BDict,
+            B,
             D,
             R.RDict,
             Ψme,
@@ -124,16 +124,16 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
         approxSpecfv[d, n] = (Δtemp, nBases, SFFM.TotalNBases(mesh) * SFFM.NPhases(approxModel))
 
         # compute the marginal via FRAP approx
-        B = SFFM.MakeBFV(approxModel, mesh, nBases)
+        B = SFFM.MakeB(approxModel, mesh, nBases)
         R = SFFM.MakeR( approxModel, mesh, approxType = "interpolation")
         D = SFFM.MakeD( mesh, B, R)
         Ψfv = SFFM.PsiFun(D)
 
         # the distribution of X when Y first returns to 0
-        ξfv = SFFM.MakeXi( B.BDict, Ψfv)
+        ξfv = SFFM.MakeXi( B, Ψfv)
 
         marginalXfv, pfv, Kfv = SFFM.MakeLimitDistMatrices(
-            B.BDict,
+            B,
             D,
             R.RDict,
             Ψfv,

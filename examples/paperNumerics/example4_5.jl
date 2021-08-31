@@ -1,5 +1,5 @@
-include("../../src/SFFM.jl")
-using LinearAlgebra, Plots, JLD2, GLM
+# include("../../src/SFFM.jl")
+using LinearAlgebra, Plots, JLD2, GLM, SFFM
 
 ## define the model(s)
 include("exampleModelDef.jl")
@@ -50,11 +50,11 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
             # @btime SFFM.PsiFun( $All.D)
 
             # the distribution of X when Y first returns to 0
-            ξ = SFFM.MakeXi(All.B.BDict, Ψ)
+            ξ = SFFM.MakeXi(All.B, Ψ)
             # @btime SFFM.MakeXi($All.B.BDict, $Ψ)
 
             marginalX, p, K = SFFM.MakeLimitDistMatrices(
-                All.B.BDict,
+                All.B,
                 All.D,
                 All.R.RDict,
                 Ψ,
@@ -108,9 +108,10 @@ for d = 1:length(Δs), n = 1:length(NBasesRange)
             zeros(sum(approxModel.C .<= 0)) # LHS point mass
             zeros(sum(approxModel.C .>= 0)) # RHS point mass
         ]
+        V=SFFM.vandermonde(NBases(mesh))
         initprobs = zeros(Float64, SFFM.NBases(mesh), SFFM.NIntervals(mesh), SFFM.NPhases(approxModel))
         initprobs[:, convert(Int, ceil(5 / Δtemp)), 3] =
-            basisValues' * All.Matrices.Local.V.V * All.Matrices.Local.V.V' .* 2 / Δtemp
+            basisValues' * V.V * V.V' .* 2 / Δtemp
         initdist =
             SFFM.SFFMDensity(initpm, initprobs, SFFM.CellNodes(mesh)) # convert to a distribution object so we can apply Dist2Coeffs
         # convert to Coeffs α in the DG context

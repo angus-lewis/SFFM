@@ -1,33 +1,36 @@
+# yuck. there were less fucks given making this
 """
 
     FVMesh(
         model::SFFM.Model,
         Nodes::Array{Float64,1};
-        Fil::Dict{String,BitArray{1}}=Dict{String,BitArray{1}}(),
+        Fil::IndexDict=IndexDict(),
     ) 
 
 Constructor for a mesh for a finite volume scheme. 
     Inputs: 
      - `model::Model` a Model object
      - `Nodes::Array{Float64,1}` a vector specifying the cell edges
-     - `Fil::Dict` an optional dictionary allocating the cells to the sets Fᵢᵐ
+     - `Fil::IndexDict` an optional dictionary allocating the cells to the sets Fᵢᵐ
 """
 struct FVMesh <: SFFM.Mesh 
     Nodes::Array{Float64,1}
-    Fil::Dict{String,BitArray{1}}
-    function FVMesh(
-        model::SFFM.Model,
-        Nodes::Array{Float64,1};
-        Fil::Dict{String,BitArray{1}}=Dict{String,BitArray{1}}(),
-    ) 
-        ## Construct the sets Fᵐ = ⋃ᵢ Fᵢᵐ, global index for sets of type m
-        if isempty(Fil)
-            Fil = MakeFil(model, Nodes)
-        end
-
-        new(Nodes, Fil)
-    end
+    order::Int
+    Fil::IndexDict
 end 
+function FVMesh(
+    model::SFFM.Model,
+    Nodes::Array{Float64,1},
+    order::Int;
+    Fil::IndexDict=IndexDict(),
+) 
+    ## Construct the sets Fᵐ = ⋃ᵢ Fᵢᵐ, global index for sets of type m
+    if isempty(Fil)
+        Fil = MakeFil(model, Nodes)
+    end
+
+    return FVMesh(Nodes, order, Fil)
+end
 
 
 """
@@ -37,7 +40,7 @@ end
 Constant 1
 """
 NBases(mesh::FVMesh) = 1
-
+Order(mesh::FVMesh) = mesh.order
 
 """
 
@@ -55,46 +58,37 @@ Constant ""
 """
 Basis(mesh::FVMesh) = ""
 
-function interp(nodes, evalPt)
-    order = length(nodes)
-    polyCoefs = zeros(order)
-    for n in 1:order
-        notn = [1:n-1;n+1:order]
-        polyCoefs[n] = prod(evalPt.-nodes[notn])./prod(nodes[n].-nodes[notn])
-    end
-    return polyCoefs
-end
-
+TotalNBases(mesh::FVMesh) = NIntervals(mesh)
 
 function MakeFVFlux(mesh::SFFM.Mesh, order::Int)
     nNodes = TotalNBases(mesh)
     F = zeros(Float64,nNodes,nNodes)
     ptsLHS = Int(ceil(order/2))
-    interiorCoeffs = interp(CellNodes(mesh)[1:order],mesh.Nodes[ptsLHS+1])
+    interiorCoeffs = lagrange_poly_basis(CellNodes(mesh)[1:order],mesh.Nodes[ptsLHS+1])
     for n in 2:nNodes
         evalPt = mesh.Nodes[n]
         if n-ptsLHS-1 < 0
             nodesIdx = 1:order
             nodes = CellNodes(mesh)[nodesIdx]
-            coeffs = interp(nodes,evalPt)
+            coeffs = lagrange_poly_basis(nodes,evalPt)
         elseif n-ptsLHS-1+order > nNodes
             nodesIdx = (nNodes-order+1):nNodes
             nodes = CellNodes(mesh)[nodesIdx]
-            coeffs = interp(nodes,evalPt)
+            coeffs = lagrange_poly_basis(nodes,evalPt)
         else
             nodesIdx =  (n-ptsLHS-1) .+ (1:order)
             coeffs = interiorCoeffs
         end
-        F[nodesIdx,n-1:n] += [-coeffs coeffs]./Δ(mesh)[1]
+        F[nodesIdx,n-1:n] += [-coeffs coeffs]./Δ(mesh)[n-1]
     end
-    F[end-order+1:end,end] += -interp(CellNodes(mesh)[end-order+1:end],mesh.Nodes[end])./Δ(mesh)[1]
+    F[end-order+1:end,end] += -lagrange_poly_basis(CellNodes(mesh)[end-order+1:end],mesh.Nodes[end])./Δ(mesh)[end]
     return F
 end
 
-function MakeBFV(model::SFFM.Model, mesh::SFFM.Mesh, order::Int)
+function MakeFullGenerator(model::SFFM.Model, mesh::SFFM.FVMesh; v::Bool=false)
     N₊ = sum(model.C .>= 0)
     N₋ = sum(model.C .<= 0)
-
+    order = Order(mesh)
     F = SFFM.MakeFVFlux(mesh, order)
 
     B = SparseArrays.spzeros(
@@ -107,15 +101,8 @@ function MakeBFV(model::SFFM.Model, mesh::SFFM.Mesh, order::Int)
             SparseArrays.I(NIntervals(mesh))
         )
 
-         ## Make QBD index
-    c = N₋
-    QBDidx = zeros(Int, NPhases(model) * NIntervals(mesh) + N₊ + N₋)
-    for k = 1:NIntervals(mesh), i = 1:NPhases(model)
-        c += 1
-        QBDidx[c] = (i - 1) * NIntervals(mesh) + k + N₋
-    end
-    QBDidx[1:N₋] = 1:N₋
-    QBDidx[(end-N₊+1):end] = (NPhases(model) * NIntervals(mesh) + N₋) .+ (1:N₊)
+    ## Make QBD index
+    QBDidx = MakeQBDidx(model,mesh)
     
     # Boundary conditions
     T₋₋ = model.T[model.C.<=0,model.C.<=0]
@@ -125,11 +112,11 @@ function MakeBFV(model::SFFM.Model, mesh::SFFM.Mesh, order::Int)
     # yuck
     begin 
         nodes = CellNodes(mesh)[1:order]
-        coeffs = interp(nodes,mesh.Nodes[1])
+        coeffs = lagrange_poly_basis(nodes,mesh.Nodes[1])
         idxdown = ((1:order).+TotalNBases(mesh)*(findall(model.C .<= 0) .- 1)')[:] .+ N₋
         B[idxdown, 1:N₋] = LinearAlgebra.kron(
             LinearAlgebra.diagm(0 => model.C[model.C.<=0]),
-            -coeffs./Δ(mesh)[1],
+            -coeffs,
         )
     end
     # inLower = [
@@ -137,17 +124,17 @@ function MakeBFV(model::SFFM.Model, mesh::SFFM.Mesh, order::Int)
     #     SparseArrays.zeros((NIntervals(mesh)-1)*NPhases(model),N₋)
     # ]
     outLower = [
-        T₋₊ SparseArrays.zeros(N₋,N₊+(NIntervals(mesh)-1)*NPhases(model))
+        T₋₊./Δ(mesh)[1] SparseArrays.zeros(N₋,N₊+(NIntervals(mesh)-1)*NPhases(model))
     ]
     begin
         nodes = CellNodes(mesh)[end-order+1:end]
-        coeffs = interp(nodes,mesh.Nodes[end])
+        coeffs = lagrange_poly_basis(nodes,mesh.Nodes[end])
         idxup =
             ((1:order).+TotalNBases(mesh)*(findall(model.C .>= 0) .- 1)')[:] .+
             (N₋ + TotalNBases(mesh) - order)
         B[idxup, (end-N₊+1):end] = LinearAlgebra.kron(
             LinearAlgebra.diagm(0 => model.C[model.C.>=0]),
-            coeffs./Δ(mesh)[1],
+            coeffs,
         )
     end
     # inUpper = [
@@ -155,7 +142,7 @@ function MakeBFV(model::SFFM.Model, mesh::SFFM.Mesh, order::Int)
     #     (SparseArrays.diagm(abs.(model.C).*(model.C.>=0)))[:,model.C.>=0]
     # ]
     outUpper = [
-        SparseArrays.zeros(N₊,N₋+(NIntervals(mesh)-1)*NPhases(model)) T₊₋
+        SparseArrays.zeros(N₊,N₋+(NIntervals(mesh)-1)*NPhases(model)) T₊₋./Δ(mesh)[end]
     ]
     
     B[1:N₋,QBDidx] = [T₋₋ outLower]
@@ -172,6 +159,7 @@ function MakeBFV(model::SFFM.Model, mesh::SFFM.Mesh, order::Int)
     end
 
     BDict = SFFM.MakeDict(B,model,mesh)
-
-    return (BDict = BDict, B = B, QBDidx = QBDidx)
+    out = FullGenerator(BDict, B, mesh.Fil)
+    v && println("FullGenerator created with keys ", keys(out))
+    return out
 end

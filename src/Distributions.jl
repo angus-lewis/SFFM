@@ -1,3 +1,379 @@
+# import Base: getindex, size, *
+
+struct SFMDistribution{T<:SFFM.Mesh} <: AbstractArray{Float64,2} 
+    coeffs::Array{Float64,2}
+    model::SFFM.Model
+    mesh::T
+    Fil::SFFM.IndexDict
+    function SFMDistribution{T}(
+        coeffs::Array{Float64,2}, 
+        model::SFFM.Model,
+        mesh::T,
+        Fil::SFFM.IndexDict=SFFM.MakeFil(model,mesh.Nodes),
+        ) where T<:SFFM.Mesh
+        return (size(coeffs,1)==1) ? new(coeffs,model,mesh,Fil) : throw(DimensionMismatch("coeffs must be a row-vector"))
+    end
+end
+
+size(d::SFMDistribution) = size(d.coeffs)
+getindex(d::SFMDistribution,i::Int,j::Int) = d.coeffs[i,j]
+setindex!(d::SFMDistribution,x,i::Int,j::Int) = throw(DomainError("inserted value(s) must be Float64/Int"))
+setindex!(d::SFMDistribution,x::Float64,i::Int,j::Int) = (d.coeffs[i,j]=x)
+setindex!(d::SFMDistribution,x::Int,i::Int,j::Int) = (d.coeffs[i,j]=convert(Float64,x))
+*(u::SFMDistribution,B::AbstractArray{Float64,2}) = *(u.coeffs,B)
+*(B::AbstractArray{Float64,2},u::SFMDistribution) = 
+    (size(B,2)==1) ? *(B*u.coeffs) : throw(DimensionMismatch("u is a row-vector and B has more than 1 column"))
+
+function _error_on_nothing(idx)
+    (idx===nothing) && throw(DomainError("x is not in the support of the mesh"))
+end
+
+function _get_nodes_coeffs_from_index(cell_idx::Int,i::Int,mesh::Mesh,model::Model) 
+    cell_nodes = CellNodes(mesh)[:,cell_idx]
+    N₋ = sum(model.C.<=0)
+    coeff_idx = (N₋ + (i-1)*TotalNBases(mesh) + (cell_idx-1)*NBases(mesh)) .+ (1:NBases(mesh))
+    return cell_nodes, coeff_idx
+end
+
+function _get_coeff_index_pos(x::Float64,i::Int,mesh::Mesh,model::Model) 
+    cell_idx = findlast(x.>=mesh.Nodes)
+    _error_on_nothing(cell_idx)
+    cell_nodes, coeff_idx = _get_nodes_coeffs_from_index(cell_idx,i,mesh,model)
+    return cell_idx, cell_nodes, coeff_idx
+end
+function _get_coeff_index_neg(x::Float64,i::Int,mesh::Mesh,model::Model) 
+    cell_idx = findfirst(x.<=mesh.Nodes) - 1
+    _error_on_nothing(cell_idx)
+    cell_nodes, coeff_idx = _get_nodes_coeffs_from_index(cell_idx,i,mesh,model)
+    return cell_idx, cell_nodes, coeff_idx
+end
+
+function _get_point_mass_data_pos(i::Int,mesh::Mesh,model::Model)
+    cell_nodes = mesh.Nodes[end]
+    N₋ = sum(model.C.<=0)
+    coeff_idx = N₋ + TotalNBases(mesh)*NPhases(model) + sum(model.C[1:i].>=0)
+    return cell_nodes, coeff_idx 
+end
+function _get_point_mass_data_neg(i::Int,mesh::Mesh,model::Model)
+    cell_nodes = mesh.Nodes[1]
+    coeff_idx = sum(model.C[1:i].<=0)
+    return cell_nodes, coeff_idx 
+end
+_is_left_point_mass(x::Float64,i::Int,mesh::Mesh,model::Model) = 
+    (x==mesh.Nodes[1])&&(model.C[i]<=0)
+_is_right_point_mass(x::Float64,i::Int,mesh::Mesh,model::Model) = 
+    (x==mesh.Nodes[end])&&(model.C[i]>=0)
+    
+
+function _get_coeffs_index(x::Float64,i::Int,model::Model,mesh::Mesh)
+    !(i∈phases(model)) && throw(DomainError("phase i must be in the support of the model"))
+
+    # find which inteval Dₗ,ᵢ x is in 
+    if _is_left_point_mass(x,i,mesh,model)
+        cell_idx = "point mass"
+        cell_nodes, coeff_idx = _get_point_mass_data_neg(i,mesh,model)
+    elseif _is_right_point_mass(x,i,mesh,model)
+        cell_idx = "point mass"
+        cell_nodes, coeff_idx = _get_point_mass_data_pos(i,mesh,model)
+    else # not a point mass 
+        if model.C[i]>=0 
+            cell_idx, cell_nodes, coeff_idx = _get_coeff_index_pos(x,i,mesh,model) 
+        elseif model.C[i]<0 
+            cell_idx, cell_nodes, coeff_idx = _get_coeff_index_neg(x,i,mesh,model) 
+        end
+    end
+
+    return cell_idx, cell_nodes, coeff_idx
+end
+
+function legendre_to_lagrange(coeffs)
+    order = length(coeffs)
+    V = vandermonde(NBases(mesh))
+    return V.V*coeffs
+end
+
+function pdf(d::SFMDistribution{T},model::Model) where T<:Mesh
+    throw(DomainError("unknown SFMDistribution{<:Mesh}"))
+end
+
+function pdf(d::SFMDistribution{DGMesh},model::Model)
+    function f(x::Float64,i::Int) # the PDF
+        # check phase is in support 
+        !(i∈phases(model)) && throw(DomainError("phase i must be in the support of the model"))
+        # if x is not in the support return 0.0
+        mesh = d.mesh
+        if ((x<mesh.Nodes[1])||(x>mesh.Nodes[end]))
+            fxi = 0.0
+        else
+            cell_idx, cell_nodes, coeff_idx = _get_coeffs_index(x,i,model,mesh)
+            coeffs = d.coeffs[coeff_idx]
+            # if not a point mass, then reconstruct solution
+            if !(cell_idx=="point mass")
+                if Basis(mesh) == "legendre"
+                    coeffs = legendre_to_lagrange(coeffs)
+                else
+                    V = vandermonde(NBases(mesh))
+                    coeffs = (2/(Δ(mesh)[cell_idx]))*(1.0./V.w).*coeffs
+                end
+                basis_values = lagrange_poly_basis(cell_nodes, x)
+                fxi = LinearAlgebra.dot(basis_values,coeffs)
+            else 
+                fxi = coeffs
+            end
+        end
+        return fxi
+    end
+    return f
+end
+pdf(d::SFMDistribution{T},model::Model,x,i) where T<:Mesh = 
+    throw(DomainError("x must be Float64/Int/Array{Float64/Int,1}, i must be Int/Array{Int,1}"))
+pdf(d::SFMDistribution{T},model::Model,x::Float64,i::Int) where T<:Mesh = pdf(d,model)(x,i)
+pdf(d::SFMDistribution{T},model::Model,x::Int,i::Int) where T<:Mesh = pdf(d,model)(convert(Float64,x),i)
+# pdf(d::SFMDistribution{T},model::Model,x::Array{Float64,1},i::Int) where T<:Mesh = pdf(d,model).(x,i)
+# pdf(d::SFMDistribution{T},model::Model,x::Array{Float64,1},i::Array{Int,1}) where T<:Mesh = pdf(d,model).(x,i)
+
+function pdf(d::SFMDistribution{FRAPMesh},model::Model)
+    function f(x::Float64,i::Int) # the PDF
+        # check phase is in support 
+        !(i∈phases(model)) && throw(DomainError("phase i must be in the support of the model"))
+        # if x is not in the support return 0.0
+        mesh = d.mesh
+        if ((x<mesh.Nodes[1])||(x>mesh.Nodes[end]))
+            fxi = 0.0
+        else
+            cell_idx, cell_nodes, coeff_idx = _get_coeffs_index(x,i,model,mesh)
+            coeffs = d.coeffs[coeff_idx]
+            # if not a point mass, then reconstruct solution
+            if !(cell_idx=="point mass")
+                if model.C[i]>0
+                    yₖ₊₁ = mesh.Nodes[cell_idx+1]
+                    to_go = yₖ₊₁-x
+                elseif model.C[i]<0
+                    yₖ = mesh.Nodes[cell_idx]
+                    to_go = x-yₖ
+                end
+                me = MakeME(CMEParams[NBases(mesh)], mean = Δ(mesh)[cell_idx])
+                fxi = (pdf(Array(coeffs'),me,to_go) + pdf(Array(coeffs'),me,2*Δ(mesh)[cell_idx]-to_go))./cdf(Array(coeffs'),me,2*Δ(mesh)[cell_idx])
+            else 
+                fxi = coeffs
+            end
+        end
+        return fxi
+    end
+    return f
+end
+
+function pdf(d::SFMDistribution{FVMesh},model::Model)
+    function f(x::Float64,i::Int) # the PDF
+        # check phase is in support 
+        !(i∈phases(model)) && throw(DomainError("phase i must be in the support of the model"))
+        # if x is not in the support return 0.0
+        mesh = d.mesh
+        if ((x<mesh.Nodes[1])||(x>mesh.Nodes[end]))
+            fxi = 0.0
+        else
+            cell_idx, cell_nodes, coeff_idx = _get_coeffs_index(x,i,model,mesh)
+            # if not a point mass, then reconstruct solution
+            if !(cell_idx=="point mass")
+                ptsLHS = Int(ceil(Order(mesh)/2))
+                if cell_idx-ptsLHS < 0
+                    nodesIdx = 1:Order(mesh)
+                    nodes = CellNodes(mesh)[nodesIdx]
+                    poly_vals = lagrange_poly_basis(nodes,x)
+                elseif cell_idx-ptsLHS+Order(mesh) > TotalNBases(mesh)
+                    nodesIdx = (TotalNBases(mesh)-Order(mesh)+1):TotalNBases(mesh)
+                    nodes = CellNodes(mesh)[nodesIdx]
+                    poly_vals = lagrange_poly_basis(nodes,x)
+                else
+                    nodesIdx =  (cell_idx-ptsLHS) .+ (1:Order(mesh))
+                    poly_vals = lagrange_poly_basis(CellNodes(mesh)[nodesIdx],x)
+                end
+                coeff_idx = (sum(model.C.<=0) + (i-1)*TotalNBases(mesh)) .+ nodesIdx
+                coeffs = d.coeffs[coeff_idx]#./Δ(mesh)[cell_idx]
+                fxi = LinearAlgebra.dot(poly_vals,coeffs)
+            else 
+                coeffs = d.coeffs[coeff_idx]
+                fxi = coeffs
+            end
+        end
+        return fxi
+    end
+    return f
+end
+
+############
+### CDFs ###
+############
+
+function cdf(d::SFMDistribution{T},model::Model) where T<:Mesh
+    throw(DomainError("unknown SFMDistribution{<:Mesh}"))
+end
+
+"""
+
+    _sum_cells_left(d::SFMDistribution, i::Int, cell_idx::Int, mesh::Mesh, model::Model)
+
+Add up all the probability mass in phase `i` in the cells to the left of `cell_idx`.
+"""
+function _sum_cells_left(d::SFMDistribution, i::Int, cell_idx::Int, mesh::Mesh, model::Model)
+    c = 0.0
+    if Basis(mesh) == "legendre"
+        for cell in 1:(cell_idx-1)
+            # first legendre basis function =1 & has all the mass
+            idx = (sum(model.C.<=0) + (i-1)*TotalNBases(mesh) + (cell-1)*NBases(mesh)) .+ 1 
+            c += d.coeffs[idx]
+        end
+    else
+        for cell in 1:(cell_idx-1)
+            idx = (sum(model.C.<=0) + (i-1)*TotalNBases(mesh) + (cell-1)*NBases(mesh)) .+ (1:NBases(mesh))
+            c += sum(d.coeffs[idx])
+        end
+    end
+    return c
+end
+
+function cdf(d::SFMDistribution{DGMesh},model::Model)
+    function F(x::Float64,i::Int) # the PDF
+        # check phase is in support 
+        !(i∈phases(model)) && throw(DomainError("phase i must be in the support of the model"))
+        mesh = d.mesh
+        Fxi = 0.0
+        if (x<mesh.Nodes[1])
+            # Fxi = 0.0
+        else
+            # Fxi = 0.0
+            # left pm
+            if (x>=mesh.Nodes[1])&&(model.C[i]<=0)
+                ~, left_pm_idx = _get_point_mass_data_neg(i,mesh,model)
+                left_pm = d.coeffs[left_pm_idx]
+                Fxi += left_pm
+            end
+            # integral over density
+            (x.>=mesh.Nodes[end]) ? (xd=mesh.Nodes[end]-sqrt(eps())) : xd = x
+            cell_idx, ~, ~ = _get_coeffs_index(xd,i,model,mesh)
+            if !(cell_idx=="point mass")
+                # add all mass from cells to the left
+                Fxi += _sum_cells_left(d, i, cell_idx, mesh, model)
+
+                # integrate up to x in the cell which contains x
+                temp_pdf(y) = pdf(d,model)(y,i)
+                quad = gauss_lobatto_quadrature(temp_pdf,mesh.Nodes[cell_idx]+sqrt(eps()),xd,NBases(mesh))
+                Fxi += quad
+            end
+            # add the RH point mass if  required
+            if (x>=mesh.Nodes[end])&&(model.C[i]>=0)
+                ~, ~, right_pm_idx = _get_coeffs_index(mesh.Nodes[end],i,model,mesh)
+                right_pm = d.coeffs[right_pm_idx]
+                Fxi += right_pm
+            end
+        end
+        return Fxi
+    end
+    return F
+end
+cdf(d::SFMDistribution{T},model::Model,x,i) where T<:Mesh = 
+    throw(DomainError("x must be Float64/Int/Array{Float64/Int,1}, i must be Int/Array{Int,1}"))
+cdf(d::SFMDistribution{T},model::Model,x::Float64,i::Int) where T<:Mesh = cdf(d,model)(x,i)
+cdf(d::SFMDistribution{T},model::Model,x::Int,i::Int) where T<:Mesh = cdf(d,model)(convert(Float64,x),i)
+
+function cdf(d::SFMDistribution{FRAPMesh},model::Model)
+    function F(x::Float64,i::Int) # the PDF
+        # check phase is in support 
+        !(i∈phases(model)) && throw(DomainError("phase i must be in the support of the model"))
+        # if x is not in the support return 0.0
+        mesh = d.mesh
+        if (x<mesh.Nodes[1])
+            Fxi = 0.0
+        else
+            Fxi = 0.0
+            # left pm
+            if (x>=mesh.Nodes[1])&&(model.C[i]<=0)
+                ~, ~, left_pm_idx = _get_coeffs_index(mesh.Nodes[1],i,model,mesh)
+                left_pm = d.coeffs[left_pm_idx]
+                Fxi += left_pm
+            end
+            # integral over density
+            (x.>=mesh.Nodes[end]) ? (xd=mesh.Nodes[end]-sqrt(eps())) : xd = x
+            cell_idx, cell_nodes, coeff_idx = _get_coeffs_index(xd,i,model,mesh)
+            coeffs = d.coeffs[coeff_idx]
+
+            if !(cell_idx=="point mass")
+                # add all mass from cells to the left
+                Fxi += _sum_cells_left(d, i, cell_idx, mesh, model)
+                
+                # integrate up to x in the cell which contains x
+                me = MakeME(CMEParams[NBases(mesh)], mean = Δ(mesh)[cell_idx])
+                a = Array(coeffs')
+                if model.C[i]>=0
+                    yₖ₊₁ = mesh.Nodes[cell_idx+1]
+                    Fxi += (ccdf(a,me,yₖ₊₁-x) - ccdf(a,me,2*Δ(mesh)[cell_idx]-(yₖ₊₁-x)))/(cdf(a,me,2*Δ(mesh)[cell_idx]))
+                elseif model.C[i]<0
+                    yₖ = mesh.Nodes[cell_idx]
+                    Fxi += sum(a) - (ccdf(a,me,x-yₖ) - ccdf(a,me,2*Δ(mesh)[cell_idx]-(x-yₖ)))/(cdf(a,me,2*Δ(mesh)[cell_idx]))
+                end
+            end
+            if (x>=mesh.Nodes[end])&&(model.C[i]>=0)
+                ~, ~, right_pm_idx = _get_coeffs_index(mesh.Nodes[end],i,model,mesh)
+                right_pm = d.coeffs[right_pm_idx]
+                Fxi += right_pm
+            end
+        end
+        return Fxi
+    end
+    return F
+end
+
+function _sum_cells_left_fv(d, i, cell_idx, mesh, model)
+    c = 0
+    for cell in 1:(cell_idx-1)
+        # first legendre basis function =1 & has all the mass
+        idx = sum(model.C.<=0) + (i-1)*TotalNBases(mesh) + cell
+        c += d.coeffs[idx]*Δ(mesh)[cell]
+    end
+    return c
+end
+
+function cdf(d::SFMDistribution{FVMesh},model::Model)
+    function F(x::Float64,i::Int) # the PDF
+        # check phase is in support 
+        !(i∈phases(model)) && throw(DomainError("phase i must be in the support of the model"))
+        # if x is not in the support return 0.0
+        mesh = d.mesh
+        Fxi = 0.0
+        if (x<mesh.Nodes[1])
+            # Fxi = 0.0
+        else
+            # Fxi = 0.0
+            # left pm
+            if (x>=mesh.Nodes[1])&&(model.C[i]<=0)
+                ~, ~, left_pm_idx = _get_coeffs_index(mesh.Nodes[1],i,model,mesh)
+                left_pm = d.coeffs[left_pm_idx]
+                Fxi += left_pm
+            end
+            # integral over density
+            (x.>=mesh.Nodes[end]) ? (xd=mesh.Nodes[end]-sqrt(eps())) : xd = x
+            cell_idx, cell_nodes, coeff_idx = _get_coeffs_index(xd,i,model,mesh)
+            # if not a point mass, then reconstruct solution
+            if !(cell_idx=="point mass")
+                # add all mass from cells to the left
+                Fxi += _sum_cells_left_fv(d, i, cell_idx, mesh, model)
+
+                # integrate up to x in the cell which contains x
+                temp_pdf(y) = pdf(d,model)(y,i)
+                quad = gauss_lobatto_quadrature(temp_pdf,mesh.Nodes[cell_idx]+sqrt(eps()),xd,Order(mesh))
+                Fxi += quad 
+            end
+            if (x>=mesh.Nodes[end])&&(model.C[i]>=0)
+                ~, ~, right_pm_idx = _get_coeffs_index(mesh.Nodes[end],i,model,mesh)
+                right_pm = d.coeffs[right_pm_idx]
+                Fxi += right_pm
+            end
+        end
+        return Fxi
+    end
+    return F
+end
+
 abstract type SFFMDistribution end
 
 """

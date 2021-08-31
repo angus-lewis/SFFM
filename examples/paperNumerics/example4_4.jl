@@ -1,5 +1,5 @@
 # include("../../src/SFFM.jl")
-# # using LinearAlgebra, Plots
+using LinearAlgebra, Plots, SFFM
 # #
 # # ## define the model(s)
 # include("exampleModelDef.jl")
@@ -43,10 +43,10 @@ let
         Ψ = SFFM.PsiFun( All.D)
 
         # the distribution of X when Y first returns to 0
-        ξ = SFFM.MakeXi( All.B.BDict, Ψ)
+        ξ = SFFM.MakeXi( All.B, Ψ)
 
         marginalX, p, K = SFFM.MakeLimitDistMatrices(
-            All.B.BDict,
+            All.B,
             All.D,
             All.R.RDict,
             Ψ,

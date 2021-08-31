@@ -1,3 +1,45 @@
+
+function MakeRDict(
+    R::Union{Array{<:Real,2},SparseArrays.SparseMatrixCSC{<:Real,Int64}},
+    model::Model, 
+    mesh::Mesh,
+    )
+
+    ## Make a Dictionary so that the blocks of B are easy to access
+    N₋ = sum(model.C.<=0)
+    N₊ = sum(model.C.<=0)
+
+    RDict = Dict{Tuple{String,Union{Int,Colon}},SparseArrays.SparseMatrixCSC{Float64,Int64}}()
+
+    ppositions = cumsum(model.C .<= 0)
+    qpositions = cumsum(model.C .>= 0)
+    for ℓ in ["+", "-"]
+        for i = 1:NPhases(model)
+            FilBases = repeat(mesh.Fil[(ℓ,i)]', NBases(mesh), 1)[:]
+            pitemp = falses(N₋)
+            qitemp = falses(N₊)
+            if model.C[i] <= 0
+                pitemp[ppositions[i]] = mesh.Fil["p"*ℓ,i][1]
+            end
+            if model.C[i] >= 0
+                qitemp[qpositions[i]] = mesh.Fil["q"*ℓ,i][1]
+            end
+            i_idx = [
+                pitemp
+                falses((i - 1) * TotalNBases(mesh))
+                FilBases
+                falses(NPhases(model) * TotalNBases(mesh) - i * TotalNBases(mesh))
+                qitemp
+            ]
+            RDict[(ℓ,i)] = R[i_idx, i_idx]
+        end
+        FlBases =
+            [mesh.Fil["p"*ℓ,:]; repeat(mesh.Fil[ℓ,:]', NBases(mesh), 1)[:]; mesh.Fil["q"*ℓ,:]]
+        RDict[ℓ,:] = R[FlBases, FlBases]
+    end
+    return RDict
+end
+
 """
 # Construct the DG approximation to the operator `R`.
 
@@ -5,7 +47,6 @@
         model::SFFM.Model,
         mesh::DGMesh;
         approxType::String = "projection",
-        probTransform::Bool = true,
     )
 
 # Arguments
@@ -13,15 +54,13 @@
 - `Mmesh`: a Mesh object
 - `approxType::String`: (optional) either "interpolation" or
     "projection" (default).
-- `probTransform::Bool=true`: an (optional) specification for the lagrange basis
-    to specify whether transform to probability coefficients.
 
 # Output
 - a tuple with keys
     - `:R::SparseArrays.SparseMatrixCSC{Float64,Int64}`: an approximation to R
         for the whole space. If ``rᵢ(x)=0`` on any cell, the corresponding
         elements of R are zero.
-    - `:RDict::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}}`: a
+    - `:RDict::Dict{Tuple{String,Union{Int,Colon}},SparseArrays.SparseMatrixCSC{Float64,Int64}}`: a
         disctionary containing sub-blocks of R. Keys are of the form
         `"PhaseSign"` or just `"Sign"`. i.e. `"1-"` cells in ``Fᵢ⁻``, and
         `"-"` for cells in ``∪ᵢFᵢ⁻``.
@@ -30,7 +69,6 @@ function MakeR(
     model::SFFM.Model,
     mesh::Mesh;
     approxType::String = "projection",
-    probTransform::Bool = true,
     v::Bool = false,
 )
     V = SFFM.vandermonde(NBases(mesh))
@@ -70,11 +108,7 @@ function MakeR(
                 # representation. The second term V.V*V.V' is Minv. The last term
                 # LinearAlgebra.diagm(V.w)is a result of the conversion to probability
                 # / integral representation.
-                if probTransform
-                    temp = LinearAlgebra.diagm(EvalR[NBases(mesh)*(n-1).+(1:NBases(mesh))])*V.V*V.V'*LinearAlgebra.diagm(V.w)
-                elseif !probTransform
-                    temp = LinearAlgebra.diagm(V.w)*LinearAlgebra.diagm(EvalR[NBases(mesh)*(n-1).+(1:NBases(mesh))])*V.V*V.V'
-                end
+                temp = LinearAlgebra.diagm(EvalR[NBases(mesh)*(n-1).+(1:NBases(mesh))])*V.V*V.V'*LinearAlgebra.diagm(V.w)
             end
         elseif Basis(mesh) == ""
             temp = LinearAlgebra.diagm(EvalR[NBases(mesh)*(n-1).+(1:NBases(mesh))])
@@ -83,7 +117,7 @@ function MakeR(
     end
 
     # construc the dictionary
-    RDict = MakeDict(R,model,mesh,zero=false)
+    RDict = MakeRDict(R,model,mesh)
 
     out = (R=R, RDict=RDict)
     v && println("UPDATE: R object created with keys ", keys(out))
@@ -95,7 +129,7 @@ Construct the operator `D(s)` from `B, R`.
 
     MakeD(
         mesh::SFFM.Mesh,
-        B::NamedTuple{(:BDict, :B, :QBDidx)},
+        B::Generator,
         R::NamedTuple{(:R, :RDict)},
     )
 
@@ -106,44 +140,86 @@ Construct the operator `D(s)` from `B, R`.
 - `mesh`: a Mesh object
 
 # Output
-- `DDict::Dict{String,Function(s::Real)}`: a dictionary of functions. Keys are
+- `DDict::Dict{Tuple{String,String},Function(s::Real)}`: a dictionary of functions. Keys are
   of the for `"ℓm"` where `ℓ,m∈{+,-}`. Values are functions with one argument.
   Usage is along the lines of `D["+-"](s=1)`.
 """
 function MakeD(
-    mesh::SFFM.Mesh,
-    B::NamedTuple{(:BDict, :B, :QBDidx)},
+    # mesh::SFFM.Mesh,
+    B::Generator,
     R::NamedTuple{(:R, :RDict)},
     v::Bool = false,
 )
-    DDict = Dict{String,Any}()
+    DDict = Dict{Tuple{String,String},Any}()
     for ℓ in ["+", "-"], m in ["+", "-"]
-        nℓ = sum(mesh.Fil["p"*ℓ]) + sum(mesh.Fil[ℓ]) * NBases(mesh) + sum(mesh.Fil["q"*ℓ])
+        nℓ = sum(B.Fil["p"*ℓ,:]) + sum(B.Fil[ℓ,:]) * size(B.D,1) + sum(B.Fil["q"*ℓ,:])
         Idℓ = SparseArrays.sparse(LinearAlgebra.I,nℓ,nℓ)
-        if any(mesh.Fil["p0"]) || any(mesh.Fil["0"]) || any(mesh.Fil["q0"]) # in("0", model.Signs)
-            n0 = sum(mesh.Fil["p0"]) +
-                sum(mesh.Fil["0"]) * NBases(mesh) +
-                sum(mesh.Fil["q0"])
+        if any(B.Fil["p0",:]) || any(B.Fil["0",:]) || any(B.Fil["q0",:]) # in("0", model.Signs)
+            n0 = sum(B.Fil["p0",:]) +
+                sum(B.Fil["0",:]) * size(B.D,1) +
+                sum(B.Fil["q0",:])
             Id0 = SparseArrays.sparse(LinearAlgebra.I,n0,n0)
-            DDict[ℓ*m] = function (; s::Real = 0)
+            DDict[ℓ,m] = function (; s::Real = 0)
                 return if (ℓ == m)
-                    R.RDict[ℓ] * (
-                        B.BDict[ℓ*m] - s * Idℓ +
-                        B.BDict[ℓ*"0"] * inv(Matrix(s * Id0 - B.BDict["00"])) * B.BDict["0"*m]
+                    R.RDict[ℓ,:] * (
+                        B[(ℓ,m),(:,:)] - s * Idℓ +
+                        B[(ℓ,"0"),(:,:)] * inv(Matrix(s * Id0 - B[("0","0"),(:,:)])) * B[("0",m),(:,:)]
                     )
                 else
-                    R.RDict[ℓ] * (
-                        B.BDict[ℓ*m] +
-                        B.BDict[ℓ*"0"] * inv(Matrix(s * Id0 - B.BDict["00"])) * B.BDict["0"*m]
+                    R.RDict[ℓ,:] * (
+                        B[(ℓ,m),(:,:)] +
+                        B[(ℓ,"0"),(:,:)] * inv(Matrix(s * Id0 - B[("0","0"),(:,:)])) * B[("0",m),(:,:)]
                     )
                 end
             end # end function
         else
-            DDict[ℓ*m] = function (; s::Real = 0)
+            DDict[ℓ,m] = function (; s::Real = 0)
                 return if (ℓ == m)
-                    R.RDict[ℓ] * (B.BDict[ℓ*m] - s * Idℓ)
+                    R.RDict[ℓ,:] * (B[(ℓ,m),(:,:)] - s * Idℓ)
                 else
-                    R.RDict[ℓ] * B.BDict[ℓ*m]
+                    R.RDict[ℓ,:] * B[(ℓ,m),(:,:)]
+                end
+            end # end function
+        end # end if ...
+    end # end for ℓ ...
+    v && println("UPDATE: D(s) operator created with keys ", keys(DDict))
+    return (DDict = DDict)
+end
+# below to be deprecated
+function MakeD(
+    mesh::SFFM.Mesh,
+    B::Generator,
+    R::NamedTuple{(:R, :RDict)},
+    v::Bool = false,
+)
+    DDict = Dict{Tuple{String,String},Any}()
+    for ℓ in ["+", "-"], m in ["+", "-"]
+        nℓ = sum(mesh.Fil["p"*ℓ,:]) + sum(mesh.Fil[ℓ,:]) * NBases(mesh) + sum(mesh.Fil["q"*ℓ,:])
+        Idℓ = SparseArrays.sparse(LinearAlgebra.I,nℓ,nℓ)
+        if any(mesh.Fil["p0",:]) || any(mesh.Fil["0",:]) || any(mesh.Fil["q0",:]) # in("0", model.Signs)
+            n0 = sum(mesh.Fil["p0",:]) +
+                sum(mesh.Fil["0",:]) * NBases(mesh) +
+                sum(mesh.Fil["q0",:])
+            Id0 = SparseArrays.sparse(LinearAlgebra.I,n0,n0)
+            DDict[ℓ,m] = function (; s::Real = 0)
+                return if (ℓ == m)
+                    R.RDict[ℓ,:] * (
+                        B[(ℓ,m),(:,:)] - s * Idℓ +
+                        B[(ℓ,"0"),(:,:)] * inv(Matrix(s * Id0 - B[("0","0"),(:,:)])) * B[("0",m),(:,:)]
+                    )
+                else
+                    R.RDict[ℓ,:] * (
+                        B[(ℓ,m),(:,:)] +
+                        B[(ℓ,"0"),(:,:)] * inv(Matrix(s * Id0 - B[("0","0"),(:,:)])) * B[("0",m),(:,:)]
+                    )
+                end
+            end # end function
+        else
+            DDict[ℓ,m] = function (; s::Real = 0)
+                return if (ℓ == m)
+                    R.RDict[ℓ,:] * (B[(ℓ,m),(:,:)] - s * Idℓ)
+                else
+                    R.RDict[ℓ,:] * B[(ℓ,m),(:,:)]
                 end
             end # end function
         end # end if ...
@@ -171,7 +247,7 @@ Uses newtons method to solve the Ricatti equation
 - `Ψ(s)::Array{Float64,2}`: a matrix approxiamtion to ``Ψ(s)``.
 """
 function PsiFun(
-    D::Dict{String,Any}; 
+    D::Dict{Tuple{String,String},Any}; 
     s::Real = 0, 
     MaxIters::Int = 1000, 
     err::Float64 = 1e-8,
@@ -180,15 +256,15 @@ function PsiFun(
 
     exitflag = ""
 
-    EvalD = Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}}("+-" => D["+-"](s = s))
-    Dimensions = size(EvalD["+-"])
-    for ℓ in ["++", "--", "-+"]
+    EvalD = Dict{Tuple{String,String},SparseArrays.SparseMatrixCSC{Float64,Int64}}(("+","-") => D["+","-"](s = s))
+    Dimensions = size(EvalD["+","-"])
+    for ℓ in [("+","+"), ("-","-"), ("-","+")]
         EvalD[ℓ] = D[ℓ](s = s)
     end
     Psi = zeros(Float64, Dimensions)
-    A = EvalD["++"]
-    B = EvalD["--"]
-    C = EvalD["+-"]
+    A = EvalD["+","+"]
+    B = EvalD["-","-"]
+    C = EvalD["+","-"]
     # RA, QA = LinearAlgebra.schur(Matrix(A)) # uncomment for algorithm 1
     # RB, QB = LinearAlgebra.schur(Matrix(B)) # uncomment for algorithm 1
     OldPsi = Psi
@@ -216,9 +292,9 @@ function PsiFun(
         ## Algorithm 4 of Bean, O'Reilly, Taylor, 2008, 
         ## Algorithms for the Laplace–Stieltjes Transforms of First Return Times for Stochastic Fluid Flows, 
         ## Methodol Comput Appl Probab (2008) 10:381–408, DOI 10.1007/s11009-008-9077-3
-        A = EvalD["++"] + Psi * EvalD["-+"]
-        B = EvalD["--"] + EvalD["-+"] * Psi
-        C = EvalD["+-"] - Psi * EvalD["-+"] * Psi
+        A = EvalD["+","+"] + Psi * EvalD["-","+"]
+        B = EvalD["-","-"] + EvalD["-","+"] * Psi
+        C = EvalD["+","-"] - Psi * EvalD["-","+"] * Psi
         ## Algorithm 1 of the above citation
         # A, B dont change, need only comput schur decomp once 
         # C = EvalD["+-"] + Psi * EvalD["-+"] * Psi
@@ -252,9 +328,8 @@ Returns the DG approximation to the return probabilities ``ξ`` for the process
 NOTE: IMPLEMENTED FOR LAGRANGE BASIS ONLY
 
     MakeXi(
-        B::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
+        B::Generator,
         Ψ::Array;
-        probTransform::Bool = true,
         mesh=1,
         model=1,
     )
@@ -267,11 +342,10 @@ NOTE: IMPLEMENTED FOR LAGRANGE BASIS ONLY
 - `ξ::Array{Float64,2}`: a row-vector of first return probabilities
 """
 function MakeXi(
-    B::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
+    B::Generator,
     Ψ::Array{Float64,2};
     mesh::Mesh = DGMesh(),
     model::Model = Model(),
-    probTransform::Bool = true,
 )
     # BBullet = [B["--"] B["-0"]; B["0-"] B["00"]]
     # invB = inv(Matrix(Bbullet))
@@ -283,33 +357,15 @@ function MakeXi(
     # blocks of the inverse. Wikipedia tells us that these are
 
     # the next two lines are a fancy way to do an inverse of a block matrix
-    tempMat = inv(Matrix(B["00"]))
-    invBmm = inv(B["--"] - B["-0"]*tempMat*B["0-"])
-    invBm0 = -invBmm*B["-0"]*tempMat
+    tempMat = inv(Matrix(B[("0","0"),(:,:)]))
+    invBmm = inv(B[("-","-"),(:,:)] - B[("-","0"),(:,:)]*tempMat*B[("0","-"),(:,:)])
+    invBm0 = -invBmm*B[("-","0"),(:,:)]*tempMat
 
-    A = -(invBmm*B["-+"]*Ψ + invBm0*B["0+"]*Ψ + LinearAlgebra.I)
-    b = zeros(1,size(B["--"],1))
+    A = -(invBmm*B[("-","+"),(:,:)]*Ψ + invBm0*B[("0","+"),(:,:)]*Ψ + LinearAlgebra.I)
+    b = zeros(1,size(B[("-","-"),(:,:)],1))
 
-    if probTransform
-        A[:,1] .= 1.0 # normalisation conditions
-        b[1] = 1.0 # normalisation conditions
-    elseif !probTransform
-        idx₋ = [mesh.Fil["p-"]; mesh.Fil["-"]; mesh.Fil["q-"]]
-        if NBases(mesh)>1
-            w =
-                2.0 ./ (
-                    NBases(mesh) *
-                    (NBases(mesh) - 1) *
-                    Jacobi.legendre.(Jacobi.zglj(NBases(mesh), 0, 0), NBases(mesh) - 1) .^ 2
-                )
-        else
-            w = [2]
-        end
-        A[:,1] = [ones(sum(mesh.Fil["p-"]));
-        repeat(w, sum(mesh.Fil["-"])).*repeat(repeat(Δ(mesh)./2,NPhases(model),1)[mesh.Fil["-"]]', NBases(mesh), 1)[:];
-        ones(sum(mesh.Fil["q-"]))]# normalisation conditions
-        b[1] = 1.0 # normalisation conditions
-    end
+    A[:,1] .= 1.0 # normalisation conditions
+    b[1] = 1.0 # normalisation conditions
 
     ξ = b/A
 
@@ -322,14 +378,13 @@ distribution of a SFFM. See Ouput below
 NOTE: IMPLEMENTED FOR LAGRANGE BASIS ONLY
 
     MakeLimitDistMatrices(
-        B::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
-        D::Dict{String,Any},
-        R::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
+        B::Generator,
+        D::Dict{Tuple{String,String},Any},
+        R::Dict{Tuple{String,Union{Int,Colon}},SparseArrays.SparseMatrixCSC{Float64,Int64}},
         Ψ::Array{<:Real},
         ξ::Array{<:Real},
         mesh::Mesh,
         model::Model;
-        probTransform::Bool = true,
     )
 
 # Arguments
@@ -350,63 +405,45 @@ marginalX, p, K
 
 """
 function MakeLimitDistMatrices(
-    B::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
-    D::Dict{String,Any},
-    R::Dict{String,SparseArrays.SparseMatrixCSC{Float64,Int64}},
+    B::Generator,
+    D::Dict{Tuple{String,String},Any},
+    R::Dict{Tuple{String,Union{Int,Colon}},SparseArrays.SparseMatrixCSC{Float64,Int64}},
     Ψ::Array{<:Real},
     ξ::Array{<:Real},
-    mesh::SFFM.Mesh,
-    model::Model;
-    probTransform::Bool = true,
+    mesh::SFFM.Mesh;
 )
-    B00inv = inv(Matrix(B["00"]))
-    invBmm = inv(B["--"] - B["-0"]*B00inv*B["0-"])
-    invBm0 = -invBmm*B["-0"]*B00inv
+    B00inv = inv(Matrix(B[("0","0"),(:,:)]))
+    invBmm = inv(B[("-","-"),(:,:)] - B[("-","0"),(:,:)]*B00inv*B[("0","-"),(:,:)])
+    invBm0 = -invBmm*B[("-","0"),(:,:)]*B00inv
+
+    # B00inv = inv(Matrix(B["00"]))
+    # invBmm = inv(B["--"] - B["-0"]*B00inv*B["0-"])
+    # invBm0 = -invBmm*B["-0"]*B00inv
 
     αp = ξ * -[invBmm invBm0]
 
-    K = D["++"]() + Ψ * D["-+"]()
+    K = D["+","+"]() + Ψ * D["-","+"]()
 
-    n₊, n₀ = size(B["+0"])
-    n₋ = size(B["-+"],1)
+    n₊, n₀ = size(B[("+","0"),(:,:)])
+    n₋ = size(B[("-","+"),(:,:)],1)
 
-    BBulletPlus = [B["-+"]; B["0+"]]
+    BBulletPlus = [B[("-","+"),(:,:)]; B[("0","+"),(:,:)]]
 
-    αintegralPibullet = ((αp * BBulletPlus) / -K) * [R["+"] Ψ*R["-"]]
-    αintegralPi0 = -αintegralPibullet * [B["+0"]; B["-0"]] * B00inv
+    αintegralPibullet = ((αp * BBulletPlus) / -K) * [R["+",:] Ψ*R["-",:]]
+    αintegralPi0 = -αintegralPibullet * [B[("+","0"),(:,:)]; B[("-","0"),(:,:)]] * B00inv
 
-    if probTransform
-        α = sum(αintegralPibullet) + sum(αintegralPi0) + sum(αp)
-    elseif !probTransform
-        if NBases(mesh)>1
-            w = 2.0 ./ (
-                    NBases(mesh) *
-                    (NBases(mesh) - 1) *
-                    Jacobi.legendre.(Jacobi.zglj(NBases(mesh), 0, 0), NBases(mesh) - 1) .^ 2
-                )
-        else
-            w = [2]
-        end
-        idx₊ = mesh.Fil["+"]
-        idx₋ = mesh.Fil["-"]
-        idx₀ = mesh.Fil["0"]
-        a₋ = [ones(sum(mesh.Fil["p-"])); repeat(w, sum(mesh.Fil["-"])).*(repeat(repeat(Δ(mesh)./2,NPhases(model),1)[idx₋]', NBases(mesh), 1)[:]); ones(sum(mesh.Fil["q-"]))]
-        a₊ = [ones(sum(mesh.Fil["p+"])); repeat(w, sum(mesh.Fil["+"])).*(repeat(repeat(Δ(mesh)./2,NPhases(model),1)[idx₊]', NBases(mesh), 1)[:]); ones(sum(mesh.Fil["q+"]))]
-        a₀ = [ones(sum(mesh.Fil["p0"])); repeat(w, sum(mesh.Fil["0"])).*(repeat(repeat(Δ(mesh)./2,NPhases(model),1)[idx₀]', NBases(mesh), 1)[:]); ones(sum(mesh.Fil["q0"]))]
-
-        α = (αintegralPibullet*[a₊; a₋]) + (αintegralPi0*a₀) + (αp*[a₋;a₀])
-    end
+    α = sum(αintegralPibullet) + sum(αintegralPi0) + sum(αp)
 
     p = αp ./ α
     integralPibullet = αintegralPibullet ./ α
     integralPi0 = αintegralPi0 ./ α
 
     marginalX = zeros(Float64, n₊ + n₋ + n₀)
-    idx₊ = [mesh.Fil["p+"]; repeat(mesh.Fil["+"]', NBases(mesh), 1)[:]; mesh.Fil["q+"]]
+    idx₊ = [mesh.Fil["p+",:]; repeat(mesh.Fil["+",:]', NBases(mesh), 1)[:]; mesh.Fil["q+",:]]
     marginalX[idx₊] = integralPibullet[1:n₊]
-    idx₋ = [mesh.Fil["p-"]; repeat(mesh.Fil["-"]', NBases(mesh), 1)[:]; mesh.Fil["q-"]]
+    idx₋ = [mesh.Fil["p-",:]; repeat(mesh.Fil["-",:]', NBases(mesh), 1)[:]; mesh.Fil["q-",:]]
     marginalX[idx₋] = integralPibullet[(n₊+1):end] + p[1:n₋]
-    idx₀ = [mesh.Fil["p0"]; repeat(mesh.Fil["0"]', NBases(mesh), 1)[:]; mesh.Fil["q0"]]
+    idx₀ = [mesh.Fil["p0",:]; repeat(mesh.Fil["0",:]', NBases(mesh), 1)[:]; mesh.Fil["q0",:]]
     marginalX[idx₀] = integralPi0[:] + p[(n₋+1):end]
 
     return marginalX, p, K

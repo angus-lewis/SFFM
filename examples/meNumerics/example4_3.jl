@@ -1,5 +1,5 @@
 include("../../src/SFFM.jl")
-using LinearAlgebra, Plots
+using LinearAlgebra, Plots#, SFFM
 
 ## define the model(s)
 include("exampleModelDef.jl")
@@ -65,17 +65,17 @@ let
         Ψ = SFFM.PsiFun(All.D)
 
         # construct FRAP matrices
-        me = SFFM.MakeME(SFFM.CMEParams[nBases], mean = SFFM.Δ(mesh)[1])
-        B = SFFM.MakeBFRAP( approxModel, frapmesh, me)
+        # me = SFFM.MakeME(SFFM.CMEParams[nBases], mean = SFFM.Δ(mesh)[1])
+        B = SFFM.MakeFullGenerator( approxModel, frapmesh)
         D = SFFM.MakeD( mesh, B, All.R)
         Ψme = SFFM.PsiFun( D)
 
         # the distribution of X when Y first returns to 0
-        ξ = SFFM.MakeXi( All.B.BDict, Ψ)
-        ξme = SFFM.MakeXi( B.BDict, Ψme)
+        ξ = SFFM.MakeXi( All.B, Ψ)
+        ξme = SFFM.MakeXi( B, Ψme)
 
         marginalX, p, K = SFFM.MakeLimitDistMatrices(
-            All.B.BDict,
+            All.B,
             All.D,
             All.R.RDict,
             Ψ,
@@ -84,7 +84,7 @@ let
             approxModel,
         )
         marginalXme, pme, Kme = SFFM.MakeLimitDistMatrices(
-            B.BDict,
+            B,
             D,
             All.R.RDict,
             Ψme,
