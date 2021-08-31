@@ -3,12 +3,12 @@ import Base: *, size, show, getindex, +, -, setindex!
 import Jacobi, LinearAlgebra, SparseArrays
 import Plots, StatsBase, KernelDensity
 
-abstract type AbstractModel end
+abstract type Model end
 
 """
 Construct a SFFM model object.
 
-    Model(
+    FluidFluidQueue(
         T::Array{Float64,2},
         C::Array{Float64,1},
         r::NamedTuple{(:r, :R)};
@@ -38,13 +38,39 @@ Construct a SFFM model object.
     - `Bounds`: as input
 )
 """
-struct Model <: AbstractModel
-    T::Array{<:Real}
+struct PhaseSet 
     C::Array{<:Real,1}
+end
+get_rates(S::PhaseSet) = S.C
+get_rates(S::PhaseSet,i::Int) = S.C[i]
+n_phases(S::PhaseSet) = length(S.C)
+phases(S::PhaseSet) = 1:n_phases(S::PhaseSet)
+N₋(S::PhaseSet) = sum(S.C.<=0)
+N₊(S::PhaseSet) = sum(S.C.>=0)
+
+struct FluidQueue <: Model
+    T::Array{<:Real,2}
+    S::PhaseSet
+    bounds::Array{<:Real,1}
+end 
+get_rates(m::FluidQueue) = get_rates(m.S)
+get_rates(m::FluidQueue,i::Int) = get_rates(m.S,i)
+n_phases(m::FluidQueue) = n_phases(m.S)
+phases(m::FluidQueue) = 1:n_phases(m.S)
+
+struct FluidFluidQueue <: Model
+    T::Array{<:Real,2}
+    S::PhaseSet
     r::NamedTuple{(:r, :R, :a)}
     Bounds::Array{<:Real}
 end 
-function Model(
+get_rates(m::FluidFluidQueue) = get_rates(m.S)
+get_rates(m::FluidFluidQueue,i::Int) = get_rates(m.S,i)
+n_phases(m::FluidFluidQueue) = n_phases(m.S)
+phases(m::FluidFluidQueue) = 1:n_phases(m.S)
+
+
+function FluidFluidQueue(
     T::Array{<:Real},
     C::Array{<:Real,1},
     r::NamedTuple{(:r, :R)};
@@ -54,22 +80,33 @@ function Model(
     a(x) = abs.(r.r(x))
     r = (r = r.r, R = r.R, a = a)
 
-    v && println("UPDATE: Model object created with fields ", fieldnames(SFFM.Model))
-    return Model(
+    v && println("UPDATE: FluidFluidQueue object created with fields ", fieldnames(SFFM.Model))
+    return FluidFluidQueue(
         T,
-        C,
+        PhaseSet(C),
         r,
         Bounds,
     )
 end
-Model() = Model([0],[0],(r=0, R=0, a=0),[0])
+function FluidFluidQueue(
+    T::Array{<:Real},
+    S::PhaseSet,
+    r::NamedTuple{(:r, :R)};
+    Bounds::Array{<:Real,2} = [-Inf Inf; -Inf Inf],
+    v::Bool = false,
+)
+    a(x) = abs.(r.r(x))
+    r = (r = r.r, R = r.R, a = a)
 
-struct AugmentedModel <: AbstractModel
-    T::Array{<:Real}
-    C::Array{<:Real,1}
-    r::NamedTuple{(:r, :R, :a)}
-    Bounds::Array{<:Real}
+    v && println("UPDATE: FluidFluidQueue object created with fields ", fieldnames(SFFM.Model))
+    return FluidFluidQueue(
+        T,
+        S,
+        r,
+        Bounds,
+    )
 end
+FluidFluidQueue() = FluidFluidQueue([0],PhaseSet([0]),(r=0, R=0, a=0),[0])
 
 function _duplicate_zero_states(T::Array{<:Real,2},C::Array{<:Real,1}, r::NamedTuple{(:r, :R)})
     n_0 = sum(C.==0)
@@ -122,64 +159,65 @@ function _duplicate_zero_states(T::Array{<:Real,2},C::Array{<:Real,1}, r::NamedT
     return T_aug, C_aug, r_aug
 end
 
-function AugmentedModel(model::Model)
+function augment_model(model::FluidFluidQueue)
     if (any(model.C.==0))
-        T_aug, C_aug = _duplicate_zero_states(model.T,model.C)
+        T_aug, C_aug, r_aug = _duplicate_zero_states(model.T,model.C,model.r)
+        return FluidFluidQueue(T_aug,C_aug,r_aug,model.Bounds)
     else # no zero states, no augmentation needed
        return model 
     end
 end
 
-"""
+# """
 
-    NPhases(model::Model)
+#     NPhases(model::Model)
 
-the number of states in the state space
-"""
-NPhases(model::Model) = length(model.C)
+# the number of states in the state space
+# """
+# NPhases(model::Model) = length(model.C)
 
-phases(model::Model) = 1:NPhases(model)
+# phases(model::Model) = 1:NPhases(model)
 
-"""
+# """
 
-    modelDicts(model::Model) 
+#     modelDicts(model::Model) 
 
-input: a Model object
+# input: a Model object
 
-outputs:
-     - SDict: a dictionary with keys `"+","-","0","bullet"`
-    and corresponding values `findall(model.C .> 0)`, `findall(model.C .< 0)`,
-    `findall(model.C .== 0)`, `findall(model.C .!= 0)`, respectively.
+# outputs:
+#      - SDict: a dictionary with keys `"+","-","0","bullet"`
+#     and corresponding values `findall(model.C .> 0)`, `findall(model.C .< 0)`,
+#     `findall(model.C .== 0)`, `findall(model.C .!= 0)`, respectively.
 
-     - TDict: a dictionary of submatrices of `T` with keys
-    `"ℓm"` with ``ℓ,m∈{+,-,0,bullet}`` and corresponding values
-    `model.T[S[ℓ],S[m]]`.
-"""
-function modelDicts(model::Model) 
-    nPhases = NPhases(model)
-    SDict = Dict{String,Array}("S" => 1:nPhases)
-    SDict["+"] = findall(model.C .> 0)
-    SDict["-"] = findall(model.C .< 0)
-    SDict["0"] = findall(model.C .== 0)
-    SDict["bullet"] = findall(model.C .!= 0)
+#      - TDict: a dictionary of submatrices of `T` with keys
+#     `"ℓm"` with ``ℓ,m∈{+,-,0,bullet}`` and corresponding values
+#     `model.T[S[ℓ],S[m]]`.
+# """
+# function modelDicts(model::Model) 
+#     nPhases = NPhases(model)
+#     SDict = Dict{String,Array}("S" => 1:nPhases)
+#     SDict["+"] = findall(model.C .> 0)
+#     SDict["-"] = findall(model.C .< 0)
+#     SDict["0"] = findall(model.C .== 0)
+#     SDict["bullet"] = findall(model.C .!= 0)
 
-    TDict = Dict{String,Array}("T" => model.T)
-    for ℓ in ["+" "-" "0" "bullet"], m in ["+" "-" "0" "bullet"]
-        TDict[ℓ*m] = model.T[SDict[ℓ], SDict[m]]
-    end
+#     TDict = Dict{String,Array}("T" => model.T)
+#     for ℓ in ["+" "-" "0" "bullet"], m in ["+" "-" "0" "bullet"]
+#         TDict[ℓ*m] = model.T[SDict[ℓ], SDict[m]]
+#     end
 
-    return SDict, TDict
-end
+#     return SDict, TDict
+# end
 
-"""
+# """
 
-    TDict(model::Model) 
+#     TDict(model::Model) 
 
 
-"""
-function TDict(model::Model) 
+# """
+# function TDict(model::Model) 
     
-end
+# end
 
 
 """
@@ -190,29 +228,32 @@ Abstract type representing a mesh for a numerical scheme.
 """
 abstract type Mesh end 
 
-include("METools.jl")
-
+""" First index of the generator to index the generator with ("+","-") etc, elements are strings """
 const PlusMinusIndex = Union{String,Tuple{String,String}}
 
+""" Second index of the generator to index the generator with (i,j) etc, elements are Int or :"""
 const PhaseIndex = Union{Tuple{Union{Int64,Colon},Union{Int64,Colon}},Int64,Colon}
 
+""" Index of the generator e.g. ("+","-"),(i,j) etc, elements are (String,String),(Int/Colon,Int/Colon) """
 const GeneratorIndex = Union{PlusMinusIndex,Tuple{PlusMinusIndex,PhaseIndex}}
 
+""" The dictionary Fil which indicate which cells correspond to +, -, or 0 fluid-fluid rates """
 const IndexDict = Dict{Tuple{String,Union{Int64,Colon}},BitArray{1}}
 
+""" The dictionary which returns various partitions of the generator i.e. ("+","-"),(i,j) """
 const PartitionedGenerator = Dict{GeneratorIndex,SparseArrays.SparseMatrixCSC{Float64,Int64}}
 
 """
 
     MakeFil(
-        model::SFFM.Model,
+        model::FluidFluidQueue,
         Nodes::Array{<:Real,1},
         )
 
 Construct dict with entries indexing which cells belong to Fᵢᵐ. 
 """
 function MakeFil(
-    model::SFFM.Model,
+    model::FluidFluidQueue,
     Nodes::Array{<:Real,1},
     )
     meshNIntervals = length(Nodes) - 1
@@ -275,11 +316,12 @@ function MakeDict(
     B::Union{Array{<:Real,2},SparseArrays.SparseMatrixCSC{<:Real,Int64}},
     model::Model, 
     mesh::Mesh,
+    Fil::IndexDict,
     )
 
     ## Make a Dictionary so that the blocks of B are easy to access
-    N₋ = sum(model.C.<=0)
-    N₊ = sum(model.C.<=0)
+    # N₋ = sum(model.C.<=0)
+    # N₊ = sum(model.C.>=0)
 
     BDict = PartitionedGenerator()
 
@@ -287,29 +329,29 @@ function MakeDict(
     qpositions = cumsum(model.C .>= 0)
     for ℓ in ["+", "-", "0"], m in ["+", "-", "0"]
         for i = 1:NPhases(model), j = 1:NPhases(model)
-            FilBases = repeat(mesh.Fil[(ℓ,i)]', NBases(mesh), 1)[:]
-            pitemp = falses(N₋)
-            qitemp = falses(N₊)
-            pjtemp = falses(N₋)
-            qjtemp = falses(N₊)
+            FilBases = repeat(Fil[(ℓ,i)]', NBases(mesh), 1)[:]
+            pitemp = falses(N₋(model.S))
+            qitemp = falses(N₊(model.S))
+            pjtemp = falses(N₋(model.S))
+            qjtemp = falses(N₊(model.S))
             if model.C[i] <= 0
                 if length(pitemp) > 0 
-                    pitemp[ppositions[i]] = mesh.Fil[("p"*ℓ,i)][1]
+                    pitemp[ppositions[i]] = Fil[("p"*ℓ,i)][1]
                 end
             end
             if model.C[j] <= 0
                 if length(pjtemp) > 0
-                    pjtemp[ppositions[j]] = mesh.Fil[("p"*m,j)][1]
+                    pjtemp[ppositions[j]] = Fil[("p"*m,j)][1]
                 end
             end
             if model.C[i] >= 0
                 if length(qitemp) > 0
-                    qitemp[qpositions[i]] = mesh.Fil[("q"*ℓ,i)][1]
+                    qitemp[qpositions[i]] = Fil[("q"*ℓ,i)][1]
                 end
             end
             if model.C[j] >= 0
                 if length(qjtemp) > 0
-                    qjtemp[qpositions[j]] = mesh.Fil[("q"*m,j)][1]
+                    qjtemp[qpositions[j]] = Fil[("q"*m,j)][1]
                 end
             end
             i_idx = [
@@ -319,7 +361,7 @@ function MakeDict(
                 falses(NPhases(model) * TotalNBases(mesh) - i * TotalNBases(mesh))
                 qitemp
             ]
-            FjmBases = repeat(mesh.Fil[(m, j)]', NBases(mesh), 1)[:]
+            FjmBases = repeat(Fil[(m, j)]', NBases(mesh), 1)[:]
             j_idx = [
                 pjtemp
                 falses((j - 1) * TotalNBases(mesh))
@@ -329,12 +371,12 @@ function MakeDict(
             ]
             BDict[((ℓ, m),(i, j))] = B[i_idx, j_idx]
         end
-        # below we need to use repeat(mesh.Fil[ℓ]', NBases(mesh), 1)[:] to
-        # expand the index mesh.Fil[ℓ] from cells to all basis function
+        # below we need to use repeat(Fil[ℓ]', NBases(mesh), 1)[:] to
+        # expand the index Fil[ℓ] from cells to all basis function
         FlBases =
-            [mesh.Fil["p"*ℓ,:]; repeat(mesh.Fil[ℓ,:]', NBases(mesh), 1)[:]; mesh.Fil["q"*ℓ,:]]
+            [Fil["p"*ℓ,:]; repeat(Fil[ℓ,:]', NBases(mesh), 1)[:]; Fil["q"*ℓ,:]]
         FmBases =
-            [mesh.Fil["p"*m,:]; repeat(mesh.Fil[m,:]', NBases(mesh), 1)[:]; mesh.Fil["q"*m,:]]
+            [Fil["p"*m,:]; repeat(Fil[m,:]', NBases(mesh), 1)[:]; Fil["q"*m,:]]
         BDict[((ℓ,m),(:,:))] = B[FlBases, FmBases]
     end
     return BDict
@@ -349,7 +391,7 @@ struct LazyGenerator  <: Generator
     blocks::Tuple{Array{Float64,2},Array{Float64,2},Array{Float64,2},Array{Float64,2}}
     boundary_flux::NamedTuple{(:upper,:lower),Tuple{NamedTuple{(:in,:out),Tuple{Vector{Float64},Vector{Float64}}},NamedTuple{(:in,:out),Tuple{Vector{Float64},Vector{Float64}}}}}
     T::Array{<:Real,2}
-    C::Array{<:Real,1}
+    C::PhaseSet
     Δ::Array{<:Real,1}
     D::Union{Array{Float64,2},LinearAlgebra.Diagonal{Bool,Array{Bool,1}}}
     pmidx::Union{Array{Bool,2},BitArray{2}}
@@ -358,7 +400,7 @@ struct LazyGenerator  <: Generator
         blocks::Tuple{Array{Float64,2},Array{Float64,2},Array{Float64,2},Array{Float64,2}},
         boundary_flux::NamedTuple{(:upper,:lower),Tuple{NamedTuple{(:in,:out),Tuple{Vector{Float64},Vector{Float64}}},NamedTuple{(:in,:out),Tuple{Vector{Float64},Vector{Float64}}}}},
         T::Array{<:Real,2},
-        C::Array{<:Real,1},
+        C::PhaseSet,
         Δ::Array{<:Real,1},
         D::Union{Array{Float64,2},LinearAlgebra.Diagonal{Bool,Array{Bool,1}}},
         pmidx::Union{Array{Bool,2},BitArray{2}},
@@ -383,7 +425,7 @@ function LazyGenerator(
     blocks::Tuple{Array{Float64,2},Array{Float64,2},Array{Float64,2}},
     boundary_flux::NamedTuple{(:in, :out),Tuple{Array{Float64,1},Array{Float64,1}}},
     T::Array{<:Real,2},
-    C::Array{<:Real,1},
+    C::PhaseSet,
     Δ::Array{<:Real,1},
     D::Union{Array{Float64,2},LinearAlgebra.Diagonal{Bool,Array{Bool,1}}},
     pmidx::Union{Array{Bool,2},BitArray{2}},
@@ -396,6 +438,29 @@ function LazyGenerator(
         boundary_flux,
         T,
         C,
+        Δ,
+        D,
+        pmidx,
+        Fil,
+    )
+end
+function LazyGenerator(
+    blocks::Tuple{Array{Float64,2},Array{Float64,2},Array{Float64,2}},
+    boundary_flux::NamedTuple{(:in, :out),Tuple{Array{Float64,1},Array{Float64,1}}},
+    T::Array{<:Real,2},
+    C::Array{<:Real,1},
+    Δ::Array{<:Real,1},
+    D::Union{Array{Float64,2},LinearAlgebra.Diagonal{Bool,Array{Bool,1}}},
+    pmidx::Union{Array{Bool,2},BitArray{2}},
+    Fil::IndexDict,
+)
+    blocks = (blocks[1],blocks[2],blocks[2],blocks[3])
+    boundary_flux = (upper = boundary_flux, lower = boundary_flux)
+    return LazyGenerator(
+        blocks,
+        boundary_flux,
+        T,
+        PhaseSet(C),
         Δ,
         D,
         pmidx,
@@ -417,8 +482,8 @@ function *(u::AbstractArray{<:Real,2}, B::LazyGenerator)
     sz_B_1 = size(B,1)
     sz_B_2 = size(B,2)
     !(sz_u_2 == sz_B_1) && throw(DomainError("Dimension mismatch, u*B, length(u) must be size(B,1)"))
-    N₋ = sum(B.C.<=0)
-    N₊ = sum(B.C.>=0)
+    # N₋ = sum(B.C.<=0)
+    # N₊ = sum(B.C.>=0)
     if output_type <: SparseArrays.SparseMatrixCSC
         v = SparseArrays.spzeros(sz_u_1,sz_B_2)
     else 
@@ -430,37 +495,37 @@ function *(u::AbstractArray{<:Real,2}, B::LazyGenerator)
 
     # boundaries
     # at lower
-    v[:,1:N₋] += u[:,1:N₋]*B.T[B.C.<=0,B.C.<=0]
+    v[:,1:N₋(B.C)] += u[:,1:N₋(B.C)]*B.T[B.C.<=0,B.C.<=0]
     # in to lower 
-    idxdown = N₋ .+ ((1:size_blocks).+size_blocks*size_delta*(findall(B.C .<= 0) .- 1)')[:]
-    v[:,1:N₋] += u[:,idxdown]*LinearAlgebra.kron(
+    idxdown = N₋(B.C) .+ ((1:size_blocks).+size_blocks*size_delta*(findall(B.C .<= 0) .- 1)')[:]
+    v[:,1:N₋(B.C)] += u[:,idxdown]*LinearAlgebra.kron(
         LinearAlgebra.diagm(0 => abs.(B.C[B.C.<=0])),
         B.boundary_flux.lower.in/B.Δ[1],
     )
     # out of lower 
-    idxup = N₋ .+ (size_blocks*size_delta*(findall(B.C .> 0).-1)' .+ (1:size_blocks))[:]
-    v[:,idxup] += u[:,1:N₋]*kron(B.T[B.C.<=0,B.C.>0],B.boundary_flux.lower.out')
+    idxup = N₋(B.C) .+ (size_blocks*size_delta*(findall(B.C .> 0).-1)' .+ (1:size_blocks))[:]
+    v[:,idxup] += u[:,1:N₋(B.C)]*kron(B.T[B.C.<=0,B.C.>0],B.boundary_flux.lower.out')
 
     # at upper
-    v[:,end-N₊+1:end] += u[:,end-N₊+1:end]*B.T[B.C.>=0,B.C.>=0]
+    v[:,end-N₊(B.C)+1:end] += u[:,end-N₊+1:end]*B.T[B.C.>=0,B.C.>=0]
     # in to upper
-    idxup = N₋ .+ ((1:size_blocks).+size_blocks*size_delta*(findall(B.C .> 0) .- 1)')[:] .+
+    idxup = N₋(B.C) .+ ((1:size_blocks).+size_blocks*size_delta*(findall(B.C .> 0) .- 1)')[:] .+
         (size_blocks*size_delta - size_blocks)
-    v[:,end-N₊+1:end] += u[:,idxup]*LinearAlgebra.kron(
+    v[:,end-N₊(B.C)+1:end] += u[:,idxup]*LinearAlgebra.kron(
         LinearAlgebra.diagm(0 => B.C[B.C.>0]),
         B.boundary_flux.upper.in/B.Δ[end],
     )
     # out of upper 
-    idxdown = N₋ .+ (size_blocks*size_delta*(findall(B.C .< 0).-1)' .+ (1:size_blocks))[:] .+
+    idxdown = N₋(B.C) .+ (size_blocks*size_delta*(findall(B.C .< 0).-1)' .+ (1:size_blocks))[:] .+
         (size_blocks*size_delta - size_blocks)
-    v[:,idxdown] += u[:,end-N₊+1:end]*kron(B.T[B.C.>=0,B.C.<0],B.boundary_flux.upper.out')
+    v[:,idxdown] += u[:,end-N₊(B.C)+1:end]*kron(B.T[B.C.>=0,B.C.<0],B.boundary_flux.upper.out')
 
     # innards
     for i in 1:size_T, j in 1:size_T
         if i == j 
             # mult on diagonal
             for k in 1:size_delta
-                k_idx = (i-1)*size_blocks*size_delta .+ (k-1)*size_blocks .+ (1:size_blocks) .+ N₋
+                k_idx = (i-1)*size_blocks*size_delta .+ (k-1)*size_blocks .+ (1:size_blocks) .+ N₋(B.C)
                 for ℓ in 1:size_delta
                     if (k == ℓ+1) && (B.C[i] > 0)
                         ℓ_idx = k_idx .- size_blocks 
@@ -478,15 +543,15 @@ function *(u::AbstractArray{<:Real,2}, B::LazyGenerator)
             for k in 1:size_delta
                 for ℓ in 1:size_delta
                     if k == ℓ
-                        i_idx = (i-1)*size_blocks*size_delta .+ (k-1)*size_blocks .+ (1:size_blocks) .+ N₋
-                        j_idx = (j-1)*size_blocks*size_delta .+ (k-1)*size_blocks .+ (1:size_blocks) .+ N₋
+                        i_idx = (i-1)*size_blocks*size_delta .+ (k-1)*size_blocks .+ (1:size_blocks) .+ N₋(B.C)
+                        j_idx = (j-1)*size_blocks*size_delta .+ (k-1)*size_blocks .+ (1:size_blocks) .+ N₋(B.C)
                         v[:,j_idx] += (u[:,i_idx]*(B.T[i,j]*B.D))
                     end
                 end
             end
         else
-            i_idx = (i-1)*size_blocks*size_delta .+ (1:size_blocks*size_delta) .+ N₋
-            j_idx = (j-1)*size_blocks*size_delta .+ (1:size_blocks*size_delta) .+ N₋
+            i_idx = (i-1)*size_blocks*size_delta .+ (1:size_blocks*size_delta) .+ N₋(B.C)
+            j_idx = (j-1)*size_blocks*size_delta .+ (1:size_blocks*size_delta) .+ N₋(B.C)
             v[:,j_idx] += (u[:,i_idx]*B.T[i,j])
         end
     end
@@ -933,6 +998,7 @@ function MakeQBDidx(model::Model,mesh::Mesh)
     return QBDidx
 end
 
+include("METools.jl") 
 include("polynomials.jl")
 include("DGBase.jl")
 include("Operators.jl")

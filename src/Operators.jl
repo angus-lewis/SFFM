@@ -7,7 +7,7 @@ function MakeRDict(
 
     ## Make a Dictionary so that the blocks of B are easy to access
     N₋ = sum(model.C.<=0)
-    N₊ = sum(model.C.<=0)
+    N₊ = sum(model.C.>=0)
 
     RDict = Dict{Tuple{String,Union{Int,Colon}},SparseArrays.SparseMatrixCSC{Float64,Int64}}()
 
